@@ -172,7 +172,20 @@ const CHIP = `(host) => {
     audioShown: !!(t.audioEl && !t.audioEl.hidden && t.audioEl.isConnected), chipW: t.chipEl.getBoundingClientRect().width,
     from: t.favFrom || '', reason: t.favReason || '' };
 }`;
-const chip = (host) => ev('(' + CHIP + ')(' + JSON.stringify(host) + ')');
+// A chip is read as painted: the CSS transitions running on its logo slot end first. Under
+// prefers-reduced-motion (Windows with its animations off, as on the hosted CI runner) tokens.css cuts
+// every transition to 0.01 ms, and since transition-property defaults to `all`, a data-state flip to
+// "icon" also starts a 0.01 ms visibility transition on the <img>: until the next frame getComputedStyle
+// still reads `hidden`. Bounded at 3 s; on a timeout the read is what is there.
+const chip = (host) => ev(`(async () => {
+  const t = tabs.find((x) => x.kind === 'page' && String(x.url).indexOf('//' + ${JSON.stringify(host)} + '.localhost') !== -1);
+  if (t && t.favEl) {
+    await Promise.race([
+      Promise.all(t.favEl.getAnimations({ subtree: true }).filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => null))),
+      new Promise((r) => setTimeout(r, 3000))]);
+  }
+  return (${CHIP})(${JSON.stringify(host)});
+})()`);
 
 async function shot(name) {
   try {
