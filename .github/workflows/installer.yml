@@ -9,6 +9,14 @@
 #   quartz-installer: build OK: Quartz-Setup.exe <MB> MB, Quartz <version>, Electron <castlabs version>
 #   install-test: N passed, M failed                       (tools/installer/install-test.js)
 #   quartz-installer: signed OK: Quartz-Setup.exe <MB> MB, signer <subject>, timestamped   (signing only)
+#   quartz-installer: draft check OK: Quartz-Setup.exe sha256 <hex>, <signer, or not code-signed>   (draft only)
+#
+# Two jobs, so that no token that can write to the repository exists while SignPath holds one:
+#   installer  builds, signs (when on), tests, and uploads the Quartz-Setup artifact. Read-only token.
+#              It records the final file's sha256 and whether it was signed as job outputs.
+#   draft      runs only with the draft input and only after installer succeeded. The one job with
+#              contents: write. It never talks to SignPath and gets none of its secrets: it downloads
+#              the Quartz-Setup artifact, checks it against installer's outputs, and makes the draft.
 #
 # CODE SIGNING (SignPath Foundation), off until the repository variable SIGNPATH_ORGANIZATION_ID is
 # set, together with the secret SIGNPATH_API_TOKEN and the variables SIGNPATH_PROJECT_SLUG and
@@ -16,13 +24,15 @@
 # default configuration). Then, right after the build: the unsigned Quartz-Setup.exe is uploaded as a
 # bare-file artifact, SignPath's action submits it and waits (up to an hour) for an approver to
 # approve the request in SignPath, and the signed file it returns must pass Get-AuthenticodeSignature
-# with Status Valid, or the job fails. Only then does it replace dist/Quartz-Setup.exe and its
-# .sha256, so everything after (the Quartz-Setup artifact, the install test, the draft) uses the
-# signed file, and the draft's notes say it is signed and link the code signing policy. The installer
-# carries no updater metadata (publish: null: no latest.yml; nothing reads a blockmap), and installed
-# copies only link to the release's Quartz-Setup.exe, so nothing else holds a hash of it. Without the
-# variable none of those steps run and the job does exactly what it did before. SignPath needs every
-# job before the signing request on GitHub-hosted runners: this one is.
+# with Status Valid and a timestamp, or the job fails. Only then does it replace dist/Quartz-Setup.exe
+# and its .sha256, so everything after (the Quartz-Setup artifact, the install test, the draft) uses
+# the signed file, and the draft's notes say it is signed and link the code signing policy. The draft
+# job checks the signature again before it uploads anything. The installer carries no updater
+# metadata (publish: null: no latest.yml; nothing reads a blockmap), and installed copies only link to
+# the release's Quartz-Setup.exe, so nothing else holds a hash of it. Without the variable none of
+# the signing steps run, and the installer and the draft come out exactly as before. SignPath needs
+# every job before the signing request on GitHub-hosted runners: the signing request is in the first
+# job, which is.
 #
 # Every action is pinned to a full commit SHA; the comment names the release it was taken from.
 name: installer
@@ -35,8 +45,9 @@ on:
         type: boolean
         default: true
 
-permissions:
-  contents: read
+# No permissions by default: each job asks for exactly what it uses, and a job added later without
+# its own block gets none of the token's scopes (it fails loudly instead of quietly inheriting access).
+permissions: {}
 
 concurrency:
   group: installer-${{ github.ref }}
@@ -48,14 +59,18 @@ jobs:
     runs-on: windows-latest
     # 45 minutes, plus the hour the signing step may wait for an approver when signing is on.
     timeout-minutes: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && 105 || 45 }}
-    # contents: write only for the last step (the draft release); the token is passed to that step
-    # alone, and the checkout does not keep it in .git/config. The one other step given it is
-    # SignPath's (signing only): the action sends it to SignPath, which reads this run's details and
-    # downloads the unsigned artifact with it (origin verification), hence actions: read. That token
-    # can also write contents until this job ends; it expires with the job.
+    # A read-only token. The checkout and setup-node use it by default to fetch (the checkout does
+    # not keep it in .git/config); no run step gets it. actions: read is for SignPath (signing
+    # only): its action sends this job's token to SignPath, which reads this run's job details and
+    # downloads the unsigned artifact with it (origin verification). SignPath's GitHub docs say the
+    # token "Requires the action:read and content:read permissions". It can read, never write, and
+    # it expires when this job ends. The draft release is the draft job's, below.
     permissions:
-      contents: write
+      contents: read
       actions: read
+    outputs:
+      sha256: ${{ steps.hash.outputs.sha256 }}
+      signed: ${{ steps.use_signed.outcome == 'success' && '1' || '' }}
     defaults:
       run:
         shell: bash
@@ -130,8 +145,9 @@ jobs:
           skip-decompress: true
 
       # Checked on the runner before anything uses it: a signature Windows accepts (Status Valid:
-      # the hash matches and the chain is trusted). A test-signing policy's certificate is not
-      # trusted here, so it fails this step by design.
+      # the hash matches and the chain is trusted), with a timestamp, so it stays valid after the
+      # signing certificate expires. A test-signing policy's certificate is not trusted here, so it
+      # fails this step by design.
       - name: Verify the signature
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
         shell: pwsh
@@ -146,7 +162,8 @@ jobs:
             $subject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { 'none' }
             $stamp = if ($s.TimeStamperCertificate) { 'timestamped' } else { 'NOT timestamped' }
             $mb = '{0:N1}' -f ((Get-Item -LiteralPath $f).Length / 1MB)
-            if ($s.Status -eq 'Valid') { $line = "quartz-installer: signed OK: Quartz-Setup.exe $mb MB, signer $subject, $stamp" }
+            if ($s.Status -eq 'Valid' -and $s.TimeStamperCertificate) { $line = "quartz-installer: signed OK: Quartz-Setup.exe $mb MB, signer $subject, $stamp" }
+            elseif ($s.Status -eq 'Valid') { $line = "quartz-installer: signing FAILED: signer $subject, but $stamp" }
             else { $line = "quartz-installer: signing FAILED: Get-AuthenticodeSignature says $($s.Status) ($($s.StatusMessage)), signer $subject" }
           }
           $fence = '```'
@@ -156,8 +173,10 @@ jobs:
 
       # The signed file replaces the unsigned one, and its .sha256 is computed again (same command
       # as the build step). A blockmap, if electron-builder wrote one, would describe the unsigned
-      # bytes: nothing uploads or reads it, and it is removed so nothing can.
+      # bytes: nothing uploads or reads it, and it is removed so nothing can. The job output signed
+      # is '1' only when this step ran and succeeded.
       - name: Use the signed installer
+        id: use_signed
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
         run: |
           cp "$RUNNER_TEMP/signed/Quartz-Setup.exe" dist/Quartz-Setup.exe
@@ -165,6 +184,15 @@ jobs:
           node -e "const c=require('crypto').createHash('sha256');c.update(require('fs').readFileSync(process.argv[1]));console.log(c.digest('hex')+'  Quartz-Setup.exe')" dist/Quartz-Setup.exe > dist/Quartz-Setup.exe.sha256
           echo "sha256 $(cat dist/Quartz-Setup.exe.sha256) (signed)"
       # ---- end of code signing ----
+
+      # The final file's hash (signed or not), as the job output the draft job checks its download
+      # against. Read from the .sha256 that goes into the artifact with it, so the two cannot differ.
+      - name: Record the sha256 for the draft job
+        id: hash
+        run: |
+          h=$(cut -d ' ' -f 1 dist/Quartz-Setup.exe.sha256)
+          if ! echo "$h" | grep -qE '^[0-9a-f]{64}$'; then echo "::error::no sha256 in dist/Quartz-Setup.exe.sha256 (got '$h')"; exit 1; fi
+          echo "sha256=$h" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -209,14 +237,83 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # The draft release, after the installer job succeeded (build, signing when on, install test). Its
+  # token is the only one that can write, and it exists only after the installer job's token has
+  # expired; SignPath never sees it. The checkout and setup-node use it by default to fetch (the
+  # checkout does not keep it), and the release step is the only run step given it. It runs on the
+  # same runner image and shell, checks out the same commit the same way and uses the same Node, so
+  # the version and the notes come out byte for byte as when this was the installer job's last step.
+  draft:
+    needs: installer
+    if: ${{ inputs.draft }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Nothing is installed here, so nothing to cache.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # The artifact the installer job uploaded after signing (dist/Quartz-Setup.exe and its .sha256),
+      # back into dist/ where the release step expects it. v8 fails on a digest mismatch by default.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Quartz-Setup
+          path: dist
+
+      # Checked again by a job that never held SignPath's token: the same bytes the installer job
+      # hashed (its sha256 output, and the .sha256 beside the file), and, when it says it signed, a
+      # signature Windows accepts (Status Valid) with a timestamp.
+      - name: Check the installer
+        shell: pwsh
+        env:
+          SHA256: ${{ needs.installer.outputs.sha256 }}
+          SIGNED: ${{ needs.installer.outputs.signed }}
+        run: |
+          $f = 'dist/Quartz-Setup.exe'
+          $want = "$env:SHA256"
+          $fail = $null
+          if ($want -notmatch '^[0-9a-f]{64}$') { $fail = "the installer job passed no sha256 (got '$want')" }
+          elseif (-not (Test-Path -LiteralPath $f)) { $fail = 'no Quartz-Setup.exe in the Quartz-Setup artifact' }
+          else {
+            $got = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLowerInvariant()
+            $listed = "$(Get-Content -LiteralPath 'dist/Quartz-Setup.exe.sha256' -Raw -ErrorAction SilentlyContinue)".Trim()
+            if ($got -ne $want) { $fail = "its sha256 is $got, but the installer job passed $want" }
+            elseif ($listed -ne "$want  Quartz-Setup.exe") { $fail = "Quartz-Setup.exe.sha256 says '$listed', not $want" }
+            elseif ($env:SIGNED -eq '1') {
+              $s = Get-AuthenticodeSignature -LiteralPath $f
+              $subject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { 'none' }
+              if ($s.Status -ne 'Valid') { $fail = "Get-AuthenticodeSignature says $($s.Status) ($($s.StatusMessage)), signer $subject" }
+              elseif (-not $s.TimeStamperCertificate) { $fail = "signer $subject, but NOT timestamped" }
+              else { $how = "signer $subject, timestamped" }
+            }
+            else { $how = 'not code-signed' }
+          }
+          if ($fail) { $line = "quartz-installer: draft check FAILED: $fail" }
+          else { $line = "quartz-installer: draft check OK: Quartz-Setup.exe sha256 $want, $how" }
+          $fence = '```'
+          "### Draft check`n`n$fence`n$line`n$fence" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output $line
+          if ($fail) { Write-Output "::error::$line"; exit 1 }
+
       # The draft: created once, then its asset replaced on each run. A published release with this
       # tag is never touched (the step fails and says so). No tag is created: a draft names a tag
-      # that only comes into being when a person publishes it.
+      # that only comes into being when a person publishes it. SIGNED comes from the installer job:
+      # the signed notes only when the file really was signed (and checked above).
       - name: Draft release
-        if: ${{ inputs.draft }}
         env:
           GH_TOKEN: ${{ github.token }}
-          SIGNED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && '1' || '' }}
+          SIGNED: ${{ needs.installer.outputs.signed }}
         run: |
           v=$(git show HEAD:package.json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).version))")
           tag="v$v"
