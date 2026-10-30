@@ -238,8 +238,17 @@ async function guest(urlRe, notId) {
     check(s.cached && apiLog.length === 1 && /from memory, no search spent/.test(s.meta), 'reload: answered from memory, no second request', s.meta + ' / ' + apiLog.length + ' requests');
 
     // light and dark, with screenshots
+    // The colours are read as painted after the flip. Under prefers-reduced-motion (Windows with its
+    // animations off, as on the hosted CI runner) tokens.css cuts every transition to 0.01 ms, and since
+    // transition-property defaults to `all`, every element then transitions its colours for that 0.01 ms:
+    // until the next frame getComputedStyle still reads the colour from BEFORE the flip. So wait for the
+    // page's running transitions to end (bounded: on a timeout the check reads what is there and says so).
+    const flipPainted = () => page.ev(`Promise.race([
+      Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => null))),
+      new Promise((r) => setTimeout(r, 3000))]).then(() => 1)`);
     await chrome.ev("setThemeMode('dark'), 1");
     await page.waitFor("document.documentElement.getAttribute('data-theme') === 'dark'", 5000);
+    await flipPainted();
     const darkBg = await page.ev('getComputedStyle(document.body).backgroundColor');
     const darkText = await page.ev("getComputedStyle(document.querySelector('.sr-desc')).color");
     check(darkBg === 'rgb(20, 21, 22)', 'dark: page wears --bg #141516', darkBg + ' / text ' + darkText);
@@ -260,6 +269,7 @@ async function guest(urlRe, notId) {
     const shotDark = await shot('results-dark');
     await chrome.ev("setThemeMode('light'), 1");
     await page.waitFor("document.documentElement.getAttribute('data-theme') === 'light'", 5000);
+    await flipPainted();
     const lightBg = await page.ev('getComputedStyle(document.body).backgroundColor');
     const lightText = await page.ev("getComputedStyle(document.querySelector('.sr-desc')).color");
     check(lightBg === 'rgb(233, 233, 231)' && lightText !== darkText, 'light: the chrome\'s flip reaches the page (--bg #e9e9e7)', lightBg + ' / text ' + lightText);
