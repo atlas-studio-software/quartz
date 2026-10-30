@@ -185,6 +185,15 @@ const PAGE2 = '<!doctype html><title>Second page</title><p>A short second page f
   try {
     const free = freeRamGb();
     if (!(free >= MIN_FREE_GB)) { console.log('mcp-e2e: not launched: ' + free.toFixed(2) + ' GB free RAM, needs ' + MIN_FREE_GB + ' GB'); process.exit(3); }
+    // The stand-in runs in a real pseudo-console (pty.js): without node-pty's native ConPTY module (an
+    // `npm ci --ignore-scripts` tree, as on the hosted CI runner) no Claude pane can start, and every
+    // check after "Claude opens beside the page" could only time out waiting for the stand-in. A SKIP
+    // with the reason, never a FAIL or a pass (askclaude-e2e.js does the same).
+    const conpty = path.join(APP, 'node_modules', '@homebridge', 'node-pty-prebuilt-multiarch', 'build', 'Release', 'conpty.node');
+    if (!fs.existsSync(conpty)) {
+      console.log('mcp-e2e: cannot run: needs node-pty built for Electron (' + path.relative(APP, conpty) + ' is missing), so no Claude pane can start here');
+      process.exit(2);
+    }
     fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
     try { fs.unlinkSync(LOG); } catch (e) { /* none yet */ }
     const PAGE = bigPage();
