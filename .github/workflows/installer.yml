@@ -8,6 +8,21 @@
 # Judged by summary lines, never the exit code alone:
 #   quartz-installer: build OK: Quartz-Setup.exe <MB> MB, Quartz <version>, Electron <castlabs version>
 #   install-test: N passed, M failed                       (tools/installer/install-test.js)
+#   quartz-installer: signed OK: Quartz-Setup.exe <MB> MB, signer <subject>, timestamped   (signing only)
+#
+# CODE SIGNING (SignPath Foundation), off until the repository variable SIGNPATH_ORGANIZATION_ID is
+# set, together with the secret SIGNPATH_API_TOKEN and the variables SIGNPATH_PROJECT_SLUG and
+# SIGNPATH_POLICY_SLUG (SIGNPATH_ARTIFACT_CONFIGURATION_SLUG is optional: empty = the project's
+# default configuration). Then, right after the build: the unsigned Quartz-Setup.exe is uploaded as a
+# bare-file artifact, SignPath's action submits it and waits (up to an hour) for an approver to
+# approve the request in SignPath, and the signed file it returns must pass Get-AuthenticodeSignature
+# with Status Valid, or the job fails. Only then does it replace dist/Quartz-Setup.exe and its
+# .sha256, so everything after (the Quartz-Setup artifact, the install test, the draft) uses the
+# signed file, and the draft's notes say it is signed and link the code signing policy. The installer
+# carries no updater metadata (publish: null: no latest.yml; nothing reads a blockmap), and installed
+# copies only link to the release's Quartz-Setup.exe, so nothing else holds a hash of it. Without the
+# variable none of those steps run and the job does exactly what it did before. SignPath needs every
+# job before the signing request on GitHub-hosted runners: this one is.
 #
 # Every action is pinned to a full commit SHA; the comment names the release it was taken from.
 name: installer
@@ -31,11 +46,16 @@ jobs:
   installer:
     if: ${{ !github.event.repository.private }}
     runs-on: windows-latest
-    timeout-minutes: 45
+    # 45 minutes, plus the hour the signing step may wait for an approver when signing is on.
+    timeout-minutes: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && 105 || 45 }}
     # contents: write only for the last step (the draft release); the token is passed to that step
-    # alone, and the checkout does not keep it in .git/config.
+    # alone, and the checkout does not keep it in .git/config. The one other step given it is
+    # SignPath's (signing only): the action sends it to SignPath, which reads this run's details and
+    # downloads the unsigned artifact with it (origin verification), hence actions: read. That token
+    # can also write contents until this job ends; it expires with the job.
     permissions:
       contents: write
+      actions: read
     defaults:
       run:
         shell: bash
@@ -77,6 +97,74 @@ jobs:
           case "$verdict" in *'build OK'*) ;; *) echo "::error::$verdict"; exit 1 ;; esac
           node -e "const c=require('crypto').createHash('sha256');c.update(require('fs').readFileSync(process.argv[1]));console.log(c.digest('hex')+'  Quartz-Setup.exe')" "$f" > dist/Quartz-Setup.exe.sha256
           echo "sha256 $(cat dist/Quartz-Setup.exe.sha256)"
+
+      # ---- Code signing: these four steps run only when SIGNPATH_ORGANIZATION_ID is set ----
+      # archive: false uploads the bare .exe (the artifact is then named after the file, and the
+      # name input is ignored), to match the <pe-file> root of the SignPath artifact configuration.
+      - name: Upload the unsigned installer for SignPath
+        id: unsigned
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/Quartz-Setup.exe
+          archive: false
+          retention-days: 1
+          if-no-files-found: error
+
+      # Every signing request waits for a person: an approver approves it in SignPath. The signed
+      # file is saved as is (skip-decompress) under its own name in $RUNNER_TEMP/signed.
+      - name: Sign with SignPath
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signed
+          skip-decompress: true
+
+      # Checked on the runner before anything uses it: a signature Windows accepts (Status Valid:
+      # the hash matches and the chain is trusted). A test-signing policy's certificate is not
+      # trusted here, so it fails this step by design.
+      - name: Verify the signature
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'signed'
+          $f = Join-Path $dir 'Quartz-Setup.exe'
+          if (-not (Test-Path -LiteralPath $f)) {
+            $got = (Get-ChildItem -LiteralPath $dir -ErrorAction SilentlyContinue | ForEach-Object Name) -join ', '
+            $line = "quartz-installer: signing FAILED: SignPath returned no Quartz-Setup.exe (got: $(if ($got) { $got } else { 'nothing' }))"
+          } else {
+            $s = Get-AuthenticodeSignature -LiteralPath $f
+            $subject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { 'none' }
+            $stamp = if ($s.TimeStamperCertificate) { 'timestamped' } else { 'NOT timestamped' }
+            $mb = '{0:N1}' -f ((Get-Item -LiteralPath $f).Length / 1MB)
+            if ($s.Status -eq 'Valid') { $line = "quartz-installer: signed OK: Quartz-Setup.exe $mb MB, signer $subject, $stamp" }
+            else { $line = "quartz-installer: signing FAILED: Get-AuthenticodeSignature says $($s.Status) ($($s.StatusMessage)), signer $subject" }
+          }
+          $fence = '```'
+          "### Code signing`n`n$fence`n$line`n$fence" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output $line
+          if ($line -notlike '*signed OK*') { Write-Output "::error::$line"; exit 1 }
+
+      # The signed file replaces the unsigned one, and its .sha256 is computed again (same command
+      # as the build step). A blockmap, if electron-builder wrote one, would describe the unsigned
+      # bytes: nothing uploads or reads it, and it is removed so nothing can.
+      - name: Use the signed installer
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        run: |
+          cp "$RUNNER_TEMP/signed/Quartz-Setup.exe" dist/Quartz-Setup.exe
+          rm -f dist/Quartz-Setup.exe.blockmap
+          node -e "const c=require('crypto').createHash('sha256');c.update(require('fs').readFileSync(process.argv[1]));console.log(c.digest('hex')+'  Quartz-Setup.exe')" dist/Quartz-Setup.exe > dist/Quartz-Setup.exe.sha256
+          echo "sha256 $(cat dist/Quartz-Setup.exe.sha256) (signed)"
+      # ---- end of code signing ----
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -128,10 +216,14 @@ jobs:
         if: ${{ inputs.draft }}
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && '1' || '' }}
         run: |
           v=$(git show HEAD:package.json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).version))")
           tag="v$v"
-          sed "s/VERSION/$v/" tools/installer/draft-notes.md > "$RUNNER_TEMP/notes.md"
+          # draft-notes.md holds an <!-- unsigned --> and a <!-- signed --> block, each closed by
+          # <!-- end -->: the other block and every marker line are dropped (\r?: a CRLF checkout).
+          if [ -n "$SIGNED" ]; then drop=unsigned; else drop=signed; fi
+          sed -e "s/VERSION/$v/" -e "/^<!-- $drop -->\r\?\$/,/^<!-- end -->\r\?\$/d" -e '/^<!-- \(signed\|unsigned\|end\) -->\r\?$/d' tools/installer/draft-notes.md > "$RUNNER_TEMP/notes.md"
           state=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "map(select(.tag_name == \"$tag\")) | if length == 0 then \"missing\" elif .[0].draft then \"draft\" else \"published\" end")
           case "$state" in
             missing) gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --title "Quartz $v" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA" dist/Quartz-Setup.exe ;;

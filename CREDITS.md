@@ -33,8 +33,11 @@ affiliated with or endorsed by Brave.
 
 - **Electron for Content Security (castlabs ECS)**, pinned in `package.json` as
   `github:castlabs/electron-releases#v44.9.3+wvcus`: MIT License, copyright castLabs
-  GmbH and the Electron contributors. After `npm ci` its licence is in
-  `node_modules/electron/dist/LICENSE`.
+  GmbH (the `LICENSE` of [castlabs/electron-releases](https://github.com/castlabs/electron-releases))
+  and the Electron contributors (after `npm ci`, `node_modules/electron/dist/LICENSE`).
+  That repository holds the install scripts and documentation; the runtime itself
+  (`electron.exe`, which the installer ships as `Quartz.exe`, and its DLLs) is a prebuilt
+  binary that castLabs builds from Electron with its Widevine changes.
 - **Chromium**, which Electron embeds: BSD-style licence plus the notices of its
   bundled third-party code, all collected in
   `node_modules/electron/dist/LICENSES.chromium.html`.

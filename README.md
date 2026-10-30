@@ -70,8 +70,9 @@ npm start
 
 1. Download `Quartz-Setup.exe` from the [latest release](https://github.com/Owen-Silva/quartz/releases/latest)
    and run it.
-2. Windows SmartScreen says "Windows protected your PC", because the installer is not code-signed.
-   Click **More info**, check the app is `Quartz-Setup.exe`, then **Run anyway**.
+2. Windows SmartScreen says "Windows protected your PC", because the installer is not code-signed
+   yet (see [Code signing policy](#code-signing-policy)). Click **More info**, check the app is
+   `Quartz-Setup.exe`, then **Run anyway**.
 3. It installs for your Windows user only, into `%LOCALAPPDATA%\Programs\Quartz`, with no
    administrator prompt; adds Quartz to the Start Menu (not the desktop); and opens Quartz. A
    first-run screen offers to make Quartz your default browser; that last step is always yours,
@@ -270,6 +271,63 @@ the tool installed, Settings says so and nothing else changes.
 
 The full design log, part by part, is [docs/engineering-notes.md](docs/engineering-notes.md);
 what changed and why is in [CHANGELOG.md](CHANGELOG.md).
+
+## Code signing policy
+
+**Not live yet.** Windows releases will be code-signed once the SignPath Foundation accepts Quartz.
+Until a release's notes say its `Quartz-Setup.exe` is signed, it is not.
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- **What is signed:** `Quartz-Setup.exe` on this repository's
+  [releases](https://github.com/Owen-Silva/quartz/releases), built from this repository's source by
+  the public [`installer` workflow](.github/workflows/installer.yml) on GitHub-hosted runners. The
+  files inside it are not signed one by one: `Quartz.exe` is the castlabs Electron runtime, and the
+  other executables and DLLs come from Electron, Chromium and the npm packages in
+  [CREDITS.md](CREDITS.md).
+- **Team roles:**
+  - Committers and reviewers: [@Owen-Silva](https://github.com/Owen-Silva)
+  - Approvers: [@Owen-Silva](https://github.com/Owen-Silva)
+- An approver approves every signing request by hand. Pull requests are not accepted right now.
+
+### Privacy policy
+
+Quartz sends nothing to its authors: no telemetry, no analytics, no crash reports, and there is no
+Quartz server. As a browser it connects to the websites you open. Besides those, it connects to
+these **on its own**, without being asked:
+
+- **GitHub** (`api.github.com`): the update check, about 30 seconds after Quartz starts and then
+  every 6 hours, which reads this repository's latest release. Settings > About > **Check for
+  updates** turns it off.
+- **GitHub** (`raw.githubusercontent.com`): the ad blocker's filter lists, from Ghostery's adblocker
+  repository, on the first start and then about once a day. Turning the shield off stops the
+  blocking, not this download.
+- **Google**, through the Chromium component updater in the castlabs Electron runtime: the Widevine
+  Content Decryption Module (protected video), installed on the first start and checked for updates
+  on later starts, under Google's terms and [privacy policy](https://policies.google.com/privacy).
+- **The sites behind the new tab page's shortcuts** (by default github.com, youtube.com,
+  mail.google.com and claude.ai): each site's own icon (`/favicon.ico` and similar), when the new
+  tab page shows a shortcut whose icon is not cached (an icon is kept for 7 days). These requests
+  carry your cookies for that site, as a visit would.
+
+And **only when you use the feature**:
+
+- your search engine (Google by default) when you search from the address bar; nothing is sent
+  while you type;
+- the Phone page: the first time it opens, it downloads Android platform-tools from dl.google.com
+  and the scrcpy server from GitHub, then talks to your phone over adb;
+- features that take your own API key, which send your query or ticker symbols and that key to that
+  service: Brave Search, Anthropic (AI answers), Finnhub (stocks; Yahoo Finance gets only the ticker
+  symbols), TMDB (Lumen);
+- pinned score cards (ESPN and NHL feeds), refreshed while a card is pinned, also after a restart;
+- Lumen: the streaming services you turn on (with your own logins), YouTube for Lumen search, and
+  their thumbnails and previews;
+- Claude tabs, which run your own Claude Code under Anthropic's terms;
+- **Download the installer**, which opens the release's link on GitHub.
+
+GitHub's [privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
+covers the update check, the filter lists and every download from GitHub.
 
 ## Licence
 

@@ -55,7 +55,7 @@ Rules that keep updates safe:
 
 ## Installer
 
-`Quartz-Setup.exe` (per-user NSIS, unsigned) is built by the `installer` workflow, never on a
+`Quartz-Setup.exe` (per-user NSIS, unsigned unless SignPath signing is on, below) is built by the `installer` workflow, never on a
 desktop: Actions > installer > Run workflow, on `master` after the version bump. It builds the
 installer, installs it on the runner, launches it, checks the native modules, the updater and the
 default-browser registration, uninstalls it (`tools/installer/install-test.js`, summary line
@@ -69,6 +69,26 @@ To publish that draft, the tag still has to be signed first, or every clone with
 
 The asset name never changes, so `releases/latest/download/Quartz-Setup.exe` always gets the newest
 one, and installed copies offer "Download the installer" once it is the latest release.
+
+### Code signing (SignPath), once the project is accepted
+
+Signing is off until the repository variable `SIGNPATH_ORGANIZATION_ID` is set. With it (and the
+secret `SIGNPATH_API_TOKEN`, the variables `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_POLICY_SLUG`, and
+optionally `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`), the same Run workflow also:
+
+1. uploads the unsigned `Quartz-Setup.exe` and submits it to SignPath, then waits up to an hour;
+2. an approver approves the request in SignPath (every release, by hand);
+3. checks the signed file with `Get-AuthenticodeSignature` (Status `Valid`, or the job fails;
+   summary line `quartz-installer: signed OK: ...`), and only then swaps it in and recomputes
+   `Quartz-Setup.exe.sha256`;
+4. runs the install test on the signed file and puts it on the draft, with the signed notes block
+   of `tools/installer/draft-notes.md` (which links the code signing policy).
+
+Nothing else hashes the installer: there is no `latest.yml` (electron-builder `publish: null`), and
+installed copies only link to the release asset. Never change the file after it is signed. Signing
+is separate from the signed release tags below: `release-tag.js` still signs the tag before the
+draft is published. When the first signed release is out, update the SmartScreen sentence in the
+README's Install section and the "Not live yet" line of its Code signing policy.
 
 ## Signed release tags
 
