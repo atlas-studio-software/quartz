@@ -52,6 +52,8 @@ const TESTS = [
   { name: 'a11y-switch', file: 'a11y-switch-harness.js' },
   { name: 'argvurl', file: 'argvurl-harness.js' },
   { name: 'closetabs', file: 'closetabs-harness.js' },
+  // The always-on DevTools port (cdp-main.js): every decide() branch, the netstat parse, plan()/confirm() on a fake app.
+  { name: 'cdp', file: 'cdp-harness.js' },
   // Spotify auto-pause: config migration, the hold machine -> link -> engine, the SMTC helper's wrapper
   // (a fake child), and test mode never sending. Then the shared host protocol (byte-identical with Mantle's).
   { name: 'autopause', file: 'autopause-harness.js' },
@@ -184,6 +186,8 @@ const TESTS = [
   { name: 'csp-e2e', file: 'csp-e2e.js', e2e: true, timeout: 300 },
   { name: 'log-e2e', file: 'log-e2e.js', e2e: true },
   { name: 'log-e2e-nogate', file: 'log-e2e.js', args: ['--no-gate', '--cdp', '9428'], e2e: true },
+  // The DevTools port in a real copy: 127.0.0.1 only, the busy fallback, off, a command-line port, the handoff.
+  { name: 'cdp-e2e', file: 'cdp-e2e.js', e2e: true },
   { name: 'drm-e2e', file: 'drm-e2e.js', e2e: true },
   // castlabs ECS only (package.json's electron = a +wvcus tag): the CDM loads, a public Widevine test
   // stream plays in a real tab (needs the internet: Shaka + Google's test licence proxy), the bar says

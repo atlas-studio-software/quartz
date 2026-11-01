@@ -182,6 +182,11 @@ contextBridge.exposeInMainWorld('api', {
     // Where the profile folder is and whether the one-time move to Quartz put
     // it there: { userData, test, thisStart, note }. Settings > About says it.
     profile: () => ipcRenderer.invoke('app:profile'),
+    // The always-on DevTools (CDP) port, Settings > Claude (cdp-main.js):
+    // { ok, enabled, enabledNext, governed, restartNeeded, mode, port, reason, error, ... }.
+    cdp: () => ipcRenderer.invoke('cdp:describe'),
+    // Saves the switch; it applies from the next start. Resolves to cdp()'s shape.
+    setCdpEnabled: (enabled) => ipcRenderer.invoke('cdp:set-enabled', { enabled: enabled === true }),
     // Sync: these are already in this process, so nothing has to be awaited.
     versions: () => ({
       electron: process.versions.electron,

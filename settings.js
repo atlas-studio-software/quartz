@@ -3052,6 +3052,10 @@
     var notify = el('div', 'set-field');
     notify.setAttribute('data-field', 'claudenotify');
     s.appendChild(notify);
+
+    var cdp = el('div', 'set-field');
+    cdp.setAttribute('data-field', 'claudecdp');
+    s.appendChild(cdp);
     return s;
   }
 
@@ -3061,6 +3065,62 @@
     renderClaudeSkip();
     renderClaudeReadTabs();
     renderClaudeNotify();
+    renderClaudeCdp();
+  }
+
+  /* The always-on DevTools (CDP) port (cdp-main.js). The switch lives in main
+     (cdp-prefs.json), not in this page's store: main needs it before the
+     window exists. It applies from the next start, and the lines under it say
+     what THIS run actually has: on at which port and why, fell back to
+     another port and why, off, or failed and why. */
+  function cdpStateLine(c) {
+    if (!c) return 'DevTools port: the main process did not answer.';
+    if (c.ok && c.port) {
+      return 'This run: on at 127.0.0.1:' + c.port + ' (' + (c.reason || 'no reason given') + ').';
+    }
+    return 'This run: no DevTools port. ' + (c.error || c.reason || 'No reason was given.');
+  }
+
+  function renderClaudeCdp(answer) {
+    var field = bodyEl && bodyEl.querySelector('[data-field="claudecdp"]');
+    if (!field) return;
+    var app = (window.api && window.api.app) || null;
+    if (!app || typeof app.cdp !== 'function') {
+      field.textContent = '';
+      field.appendChild(el('p', 'set-hint', 'DevTools port: this window has no bridge to the main process, so its state is unknown.'));
+      return;
+    }
+    if (!answer) {
+      if (!field.firstChild) field.appendChild(el('p', 'set-hint', 'DevTools port: asking…'));
+      Promise.resolve().then(function () { return app.cdp(); }).then(function (c) {
+        renderClaudeCdp(c || { ok: false, error: 'the main process did not answer.' });
+      }).catch(function (err) {
+        renderClaudeCdp({ ok: false, error: 'the main process did not answer (' + ((err && err.message) || err) + ').' });
+      });
+      return;
+    }
+    var c = answer;
+    field.textContent = '';
+    var on = c.enabledNext !== false;
+    field.appendChild(switchRow('Let local tools drive this browser (DevTools port)', on, function (next) {
+      Promise.resolve().then(function () { return app.setCdpEnabled(next); }).then(function (r) {
+        renderClaudeCdp(r || { ok: false, error: 'the main process did not answer.', saveError: 'the setting may not have been saved' });
+      }).catch(function (err) {
+        renderClaudeCdp(Object.assign({}, c, { saveError: 'the setting was not saved (' + ((err && err.message) || err) + ')' }));
+      });
+    }));
+    field.appendChild(el('p', 'set-hint',
+      'Opens the Chrome DevTools Protocol on 127.0.0.1 (port 9219, or a free one if that is taken), so Claude Code '
+      + 'or a script on this computer can click, type and read pages in this browser while you stay signed in. '
+      + 'It is never reachable from the network, and web pages cannot use it, but any program running as you can.'));
+    field.appendChild(el('p', 'set-hint', cdpStateLine(c)));
+    if (c.saveError) field.appendChild(el('p', 'set-hint', 'Not saved: ' + c.saveError + '.'));
+    if (c.prefsError) field.appendChild(el('p', 'set-hint', 'Setting file: ' + c.prefsError + '.'));
+    if (c.governed === false && c.mode !== 'error') {
+      field.appendChild(el('p', 'set-hint', 'This run was started with its own DevTools choice (' + (c.reason || c.mode) + '), so the switch does not apply to it.'));
+    } else if (c.restartNeeded) {
+      field.appendChild(el('p', 'set-hint', (on ? 'Turns on' : 'Turns off') + ' at the next start. Settings > About > Restart browser applies it now.'));
+    }
   }
 
   function renderClaudeDir() {

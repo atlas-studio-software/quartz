@@ -327,6 +327,23 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 /*
+ * The always-on DevTools (CDP) port, 127.0.0.1:9219 (cdp-main.js has the why,
+ * the fallback and the security trade-off). Here, after the lock: a second
+ * copy handing its URL to the running window has already exited above, so it
+ * never probes or binds anything. Before 'ready': Electron reads the switch
+ * when it starts its DevTools server. A command-line port and test runs are
+ * left exactly as they were.
+ */
+let cdp = null;
+let cdpPlanError = '';
+try {
+  cdp = require('./cdp-main').plan({ app });
+} catch (err) {
+  cdpPlanError = 'the DevTools port was not set up: ' + ((err && err.message) || err);
+  console.error('[cdp] ' + cdpPlanError);
+}
+
+/*
  * A close command with no browser to close tabs in. Starting Quartz for it would
  * open the very window that command exists to tidy, take the foreground, and
  * leave a whole browser running that nobody asked for; so it says why and goes.
@@ -1497,6 +1514,15 @@ app.whenReady().then(async () => {
   }
   // uvboost's line (fix on, NOT on and why, or undone by its CPU guard), whenever it comes.
   require('./uvboost').onLine((t) => { if (qlog) qlog.log.line(t); });
+  // The DevTools port's one line (on at which port and why, fell back, off, or failed), and
+  // the final cdp.json, once Chromium has written DevToolsActivePort. Not awaited: startup
+  // never waits on it. Settings > Claude shows the same state.
+  if (cdp) {
+    cdp.confirm((t) => { console.log('[cdp] ' + t); if (qlog) qlog.log.line(t); })
+      .catch((err) => { cdpPlanError = 'checking the DevTools port failed: ' + ((err && err.message) || err); console.error('[cdp] ' + cdpPlanError); });
+  } else if (qlog) {
+    qlog.log.line('DevTools (CDP) is NOT available: ' + cdpPlanError + '.');
+  }
   // Before the handlers: a request that arrives first must already see what
   // the user decided on a previous run.
   loadPermissionDecisions();
@@ -1835,6 +1861,22 @@ ipcMain.handle('app:paths', () => ({
  * so About can still say "moved from ... on ..." long after the start that did
  * it. By now userData exists, so asking for it creates nothing.
  */
+/*
+ * Settings > Claude: the DevTools (CDP) port's state for this run, and the
+ * switch that turns it off from the next start (cdp-main.js describe/setEnabled).
+ * A plan that threw answers { ok: false, error } so the row still says why.
+ */
+ipcMain.handle('cdp:describe', (event) => {
+  if (!isChromeSender(event)) return null;
+  if (!cdp) return { ok: false, enabled: true, enabledNext: true, governed: false, mode: 'error', error: cdpPlanError || 'not set up' };
+  return cdp.describe();
+});
+ipcMain.handle('cdp:set-enabled', (event, { enabled } = {}) => {
+  if (!isChromeSender(event)) return null;
+  if (!cdp) return { ok: false, enabled: true, enabledNext: true, governed: false, mode: 'error', error: cdpPlanError || 'not set up', saveError: 'the setting cannot be saved: ' + (cdpPlanError || 'not set up') };
+  return cdp.setEnabled(enabled === true);
+});
+
 ipcMain.handle('app:profile', () => {
   let userData = '';
   try { userData = app.getPath('userData'); } catch { userData = ''; }

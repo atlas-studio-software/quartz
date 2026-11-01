@@ -952,6 +952,14 @@ Found, and not ours to fix:
 
 ### Developer tooling
 
+- Quartz always opens a Chrome DevTools Protocol port now, so a local tool (Claude Code, a script)
+  can drive the browser that is already running, signed in, without a restart: 127.0.0.1:9219,
+  never the network (cdp-main.js). If 9219 is taken it uses a free port and says which pid held
+  9219; `<profile>\cdp.json` records the port, the endpoint, the pid and the reason on every start,
+  and `node tools/cdp-endpoint.js` prints the live endpoint (checked against `/json/version`).
+  A port on the command line and every test run are left exactly as before. The trade-off: any
+  program running as the user can control the browser through it (web pages cannot), so Settings →
+  Claude has a switch to turn it off from the next start, and says what the current run has.
 - The project is a git repo now, with the whole night's work committed locally.
 - `node smoketest.js` launches its own instance on `--test-profile`, waits for `body.booted`,
   asserts, and tears down. `--keep` leaves it running. `cdp-eval.js` and `cdp-profile.js` drive it.
