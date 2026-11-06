@@ -271,6 +271,37 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     await c.ev('visibleTabs().filter((t) => t.pinned).forEach((t) => setTabPinned(t, false))');
   }
 
+  /* ---- workspaces: the strip is the workspace on screen ---------------------------------- */
+  {
+    await setWidth(800);
+    const home = await c.ev('currentWorkspaceId');
+    const homeIds = await ids();
+    await c.ev('activateTab(' + homeIds[2] + ')');
+    const ws = await c.ev('createWorkspace("Overflow test", "ocean")');
+    check(!!ws && ws !== home, 'a second workspace opens', ws);
+    await c.ev('__ov.make(30, ' + JSON.stringify(BASE) + ')');
+    const wsIds = await ids();
+    await c.ev('activateTab(' + wsIds[wsIds.length - 1] + ')');
+    await settle();
+    let m = await M();
+    check(m.n === 30, 'the second workspace\'s strip holds only its own 30 chips', m.n);
+    invariants('workspace 2 (30 tabs @800)', m);
+    await c.ev('switchWorkspace(' + JSON.stringify(home) + ')');
+    await settle();
+    m = await M();
+    const act = m.rows.find((r) => r.active);
+    check(m.n === 40 && !!act && act.id === String(homeIds[2]) && act.st === 'in', 'switching back: home\'s 40 chips, its own front tab in view', { n: m.n, act });
+    invariants('back home (40 tabs @800)', m);
+    await c.ev('switchWorkspace(' + JSON.stringify(ws) + ')');
+    await settle();
+    m = await M();
+    const act2 = m.rows.find((r) => r.active);
+    check(!!act2 && act2.id === String(wsIds[wsIds.length - 1]) && act2.st === 'in', 'switching again: the last tab of workspace 2 is in view', act2);
+    invariants('workspace 2 again', m);
+    await c.ev('switchWorkspace(' + JSON.stringify(home) + ')');
+    await settle();
+  }
+
   /* ---- a restart with the last of 40 tabs in front --------------------------------------- */
   {
     const order = await ids();

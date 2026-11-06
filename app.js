@@ -7902,9 +7902,18 @@ function startTabDrag() {
 
   drag.moved = true;
   drag.chip.classList.add('dragging');
-  // A fitted chip (chrome.css "too many tabs") keeps the width it was lifted at
-  // while it is raised, or it would grow under the measurements above.
-  if (drag.id !== activeTabId) drag.chip.classList.add('drag-raised');
+  // Fitted chips (chrome.css "too many tabs") keep the widths they had when the
+  // chip was lifted until it is dropped: the lifted one would grow on being
+  // raised, and the one it takes over from would shrink, either of them moving
+  // the strip under the measurements above.
+  if (drag.id !== activeTabId) {
+    drag.chip.classList.add('drag-raised');
+    const was = tabs.find((t) => t.id === activeTabId);
+    if (was && was.chipEl && was.chipEl !== drag.chip) {
+      was.chipEl.classList.add('drag-lowered');
+      drag.lowered = was.chipEl;
+    }
+  }
   document.body.classList.add('tab-dragging');
   for (const row of drag.rows) {
     if (row.id !== drag.id) row.el.classList.add('drag-shift');
@@ -8028,6 +8037,7 @@ function endTabDrag() {
 
   drag.chip.style.transform = '';
   drag.chip.classList.remove('dragging', 'drag-raised');
+  if (drag.lowered) drag.lowered.classList.remove('drag-lowered');
   document.body.classList.remove('tab-dragging');
   for (const row of drag.rows) {
     row.el.style.transform = '';
@@ -8073,7 +8083,8 @@ function wireChipDrag(tab, chip) {
       gap: 0,
       lastX: event.clientX,
       lastDx: 0,
-      edgeTimer: 0
+      edgeTimer: 0,
+      lowered: null
     };
     try {
       chip.setPointerCapture(event.pointerId);

@@ -854,21 +854,21 @@ body.tab-dragging .tab.collapsed .tab-expand { opacity: 0; }
    close button sits over the title's end. Under --tab-fit-title the title
    goes too and the chip is its favicon, Chrome-style; the close button still
    comes up on hover, beside the favicon, never over it. */
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) {
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) {
   flex: 0 0 auto;
   width: var(--tab-fit-w);
   min-width: 0;
   max-width: none;
 }
 
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised):has(> .tab-audio:not([hidden])) {
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised):has(> .tab-audio:not([hidden])) {
   width: calc(var(--tab-fit-w) + var(--tab-fit-audio));
 }
 
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-collapse,
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-split { display: none; }
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-collapse,
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-split { display: none; }
 
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-close {
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-close {
   position: absolute;
   top: 50%;
   right: 4px;
@@ -876,15 +876,15 @@ body.tab-dragging .tab.collapsed .tab-expand { opacity: 0; }
 }
 
 /* the title's end steps out of the close button's way while it shows */
-#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised):is(:hover, .active) .tab-title { margin-right: 16px; }
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised):is(:hover, .active) .tab-title { margin-right: 16px; }
 
-#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) { padding-left: 8px; }
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) { padding-left: 8px; }
 
-#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-title,
-#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-attn { display: none; }
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-title,
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-attn { display: none; }
 
-#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .tab-fav,
-#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):is(:not(.active), .drag-raised) .dot { margin-right: 0; }
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-fav,
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .dot { margin-right: 0; }
 
 /* Tabs out of view. The end they are hidden past fades out, and a button with
    their count sits in the fade: "‹ 3" at the left, "5 ›" at the right, each

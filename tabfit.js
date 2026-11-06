@@ -209,14 +209,15 @@
   /**
    * One chip's role in the plan. Mirrors chrome.css exactly:
    *   fixed  - pinned, or collapsed and not (active and not dragging): the 40px box
-   *   active - the active chip, unless a drag raised it (it keeps the width it was lifted at)
+   *   active - the active chip, unless a drag raised it (it keeps the width it was lifted at),
+   *            and the chip a drag took over from (.drag-lowered keeps ITS width until the drop)
    *   flex   - everything else: shares the fitted width
    */
   function roleOf(chip) {
     const cl = chip.classList;
     const act = cl.contains('active');
     if (cl.contains('pinned') || (cl.contains('collapsed') && !(act && !cl.contains('dragging')))) return 'fixed';
-    if (act && !cl.contains('drag-raised')) return 'active';
+    if ((act && !cl.contains('drag-raised')) || cl.contains('drag-lowered')) return 'active';
     return 'flex';
   }
 
