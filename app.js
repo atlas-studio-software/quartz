@@ -7887,9 +7887,14 @@ function startTabDrag() {
   const first = drag.rows[drag.lowIndex] || me;
   const last = drag.rows[drag.highIndex] || me;
   // The chip stays inside the strip AND inside its own group: dragged past
-  // either edge there is no slot left to read off the pointer.
-  drag.min = Math.max(strip.left, first.left) - me.left;
-  drag.max = Math.min(strip.right, last.left + last.width) - (me.left + me.width);
+  // either edge there is no slot left to read off the pointer. The strip can
+  // scroll under a drag (dragEdgeStep), so the visible ends are kept apart
+  // from the group's and the two are combined per move in dragTabTo().
+  drag.scroll0 = tabstripEl.scrollLeft;
+  drag.stripLeft = strip.left;
+  drag.stripRight = strip.right;
+  drag.groupLeft = first.left;
+  drag.groupRight = last.left + last.width;
   // The strip's flex gap, read off the measurements rather than hardcoded.
   drag.gap = drag.rows.length > 1
     ? Math.max(0, drag.rows[1].left - (drag.rows[0].left + drag.rows[0].width))
@@ -7897,6 +7902,18 @@ function startTabDrag() {
 
   drag.moved = true;
   drag.chip.classList.add('dragging');
+  // Fitted chips (chrome.css "too many tabs") keep the widths they had when the
+  // chip was lifted until it is dropped: the lifted one would grow on being
+  // raised, and the one it takes over from would shrink, either of them moving
+  // the strip under the measurements above.
+  if (drag.id !== activeTabId) {
+    drag.chip.classList.add('drag-raised');
+    const was = tabs.find((t) => t.id === activeTabId);
+    if (was && was.chipEl && was.chipEl !== drag.chip) {
+      was.chipEl.classList.add('drag-lowered');
+      drag.lowered = was.chipEl;
+    }
+  }
   document.body.classList.add('tab-dragging');
   for (const row of drag.rows) {
     if (row.id !== drag.id) row.el.classList.add('drag-shift');
@@ -7907,15 +7924,68 @@ function startTabDrag() {
   return true;
 }
 
+/*
+ * A chip held at either end of a strip with tabs hidden past it scrolls the
+ * strip that way, in steps (the lifted chip's width every DRAG_EDGE_MS; twice
+ * that once the pointer is past the strip's end), never a continuous glide.
+ * The pointer may be still, so each step re-runs dragTabTo() with the last travel.
+ */
+const DRAG_EDGE_PX = 32;       // how close to an end of the strip counts as "at" it
+const DRAG_EDGE_MS = 120;
+
+/** -1 / +1 while the pointer holds the lifted chip at an end the strip can scroll past, else 0. */
+function dragEdgeDir(drag) {
+  if (!drag || !drag.moved || !drag.rows || !tabstripEl) return 0;
+  const max = tabstripEl.scrollWidth - tabstripEl.clientWidth;
+  if (max <= 0.5) return 0;
+  if (drag.lastX < drag.stripLeft + DRAG_EDGE_PX && tabstripEl.scrollLeft > 0.5) return -1;
+  if (drag.lastX > drag.stripRight - DRAG_EDGE_PX && tabstripEl.scrollLeft < max - 0.5) return 1;
+  return 0;
+}
+
+function dragEdgeStep() {
+  const drag = tabDrag;
+  const dir = dragEdgeDir(drag);
+  if (!dir) { stopDragEdge(); return; }
+  const max = tabstripEl.scrollWidth - tabstripEl.clientWidth;
+  const past = drag.lastX < drag.stripLeft || drag.lastX > drag.stripRight;
+  const step = drag.rows[drag.home].width * (past ? 2 : 1);
+  tabstripEl.scrollLeft = Math.max(0, Math.min(max, tabstripEl.scrollLeft + dir * step));
+  dragTabTo(drag.lastDx);
+}
+
+function syncDragEdge() {
+  const drag = tabDrag;
+  if (!drag) return;
+  if (dragEdgeDir(drag)) {
+    if (!drag.edgeTimer) drag.edgeTimer = setInterval(dragEdgeStep, DRAG_EDGE_MS);
+  } else {
+    stopDragEdge();
+  }
+}
+
+function stopDragEdge() {
+  const drag = tabDrag;
+  if (drag && drag.edgeTimer) { clearInterval(drag.edgeTimer); drag.edgeTimer = 0; }
+}
+
 /** Follow the pointer and slide whatever the chip has passed out of its way. */
 function dragTabTo(dx) {
   const drag = tabDrag;
   if (!drag || !drag.rows) return;
 
-  const shift = Math.max(drag.min, Math.min(dx, drag.max));
+  // Everything here is in the strip's coordinates at drag start. Scrolled by ds
+  // since, the chip's own box moved -ds on screen, so following the pointer
+  // takes +ds more travel, and the strip's visible ends moved +ds along the
+  // chips. On a strip that never scrolled ds is 0 and this is the old clamp.
+  const ds = (tabstripEl ? tabstripEl.scrollLeft : 0) - (drag.scroll0 || 0);
+  const me = drag.rows[drag.home];
+  const lo = Math.max(drag.stripLeft + ds, drag.groupLeft) - me.left;
+  const hi = Math.min(drag.stripRight + ds, drag.groupRight) - (me.left + me.width);
+  const want = dx + ds;
+  const shift = Math.max(lo, Math.min(want, hi));
   drag.chip.style.transform = 'translate3d(' + Math.round(shift) + 'px, 0, 0) scale(1.03)';
 
-  const me = drag.rows[drag.home];
   const centre = me.center + shift;
   // <=, not <: hauled to either end the chip is clamped to exactly the outer
   // chip's centre, and a strict test would leave the last slot unreachable.
@@ -7933,8 +8003,10 @@ function dragTabTo(dx) {
   // short of that chip's centre and the outermost slot is unreachable. The
   // pointer overshooting the allowed travel is the unambiguous "all the way
   // there" gesture, so read it as exactly that.
-  if (dx < drag.min) target = drag.lowIndex;
-  else if (dx > drag.max) target = drag.highIndex;
+  // Only where the group's own end is in view: past a visible end with more of
+  // the group hidden beyond it, the overshoot means "scroll", not "all the way".
+  if (want < lo && drag.groupLeft >= drag.stripLeft + ds - 0.5) target = drag.lowIndex;
+  else if (want > hi && drag.groupRight <= drag.stripRight + ds + 0.5) target = drag.highIndex;
 
   // Never across the pinned/unpinned seam, whatever the pointer says.
   target = Math.max(drag.lowIndex, Math.min(target, drag.highIndex));
@@ -7959,11 +8031,13 @@ function endTabDrag() {
   tabDrag = null;
   if (!drag) return;
 
+  if (drag.edgeTimer) { clearInterval(drag.edgeTimer); drag.edgeTimer = 0; }
   try { drag.chip.releasePointerCapture(drag.pointerId); } catch (err) { /* already gone */ }
   if (!drag.moved) return; // never crossed the threshold: a plain click
 
   drag.chip.style.transform = '';
-  drag.chip.classList.remove('dragging');
+  drag.chip.classList.remove('dragging', 'drag-raised');
+  if (drag.lowered) drag.lowered.classList.remove('drag-lowered');
   document.body.classList.remove('tab-dragging');
   for (const row of drag.rows) {
     row.el.style.transform = '';
@@ -7975,6 +8049,8 @@ function endTabDrag() {
   // (a background tab closing), and moveTabToIndex clamps to the group again.
   const target = Math.max(drag.lowIndex, Math.min(drag.target, drag.highIndex));
   if (target !== drag.home) moveTabToIndex(drag.id, target);
+  // The dropped chip is the active one: in view, wherever it landed.
+  try { if (window.TabFit) window.TabFit.revealActive(); } catch (err) { /* the strip just stays put */ }
 }
 
 /** Pointer wiring for one chip. Pointer capture keeps the drag on this chip. */
@@ -7999,9 +8075,16 @@ function wireChipDrag(tab, chip) {
       target: -1,
       lowIndex: 0,
       highIndex: 0,
-      min: 0,
-      max: 0,
-      gap: 0
+      scroll0: 0,
+      stripLeft: 0,
+      stripRight: 0,
+      groupLeft: 0,
+      groupRight: 0,
+      gap: 0,
+      lastX: event.clientX,
+      lastDx: 0,
+      edgeTimer: 0,
+      lowered: null
     };
     try {
       chip.setPointerCapture(event.pointerId);
@@ -8014,6 +8097,8 @@ function wireChipDrag(tab, chip) {
     if (!tabDrag || tabDrag.chip !== chip) return;
     if (event.pointerId !== tabDrag.pointerId) return;
     const dx = event.clientX - tabDrag.startX;
+    tabDrag.lastX = event.clientX;
+    tabDrag.lastDx = dx;
     if (!tabDrag.moved) {
       if (Math.abs(dx) < DRAG_THRESHOLD) return;
       // Nothing to measure (the chip left the strip mid-press): drop the whole
@@ -8021,6 +8106,7 @@ function wireChipDrag(tab, chip) {
       if (!startTabDrag()) { endTabDrag(); return; }
     }
     dragTabTo(dx);
+    syncDragEdge();
   });
 
   const finish = (event) => {

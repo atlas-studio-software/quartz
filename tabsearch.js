@@ -30,7 +30,11 @@
  * Owned ids/classes (nothing else in the app may touch them):
  *   #tabsearch-btn (the titlebar instrument), #tabsearch (the panel, a direct
  *   child of <body> so it stacks over #views), #tabsearch-input, and every
- *   .ts-* class inside the panel.
+ *   .ts-* class inside the panel or on the button.
+ *
+ * The button also carries how many tabs the strip has out of view (tabfit.js
+ * sends 'quartz:tabstrip-hidden' and stamps the same counts on #tabstrip), so
+ * the full list is one click away exactly when the strip cannot show it.
  *
  * MOTION. The chrome sits on a backdrop-filter, so every animated frame
  * re-blurs the pane behind it. Nothing here animates continuously: the row
@@ -99,6 +103,7 @@
   var wired = false;
 
   var btnEl = null;
+  var hiddenEl = null;   // the out-of-view count on btnEl
   var rootEl = null;
   var inputEl = null;
   var listEl = null;
@@ -1557,6 +1562,10 @@
     btnEl.setAttribute('aria-haspopup', 'dialog');
     btnEl.setAttribute('aria-expanded', 'false');
     btnEl.appendChild(glyphEl(GLYPH.list));
+    hiddenEl = el('span', 'ts-hidden-n');
+    hiddenEl.hidden = true;
+    hiddenEl.setAttribute('aria-hidden', 'true');   // the button's own label says it
+    btnEl.appendChild(hiddenEl);
     btnEl.addEventListener('click', function () { toggle(); });
 
     var newtab = document.getElementById('newtab');
@@ -1565,6 +1574,31 @@
     } else {
       titlebar.appendChild(btnEl);
     }
+  }
+
+  /** The strip's out-of-view count on the button, and in its label. */
+  function syncHiddenBadge(left, right) {
+    if (!btnEl) return;
+    if (!hiddenEl) hiddenEl = btnEl.querySelector('.ts-hidden-n');
+    if (!hiddenEl) return;
+    var n = Math.max(0, left | 0) + Math.max(0, right | 0);
+    hiddenEl.hidden = n <= 0;
+    hiddenEl.textContent = n > 99 ? '99+' : String(n);
+    var label = n > 0
+      ? 'Search tabs (' + n + (n === 1 ? ' tab' : ' tabs') + ' out of view)'
+      : 'Search tabs';
+    btnEl.title = label;
+    btnEl.setAttribute('aria-label', label);
+  }
+
+  function wireHiddenBadge() {
+    document.addEventListener('quartz:tabstrip-hidden', function (event) {
+      var d = (event && event.detail) || {};
+      syncHiddenBadge(d.left, d.right);
+    });
+    // tabfit.js may have counted before this button existed.
+    var strip = document.getElementById('tabstrip');
+    if (strip) syncHiddenBadge(Number(strip.dataset.hiddenLeft) || 0, Number(strip.dataset.hiddenRight) || 0);
   }
 
   function buildPanel() {
@@ -2117,6 +2151,7 @@
 
   function boot() {
     injectButton();
+    wireHiddenBadge();
     buildPanel();
     wire();
   }

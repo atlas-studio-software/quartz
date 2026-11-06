@@ -329,7 +329,31 @@ button:focus-visible,
 #titlebar[data-ws-colour="ocean"]    { --ws-tint: var(--ws-ocean-wash); }
 #titlebar[data-ws-colour="midnight"] { --ws-tint: var(--ws-midnight-wash); }
 
+/* The strip's fitting knobs (tabfit.js reads them off #tabstrip; on the
+   titlebar so the edge buttons beside the strip inherit them too).
+   --tab-min       every chip's floor while they all fit (natural mode)
+   --tab-fit-floor an inactive chip's floor once they do not: 1 + 8px padding,
+                   the 14px favicon, room, the 18px close button that shows on
+                   hover and its 4px inset, so nothing on the chip moves when it
+                   does (14.4px favicons at 125% still leave a gap)
+   --tab-fit-title under this width an inactive chip is its icon only (the
+                   title would be two letters and an ellipsis)
+   --tab-fit-audio the extra a chip carrying the speaker gets, so the speaker
+                   never pushes the favicon or the close button out
+   --tab-fit-edge  the faded end with its count button, when tabs are hidden */
+#titlebar {
+  --tab-min: 104px;
+  --tab-fit-floor: 48px;
+  --tab-fit-title: 72px;
+  --tab-fit-audio: 24px;
+  --tab-fit-edge: 30px;
+}
+
 #tabstrip {
+  /* the chips' offsetParent (tabfit.js reads their places in the strip's own
+     scrolled coordinates) and the anchor the two edge buttons sit on */
+  position: relative;
+  anchor-name: --q-tabstrip;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -338,7 +362,12 @@ button:focus-visible,
   height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
+
+/* The spacer is the titlebar's grab area. However many tabs there are it keeps
+   this much, so the window can always be dragged by its top edge. */
+#titlebar > .spacer { min-width: 24px; }
 
 /* the + after the strip: Helm's ghost icon button */
 #newtab {
@@ -363,13 +392,12 @@ button:focus-visible,
   gap: 6px;
   height: 30px;
   max-width: 220px;
-  /* A floor, not 0. #tabstrip already hides its scrollbar and app.js already
-     scrolls the active chip into view, so the strip is built to scroll once the
-     chips run out of room — but with min-width: 0 they shrank instead, and at
-     the window's minimum width a full strip collapsed to blank chips and lone
-     close buttons. 104px is an icon, a few characters and the close button.
+  /* A floor, not 0: with min-width: 0 a full strip collapsed to blank chips
+     and lone close buttons. 104px is an icon, a few characters and the close
+     button. Past it the inactive chips are fitted narrower by tabfit.js (see
+     "too many tabs" below) and the strip scrolls, with its hidden ends shown.
      .tab.pinned and a collapsed chip override this back to their 40px. */
-  min-width: 104px;
+  min-width: var(--tab-min, 104px);
   padding: 0 8px 0 12px;
   border: 1px solid transparent;
   border-radius: var(--radius-m);
@@ -810,6 +838,98 @@ body.tab-dragging .tab .tab-close,
 body.tab-dragging .tab .tab-collapse,
 body.tab-dragging .tab.pinned .tab-expand,
 body.tab-dragging .tab.collapsed .tab-expand { opacity: 0; }
+
+/* --- too many tabs (tabfit.js) ------------------------------------
+   Once every chip at --tab-min no longer fits, tabfit.js stamps data-fit on
+   the strip and sets --tab-fit-w: the one width every INACTIVE chip shares.
+   The active chip keeps its own recipe above (never under --tab-min), and a
+   pinned or collapsed chip its 40px. A chip a drag lifted (.drag-raised) keeps
+   the width it was lifted at until it is dropped, for the same reason the
+   collapsed rule above waits for .dragging.
+
+   A fitted chip keeps the chip's look: the same padding, favicon and title.
+   What goes is what an inactive chip never showed at rest anyway: the
+   collapse button and the split mark leave, and the close button leaves the
+   row, so the title gets the 18px it used to keep for it, and on hover the
+   close button sits over the title's end. Under --tab-fit-title the title
+   goes too and the chip is its favicon, Chrome-style; the close button still
+   comes up on hover, beside the favicon, never over it. */
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) {
+  flex: 0 0 auto;
+  width: var(--tab-fit-w);
+  min-width: 0;
+  max-width: none;
+}
+
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised):has(> .tab-audio:not([hidden])) {
+  width: calc(var(--tab-fit-w) + var(--tab-fit-audio));
+}
+
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-collapse,
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-split { display: none; }
+
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-close {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  margin-top: -9px;
+}
+
+/* the title's end steps out of the close button's way while it shows */
+#tabstrip[data-fit] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised):is(:hover, .active) .tab-title { margin-right: 16px; }
+
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) { padding-left: 8px; }
+
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-title,
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-attn { display: none; }
+
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .tab-fav,
+#tabstrip[data-fit="icons"] > .tab:not(.pinned):not(.collapsed):not(.drag-lowered):is(:not(.active), .drag-raised) .dot { margin-right: 0; }
+
+/* Tabs out of view. The end they are hidden past fades out, and a button with
+   their count sits in the fade: "‹ 3" at the left, "5 ›" at the right, each
+   only while that side has any. Both are absolutely placed on the strip's own
+   box (anchor positioning), outside the flex row, so showing one never moves
+   a chip. A click pages that way; the wheel scrolls the strip. */
+#tabstrip[data-fade="l"] {
+  mask-image: linear-gradient(to right, transparent 0, transparent 18px, #000 var(--tab-fit-edge));
+}
+#tabstrip[data-fade="r"] {
+  mask-image: linear-gradient(to left, transparent 0, transparent 18px, #000 var(--tab-fit-edge));
+}
+#tabstrip[data-fade="lr"] {
+  mask-image: linear-gradient(to right, transparent 0, transparent 18px, #000 var(--tab-fit-edge),
+                              #000 calc(100% - var(--tab-fit-edge)), transparent calc(100% - 18px));
+}
+
+.strip-edge {
+  position: absolute;
+  position-anchor: --q-tabstrip;
+  top: anchor(top);
+  bottom: anchor(bottom);
+  z-index: 5;
+  height: 28px;
+  min-width: 22px;
+  max-width: var(--tab-fit-edge);
+  margin: auto 0;
+  padding: 0 3px;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#tabstrip-prev { left: anchor(left); }
+#tabstrip-next { right: anchor(right); }
+.strip-edge[hidden] { display: none; }
+.strip-edge .strip-edge-chev { font-size: 8px; }  /* icon glyph: a small chevron beside the count */
+.strip-edge:hover { background: var(--surface-3); color: var(--text); }
+.strip-edge:active { background: var(--surface-press); }
+/* a Claude tab that needs you is among the hidden ones: the count takes the warn ink */
+.strip-edge.has-attn { color: var(--warn); }
 
 /* --- window controls (monochrome) ----------------------------- */
 .wincontrols {
@@ -1554,7 +1674,7 @@ body,
   button, #omnibox, #zoom-badge, #save-star, #views > .split-divider,
   .tab .dot, .tab-card .card-btn { transition: none; }
   /* the drop slot still opens, it just arrives all at once */
-  .tab.drag-shift, #tabmenu .menu-item, #sidepane-resize { transition: none; }
+  .tab.drag-shift, #tabmenu .menu-item, #sidepane-resize, .strip-edge { transition: none; }
   /* the theme still switches, it just arrives all at once */
   html, body, .chrome-layer, #titlebar, .navrow, .tab, .claude-view { transition: none; }
 }
