@@ -108,6 +108,22 @@ ipcRenderer.invoke('toprow:config').then((cfg) => {
   toprowTell(toprowStatus());
 });
 
+// The freeze watch's one input from this side: does Chromium tell this page it is
+// hidden? (A covered window's page is 'hidden'; freezewatch.js compares that with
+// what is really on screen.) One IPC per real change.
+(() => {
+  let last = '';
+  const report = () => {
+    const state = document.visibilityState === 'hidden' ? 'hidden' : 'visible';
+    if (state === last) return;
+    last = state;
+    try { ipcRenderer.send('freeze:vis', { state }); } catch (_) { /* main going */ }
+  };
+  document.addEventListener('visibilitychange', report);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', report, { once: true });
+  else report();
+})();
+
 contextBridge.exposeInMainWorld('api', {
   homeDir: HOME_DIR,
   // Shortcuts the main process caught on our behalf because focus was inside a
@@ -397,6 +413,18 @@ contextBridge.exposeInMainWorld('api', {
   // | 'tab-woke' { url, sleptMs }.
   log: {
     event: (kind, details) => ipcRenderer.send('log:event', Object.assign({}, details || {}, { kind: String(kind || '') })),
+  },
+  // The freeze watch (freezewatch.js). The page's visibility is reported by this file
+  // itself (below); the chrome only shows what main says.
+  //   onNotice(fn({ text, ms })) -> unsubscribe: a redraw Quartz did, in plain words.
+  //   test(req) -> main's answer; refused outside --test-profile runs.
+  freeze: {
+    onNotice: (cb) => {
+      const handler = (_event, payload) => cb(payload);
+      ipcRenderer.on('freeze:notice', handler);
+      return () => ipcRenderer.removeListener('freeze:notice', handler);
+    },
+    test: (req) => ipcRenderer.invoke('freeze:test', req),
   },
   // Tab sleep's main half (tabsleep-main.js). wcId is a <webview>'s getWebContentsId().
   //   memory(wcIds) -> { ok, totalBytes, freeBytes, tabs: { [wcId]: { bytes, sharedWith } } } | { ok: false, reason }
