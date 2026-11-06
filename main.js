@@ -70,6 +70,11 @@ const quartzLog = require('./log');
 const tabSleepMain = require('./tabsleep-main');
 /** @type {ReturnType<typeof quartzLog.install> | null} */
 let qlog = null;
+// The window that stops drawing until it is moved (freezewatch.js): nudges after a
+// wake, a watch while the page reports hidden, freeze.log. Installed in whenReady.
+const freezeWatchMod = require('./freezewatch');
+/** @type {ReturnType<typeof freezeWatchMod.install> | null} */
+let freezeWatch = null;
 
 /** @type {BrowserWindow | null} */
 let win = null;
@@ -1318,6 +1323,7 @@ function createWindow() {
   });
   // quartz.log: this window's renderer crashing or hanging (log.js).
   if (qlog) qlog.watchWindow(win);
+  if (freezeWatch) freezeWatch.attachWindow(win);
 
   // The chrome itself only ever needs an editing menu (address bar, find box).
   // This IS the focused window, so the built-in roles are the right wiring.
@@ -1511,6 +1517,16 @@ app.whenReady().then(async () => {
     });
   } catch (err) {
     console.error('[log] quartz.log is not being written:', (err && err.message) || err);
+  }
+  try {
+    freezeWatch = freezeWatchMod.install({
+      app, ipcMain, isChromeSender, BrowserWindow, powerMonitor: require('electron').powerMonitor,
+      userData: app.getPath('userData'), isTest: process.argv.includes('--test-profile'),
+      logLine: (line) => { if (qlog) qlog.log.line(line); },
+    });
+  } catch (err) {
+    freezeWatch = null;
+    if (qlog) qlog.log.line('The freeze watch did not start: ' + ((err && err.message) || err) + '.');
   }
   // uvboost's line (fix on, NOT on and why, or undone by its CPU guard), whenever it comes.
   require('./uvboost').onLine((t) => { if (qlog) qlog.log.line(t); });

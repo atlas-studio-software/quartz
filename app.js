@@ -14259,6 +14259,15 @@ window.sidePane = {
   width: () => sidePaneWidth
 };
 
+// The freeze watch (freezewatch.js): a redraw Quartz did by itself is said on screen.
+if (window.api && window.api.freeze && typeof window.api.freeze.onNotice === 'function') {
+  window.api.freeze.onNotice((p) => {
+    const text = p && typeof p.text === 'string' ? p.text : '';
+    if (!text) return;
+    try { if (window.Settings && typeof window.Settings.toast === 'function') window.Settings.toast(text, p.ms || 7000); } catch (_) { /* the log has it */ }
+  });
+}
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init, { once: true });
 } else {

@@ -97,6 +97,9 @@ const TESTS = [
   { name: 'files', file: 'files-harness.js', launch: 9241, e2e: true },
   { name: 'keywords', file: 'keywords-harness.js' },
   { name: 'log', file: 'log-harness.js' },
+  // The frozen window (freezewatch.js): Chromium's occluder rules, the uncovered region, the watch's
+  // nudge / force / give-up steps and what is said on screen.
+  { name: 'freezewatch', file: 'freezewatch-harness.js' },
   // Ad-block list refresh: when it is due, validation, the atomic write, keep-old on failure, a real
   // Ghostery build on a fake fetch, the session hooks and the shield line.
   { name: 'adblock-refresh', file: 'adblock-refresh-harness.js' },
@@ -188,6 +191,10 @@ const TESTS = [
   { name: 'csp-e2e', file: 'csp-e2e.js', e2e: true, timeout: 300 },
   { name: 'log-e2e', file: 'log-e2e.js', e2e: true },
   { name: 'log-e2e-nogate', file: 'log-e2e.js', args: ['--no-gate', '--cdp', '9428'], e2e: true },
+  // The same in a real Quartz ON SCREEN (occlusion needs it, so a CI runner only): the wake bug reproduced
+  // with simulated power messages, the drag events and one nudge each redraw it, the watch and the wake
+  // nudges heal it by themselves (freeze.log, quartz.log, the toast).
+  { name: 'freezewatch-e2e', file: 'freezewatch-e2e.js', e2e: true, needs: () => (process.env.GITHUB_ACTIONS === 'true' || process.env.QUARTZ_ALLOW_ON_SCREEN === '1' ? null : 'freezewatch-e2e: puts a window on screen (occlusion needs it), so it runs on a CI runner only') },
   // The DevTools port in a real copy: 127.0.0.1 only, the busy fallback, off, a command-line port, the handoff.
   { name: 'cdp-e2e', file: 'cdp-e2e.js', e2e: true },
   { name: 'drm-e2e', file: 'drm-e2e.js', e2e: true },
