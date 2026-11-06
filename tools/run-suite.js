@@ -52,6 +52,8 @@ const TESTS = [
   { name: 'a11y-switch', file: 'a11y-switch-harness.js' },
   { name: 'argvurl', file: 'argvurl-harness.js' },
   { name: 'closetabs', file: 'closetabs-harness.js' },
+  // The tab strip past full (tabfit.js): the fit plan, what counts as out of view, reveal and paging.
+  { name: 'tabfit', file: 'tabfit-harness.js' },
   // The always-on DevTools port (cdp-main.js): every decide() branch, the netstat parse, plan()/confirm() on a fake app.
   { name: 'cdp', file: 'cdp-harness.js' },
   // Spotify auto-pause: config migration, the hold machine -> link -> engine, the SMTC helper's wrapper
@@ -210,6 +212,8 @@ const TESTS = [
   // find in page, downloads, the address bar.
   { name: 'sessions-e2e', file: 'sessions-e2e.js', e2e: true },
   { name: 'closetabs-e2e', file: 'closetabs-e2e.js', e2e: true },
+  // The same in a real Quartz at 500-1920 px with 1-80 tabs: nothing unreachable, counts true, + and drag.
+  { name: 'taboverflow-e2e', file: 'taboverflow-e2e.js', e2e: true, timeout: 600 },
   { name: 'sleep-e2e', file: 'sleep-e2e.js', e2e: true },
   { name: 'find-e2e', file: 'find-e2e.js', e2e: true },
   // Links on a local page: file -> file navigates, target=_blank opens a tab, the web is refused

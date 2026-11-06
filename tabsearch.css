@@ -17,6 +17,7 @@
    so the pair reads as one control group rather than two sizes. A control is
    Helm's icon button: transparent at rest, the raised fill on hover. */
 #tabsearch-btn {
+  position: relative;
   width: 28px;
   height: 28px;
   border-radius: var(--radius-s);
@@ -33,6 +34,32 @@
   color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
+
+/* How many tabs the strip has out of view (tabfit.js counts, tabsearch.js
+   draws): the corner-badge recipe the chips' own .tab-expand wears, neutral,
+   never the accent: it is a count, not a state. Out of the button's flow, so
+   the glyph never moves; it only shows while the count is above zero. */
+#tabsearch-btn .ts-hidden-n {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--overlay);
+  box-shadow: 0 0 0 1px var(--hairline-strong);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 9px;  /* a count inside a 14 px badge: sized to the badge, like a glyph */
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+#tabsearch-btn .ts-hidden-n[hidden] { display: none; }
 
 /* Helm's one focus treatment: the --focus-ring box-shadow, no outline */
 #tabsearch-btn:focus-visible {
