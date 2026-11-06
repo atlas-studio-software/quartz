@@ -14,7 +14,10 @@
 //   - the + sits right after the strip, the spacer keeps its grab area, nothing leaves the row;
 //   - activating the first, the last and a middle tab brings each into view;
 //   - a tab made with the + button is in view on the FIRST frame after it exists;
-//   - the vertical wheel scrolls the strip sideways; the edge buttons page it.
+//   - the vertical wheel scrolls the strip sideways; the edge buttons page it, and a page never skips a
+//     tab (the nearest one hidden on that side is in the clear after it). The strip then stays where the
+//     user put it, even with the active chip scrolled out of view; activating a tab (the one in front
+//     too) or a resize brings the active chip back.
 // Then: drag-reorder on a strip that fits; a drag held at the edge of a scrolling strip steps it and
 // drops the chip far past the first screen; pinned chips keep 40px at the left; and a restart with
 // 40 tabs and the last one active boots with that tab in view.
@@ -116,8 +119,12 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
   const M = () => c.ev('__ov.measure()');
   const settle = () => c.ev('__ov.settle()');
 
-  /** The invariants, at whatever state the strip is in now. */
-  function invariants(tag, m) {
+  /**
+   * The invariants, at whatever state the strip is in now. `scrolled`: the user moved the strip
+   * themselves (wheel, edge buttons), so the active chip may rightly be out of view; it is still
+   * counted like any other (the first check).
+   */
+  function invariants(tag, m, scrolled) {
     check(m.left + m.right + m.shown === m.n, tag + ': every chip is in the clear or counted', { left: m.left, right: m.right, shown: m.shown, n: m.n });
     check(m.prevN === m.left && m.nextN === m.right, tag + ': the edge counts match the hidden chips', { prevN: m.prevN, left: m.left, nextN: m.nextN, right: m.right });
     check(m.prevOn === (m.left > 0) && m.nextOn === (m.right > 0), tag + ': an edge button shows exactly when its side hides tabs', { prevOn: m.prevOn, nextOn: m.nextOn });
@@ -125,7 +132,7 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     check(m.prevInFade && m.nextInFade, tag + ': the edge buttons sit inside their fades');
     check(m.badge === m.left + m.right, tag + ': the tab-search badge shows the total hidden', { badge: m.badge, hidden: m.left + m.right, title: m.badgeTitle });
     const act = m.rows.find((r) => r.active);
-    check(!!act && act.st === 'in', tag + ': the active chip is in the clear', act);
+    if (!scrolled) check(!!act && act.st === 'in', tag + ': the active chip is in the clear', act);
     check(!!act && (act.pinned || act.w >= m.tabMin - 0.5), tag + ': the active chip is never under --tab-min', act && act.w);
     const thin = m.rows.filter((r) => !r.active && !r.pinned && r.w < m.floor - 0.5);
     check(!thin.length, tag + ': no inactive chip under the floor', thin.slice(0, 3));
@@ -173,13 +180,17 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
         const before = (await M()).scrollLeft;
         await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: r.x, y: r.y, deltaX: 0, deltaY: 240 });
         await settle();
-        const after = (await M()).scrollLeft;
+        const mw = await M();
+        const after = mw.scrollLeft;
         check(after > before + 50, tag + ': the wheel scrolls the strip sideways', { before, after });
-        invariants(tag + ' wheeled', await M());
+        invariants(tag + ' wheeled', mw, true);
+        await settle();
+        const stay = (await M()).scrollLeft;
+        check(stay === after, tag + ': the strip stays where the wheel put it', { after, now: stay });
         await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: r.x, y: r.y, deltaX: 0, deltaY: -240 });
         await settle();
         check((await M()).scrollLeft < after - 50, tag + ': and back');
-        // the right edge button pages right, the left one back
+        // the right edge button pages right, the left one back; a page never skips a tab
         const clickEdge = async (id) => {
           const b = await c.ev('(() => { const e = document.getElementById("' + id + '"); if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()');
           if (!b) return false;
@@ -187,13 +198,43 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
           await settle();
           return true;
         };
-        const s0 = (await M()).scrollLeft;
+        const m0 = await M();
+        const s0 = m0.scrollLeft;
+        const nextUp = (m0.rows.find((x) => x.st === 'R') || {}).id;
         check(await clickEdge('tabstrip-next'), tag + ': the right edge button is there to click');
         const m1 = await M();
-        check(m1.scrollLeft > s0 + 100, tag + ': the right edge button pages right', { s0, s1: m1.scrollLeft });
-        invariants(tag + ' paged', m1);
+        const nextRow = m1.rows.find((x) => x.id === nextUp);
+        check(m1.scrollLeft >= s0 + m0.floor - 0.5 && m1.right < m0.right, tag + ': the right edge button pages right', { s0, s1: m1.scrollLeft, right0: m0.right, right1: m1.right });
+        check(!!nextRow && nextRow.st === 'in', tag + ': and the first tab that was hidden on the right is in the clear (no tab skipped)', nextRow || nextUp);
+        invariants(tag + ' paged', m1, true);
+        const prevUp = (m1.rows.filter((x) => x.st === 'L').pop() || {}).id;
         check(await clickEdge('tabstrip-prev'), tag + ': the left edge button is there to click');
-        check((await M()).scrollLeft < m1.scrollLeft - 100, tag + ': the left edge button pages back');
+        const m2 = await M();
+        const prevRow = m2.rows.find((x) => x.id === prevUp);
+        check(m2.scrollLeft <= m1.scrollLeft - m1.floor + 0.5 && m2.left < m1.left, tag + ': the left edge button pages back', { s1: m1.scrollLeft, s2: m2.scrollLeft, left1: m1.left, left2: m2.left });
+        check(!!prevRow && prevRow.st === 'in', tag + ': and the last tab that was hidden on the left is in the clear (no tab skipped)', prevRow || prevUp);
+        invariants(tag + ' paged back', m2, true);
+        // scrolled away from the tab in front, what brings it back: activating it again (the tab
+        // search picks the tab already in front), and a resize
+        const wheelAway = async () => {
+          await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: r.x, y: r.y, deltaX: 0, deltaY: 480 });
+          await settle();
+          const a = (await M()).rows.find((x) => x.active);
+          check(!!a && a.st !== 'in', tag + ': the wheel can take the tab in front out of view', a);
+        };
+        await wheelAway();
+        await c.ev('activateTab(' + order[0] + ')');
+        await settle();
+        const ra = (await M()).rows.find((x) => x.active);
+        check(!!ra && ra.id === String(order[0]) && ra.st === 'in', tag + ': activating the tab in front again brings it back into view', ra);
+        await wheelAway();
+        await setWidth(w + 40);
+        await settle();
+        const mr = await M();
+        check(!!mr.rows.find((x) => x.active && x.st === 'in'), tag + ': a resize brings the tab in front back into view', mr.rows.find((x) => x.active));
+        invariants(tag + ' +40px', mr);
+        await setWidth(w);
+        await settle();
       }
     }
     if (SHOTS && (n === 15 || n === 80)) {
@@ -300,6 +341,13 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     invariants('workspace 2 again', m);
     await c.ev('switchWorkspace(' + JSON.stringify(home) + ')');
     await settle();
+    // The restart below is about home's 40. The session keeps at most SESSION_MAX_TABS (40) tabs
+    // across ALL workspaces, so the second one's 30 go first, or the restart would bring back a mix.
+    await c.ev('[' + wsIds.join(',') + '].forEach((id) => closeTab(id))');
+    await c.ev('deleteWorkspace(' + JSON.stringify(ws) + ')');
+    await settle();
+    const left = await c.ev('({ all: tabs.length, cap: typeof SESSION_MAX_TABS === "number" ? SESSION_MAX_TABS : null, shown: visibleTabs().length })');
+    check(left.all === 40 && left.shown === 40 && (left.cap === null || left.all <= left.cap), 'workspace 2 closed: home\'s 40 are every tab there is, within the session\'s cap', left);
   }
 
   /* ---- a restart with the last of 40 tabs in front --------------------------------------- */

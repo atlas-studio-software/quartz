@@ -137,6 +137,66 @@ ok('revealScroll on the first chip goes to 0', T.revealScroll(G(400), chips[0]) 
   ok('a page keeps one chip of overlap', shown(g, chips[h0.lastShown], n) || chips[h0.lastShown].l === n + 30, { n, last: h0.lastShown });
 }
 
+/* ---- a strip with room for one chip or two (a 500px window: 163px, a 104px active chip) ---- */
+ok('edgeFor: the design width while the active chip fits between two', T.edgeFor(300, 104, 30, 22) === 30 && T.edgeFor(164, 104, 30, 22) === 30);
+ok('edgeFor: narrower ends when it would not (163px strip, 104px chip: 29)', T.edgeFor(163, 104, 30, 22) === 29);
+ok('edgeFor: never under the count button\'s floor', T.edgeFor(120, 104, 30, 22) === 22);
+ok('edgeFor: no active chip, the design width', T.edgeFor(100, 0, 30, 22) === 30);
+{
+  // chip 0 is the active one at 104px, then 39 at the 48px floor, 4px gaps
+  const nc = [{ l: 0, r: 104 }];
+  for (let i = 1; i < 40; i++) nc.push({ l: 108 + (i - 1) * 52, r: 108 + (i - 1) * 52 + 48 });
+  const NSW = nc[nc.length - 1].r;
+  for (const cw of [163, 150, 200, 260]) {
+    const e = T.edgeFor(cw, 104, 30, 22);
+    const NG = (s) => ({ scrollLeft: s, clientWidth: cw, scrollWidth: NSW, edge: e, chips: nc });
+    const max = NSW - cw;
+    // the active chip in the middle, from either end: in the clear, between both ends
+    let bad = null;
+    for (const s0 of [0, max, Math.round(max / 2)]) {
+      for (const i of [0, 1, 20, 39]) {
+        // the active chip is the 104px one: move it to slot i
+        const cs = []; let x = 0;
+        for (let j = 0; j < 40; j++) { const w = j === i ? 104 : 48; cs.push({ l: x, r: x + w }); x += w + 4; }
+        const g = { scrollLeft: s0, clientWidth: cw, scrollWidth: x - 4, edge: e, chips: cs };
+        const s = T.revealScroll(g, cs[i]);
+        if (!shown(g, cs[i], s)) { bad = { cw, e, s0, i, s }; break; }
+      }
+    }
+    ok('@' + cw + 'px strip: the active chip is in the clear wherever it sits (ends ' + e + 'px)', !bad, bad);
+    // paging right from 0 to the end, then back: every page shows the next hidden chip, every chip is shown on some page
+    let s = 0, steps = 0, skip = null;
+    const seen = new Set();
+    for (;;) {
+      const g = NG(s), h = T.hidden(g);
+      nc.forEach((c, i) => { if (shown(g, c, s)) seen.add(i); });
+      if (!h.right) break;
+      const nextI = nc.length - h.right;
+      const n = T.pageScroll(g, 1);
+      if (!(n > s) || !shown(g, nc[nextI], n)) { skip = { s, n, nextI }; break; }
+      s = n; if (++steps > 80) break;
+    }
+    ok('@' + cw + 'px strip: paging right never skips a tab and reaches the end', !skip && s === max && seen.size === 40, { skip, s, max, seen: seen.size });
+    let back = s, bsteps = 0, bskip = null;
+    for (;;) {
+      const g = NG(back), h = T.hidden(g);
+      if (!h.left) break;
+      const prevI = h.left - 1;
+      const n = T.pageScroll(g, -1);
+      if (!(n < back) || !shown(g, nc[prevI], n)) { bskip = { back, n, prevI }; break; }
+      back = n; if (++bsteps > 80) break;
+    }
+    ok('@' + cw + 'px strip: paging left never skips a tab and gets back to 0', !bskip && back === 0, { bskip, back });
+  }
+  // the e2e's own case: from 0 (the active chip alone in the clear), right then left is a round trip
+  const e = T.edgeFor(163, 104, 30, 22);
+  const g0 = { scrollLeft: 0, clientWidth: 163, scrollWidth: NSW, edge: e, chips: nc };
+  const s1 = T.pageScroll(g0, 1);
+  ok('@163px: the right page from the start shows the first hidden tab (not one page blind)', shown(g0, nc[1], s1) && s1 >= 48, s1);
+  const s2 = T.pageScroll(Object.assign({}, g0, { scrollLeft: s1 }), -1);
+  ok('@163px: and the left page brings the active chip back', s2 === 0, s2);
+}
+
 /* ---- small things ------------------------------------------------------------------------- */
 ok('wheel lines are 40px', T.wheelPx(3, 1) === 120);
 ok('wheel pages are the strip', T.wheelPx(1, 2, 333) === 333);

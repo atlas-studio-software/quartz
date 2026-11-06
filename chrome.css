@@ -340,13 +340,19 @@ button:focus-visible,
                    title would be two letters and an ellipsis)
    --tab-fit-audio the extra a chip carrying the speaker gets, so the speaker
                    never pushes the favicon or the close button out
-   --tab-fit-edge  the faded end with its count button, when tabs are hidden */
+   --tab-fit-edge  the faded end with its count button, when tabs are hidden
+   --tab-fit-edge-min  how far both ends may narrow, the count button's own
+                   floor, so a strip too narrow for the active chip between two
+                   full ends can still show it (tabfit.js then sets
+                   --tab-fit-edge inline on #titlebar; the design width is this
+                   rule's) */
 #titlebar {
   --tab-min: 104px;
   --tab-fit-floor: 48px;
   --tab-fit-title: 72px;
   --tab-fit-audio: 24px;
   --tab-fit-edge: 30px;
+  --tab-fit-edge-min: 22px;
 }
 
 #tabstrip {
@@ -909,7 +915,7 @@ body.tab-dragging .tab.collapsed .tab-expand { opacity: 0; }
   bottom: anchor(bottom);
   z-index: 5;
   height: 28px;
-  min-width: 22px;
+  min-width: var(--tab-fit-edge-min);
   max-width: var(--tab-fit-edge);
   margin: auto 0;
   padding: 0 3px;
@@ -925,7 +931,7 @@ body.tab-dragging .tab.collapsed .tab-expand { opacity: 0; }
 #tabstrip-prev { left: anchor(left); }
 #tabstrip-next { right: anchor(right); }
 .strip-edge[hidden] { display: none; }
-.strip-edge .strip-edge-chev { font-size: 8px; }  /* icon glyph: a small chevron beside the count */
+.strip-edge .strip-edge-chev { font-size: 8px; }  /* css-lint: allow raw-font-size icon glyph: an 8px chevron beside an --fs-2xs count, under the scale's smallest step so a two-digit count still fits the 30px end */
 .strip-edge:hover { background: var(--surface-3); color: var(--text); }
 .strip-edge:active { background: var(--surface-press); }
 /* a Claude tab that needs you is among the hidden ones: the count takes the warn ink */

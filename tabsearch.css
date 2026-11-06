@@ -46,12 +46,12 @@
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  border-radius: 7px;
+  border-radius: var(--radius-pill);   /* 14px tall: the same 7px ends a fixed radius gave, and a pill once the count is wider */
   background: var(--overlay);
   box-shadow: 0 0 0 1px var(--hairline-strong);
   color: var(--text);
   font-family: var(--font);
-  font-size: 9px;  /* a count inside a 14 px badge: sized to the badge, like a glyph */
+  font-size: 9px;  /* css-lint: allow raw-font-size a count inside a 14px badge, sized to the badge like a glyph; --fs-2xs (11px) would cover the button's own icon */
   font-weight: 600;
   line-height: 14px;
   text-align: center;

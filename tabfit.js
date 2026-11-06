@@ -19,10 +19,13 @@
  *      the strip sideways, and the tab-search button (Ctrl+Shift+A) carries the
  *      total hidden so the full list is one click away.
  *
- * Whatever the step, the ACTIVE chip is brought into view whenever it changes,
- * when a chip arrives (a new tab, a restored session, a workspace switch) and
- * when the window resizes. A tab opened in the background is brought into view
- * only if the active one stays in view too.
+ * Whatever the step, the ACTIVE chip is brought into view on every activation
+ * (the tab already in front included), when a chip arrives (a new tab, a restored
+ * session, a workspace switch) and when the window resizes; the faded ends narrow
+ * when the strip is too narrow to show it between two full ones. A tab opened in
+ * the background is brought into view only if the active one stays in view too.
+ * Between those, a strip the user scrolled (wheel, edge buttons) stays where they
+ * put it, even with the active chip out of view: it is counted like any other.
  *
  * Nothing here is measured off the chips' own fitted widths: the plan reads
  * the row's free width and the chip COUNTS, so applying it can never feed back
@@ -128,26 +131,46 @@
   }
 
   /**
-   * One page toward `dir` (-1 left, +1 right), with one chip of overlap: the last
-   * chip in the clear becomes the first, or the reverse. Always moves at least a
-   * little while there is somewhere to go.
+   * How wide the faded ends are while tabs are hidden. The design width (--tab-fit-edge),
+   * unless the strip is too narrow for the active chip to sit in the clear between two of
+   * them: then both narrow, down to the count button's own floor (--tab-fit-edge-min), so
+   * it still can. (A 500px window: the strip is 163px, the active chip 104 and two 30px
+   * ends 60, one pixel short.) Below even that floor the active chip's start in view is
+   * the best there is (revealScroll).
+   */
+  function edgeFor(clientWidth, activeW, edge, edgeMin) {
+    if (!(activeW > 0) || clientWidth - 2 * edge >= activeW) return edge;
+    return Math.max(edgeMin, Math.min(edge, Math.floor((clientWidth - activeW) / 2)));
+  }
+
+  /**
+   * One page toward `dir` (-1 left, +1 right). A page always brings the nearest chip
+   * hidden on that side into the clear, so paging never skips a tab. The first choice
+   * keeps one chip of overlap (the last chip in the clear becomes the first, or the
+   * reverse); when that would not show the next hidden chip (a strip with room for one
+   * chip or two), that chip itself becomes the first (or the last) in the clear. Always
+   * moves while there is somewhere to go.
    */
   function pageScroll(g, dir) {
     const max = Math.max(0, g.scrollWidth - g.clientWidth);
     const s = Math.min(Math.max(0, g.scrollLeft), max);
+    const cw = g.clientWidth;
     const h = hidden(g);
-    const page = Math.max(g.edge, g.clientWidth - 2 * g.edge);
-    let t;
-    if (dir > 0) {
-      const c = h.lastShown >= 0 ? g.chips[h.lastShown] : null;
-      t = c ? c.l - g.edge : s + page;
-      if (t <= s + 1) t = s + page;
-    } else {
-      const c = h.firstShown >= 0 ? g.chips[h.firstShown] : null;
-      t = c ? c.r - g.clientWidth + g.edge : s - page;
-      if (t >= s - 1) t = s - page;
+    const page = Math.max(g.edge, cw - 2 * g.edge);
+    const clamp = (v) => Math.min(Math.max(0, v), max);
+    const fwd = dir > 0;
+    const next = fwd ? (h.right ? g.chips[g.chips.length - h.right] : null) : (h.left ? g.chips[h.left - 1] : null);
+    const lead = fwd ? (h.lastShown >= 0 ? g.chips[h.lastShown] : null) : (h.firstShown >= 0 ? g.chips[h.firstShown] : null);
+    const moves = (t) => (fwd ? t > s + 1 : t < s - 1);
+    for (const c of [lead, next]) {
+      if (!c) continue;
+      const t = clamp(fwd ? c.l - g.edge : c.r - cw + g.edge);
+      if (moves(t) && (!next || shownAt(next, t, cw, max, g.edge))) return t;
     }
-    return Math.min(Math.max(0, t), max);
+    // The next chip is wider than the clear view (a strip narrower than any window makes
+    // it): its start in view, as revealScroll does.
+    if (next) { const t = clamp(next.l - g.edge); if (moves(t)) return t; }
+    return clamp(s + (fwd ? page : -page));
   }
 
   /** A wheel event's vertical travel in px (deltaMode 1 = lines, 2 = pages). */
@@ -161,7 +184,7 @@
   /** What an edge button says: the count, capped so the button never outgrows its fade. */
   function countText(n) { return n > 99 ? '99+' : String(n); }
 
-  const API = { plan, hidden, revealScroll, pageScroll, wheelPx, countText, insetsAt };
+  const API = { plan, hidden, revealScroll, pageScroll, wheelPx, countText, insetsAt, edgeFor };
   if (typeof module === 'object' && module && module.exports) { module.exports = API; return; }
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -177,6 +200,7 @@
   let edgesRaf = 0;
   let glide = 0;
   let lastSent = '';
+  let edgeNow = 0;   // the faded ends' width right now (edgeFor); 0 until the first pass
 
   const reduceMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const px = (v, d) => { const n = parseFloat(v); return isFinite(n) ? n : d; };
@@ -190,7 +214,8 @@
       floor: px(cs.getPropertyValue('--tab-fit-floor'), 48),
       titleMin: px(cs.getPropertyValue('--tab-fit-title'), 72),
       audioExtra: px(cs.getPropertyValue('--tab-fit-audio'), 28),
-      edge: px(cs.getPropertyValue('--tab-fit-edge'), 30)
+      edge: px(cs.getPropertyValue('--tab-fit-edge'), 30),
+      edgeMin: px(cs.getPropertyValue('--tab-fit-edge-min'), 22)
     };
     return knobs;
   }
@@ -245,7 +270,7 @@
       scrollLeft: strip.scrollLeft,
       clientWidth: strip.clientWidth,
       scrollWidth: strip.scrollWidth,
-      edge: k.edge,
+      edge: edgeNow || k.edge,
       chips: chips.map((c) => ({ l: c.offsetLeft, r: c.offsetLeft + c.offsetWidth }))
     };
   }
@@ -337,6 +362,7 @@
 
     const fitMoved = fit !== last.fit;
     last = { sig, avail, activeEl, activeRole, ids, fit };
+    syncEdgeWidth(k, activeEl);
 
     // What to bring into view. Never mid-drag: the drag owns the strip until it
     // ends, and a scroll under it would move the chips out from under its
@@ -354,6 +380,23 @@
       setScroll(s);
     }
     syncEdges();
+  }
+
+  /**
+   * The faded ends' width for the strip as it now is (edgeFor). The override goes on
+   * #titlebar, so the strip's mask, the two buttons (its children) and anyone reading
+   * --tab-fit-edge off the strip all see the same number; readKnobs() read the design
+   * width before any override existed. Nothing in the row's layout reads it, so
+   * changing it cannot feed back into the plan.
+   */
+  function syncEdgeWidth(k, activeEl) {
+    const cw = strip.clientWidth;
+    const over = strip.scrollWidth - cw > 1;
+    const e = over && activeEl ? edgeFor(cw, activeEl.offsetWidth, k.edge, k.edgeMin) : k.edge;
+    if (e === edgeNow) return;
+    edgeNow = e;
+    if (e < k.edge) titlebar.style.setProperty('--tab-fit-edge', e + 'px');
+    else titlebar.style.removeProperty('--tab-fit-edge');
   }
 
   function queueEdges() {
@@ -443,6 +486,10 @@
 
     strip.addEventListener('scroll', queueEdges, { passive: true });
     strip.addEventListener('wheel', onWheel, { passive: false });
+    // Every activation, the tab already in front included (picked again from the tab
+    // search after the strip was scrolled away from it): it comes back into view. A
+    // chip that is already in the clear is left where it is (revealScroll).
+    document.addEventListener('tabchange', () => relayout({ force: true }));
 
     new MutationObserver((records) => {
       const added = [];
@@ -489,6 +536,7 @@
         w: px(strip.style.getPropertyValue('--tab-fit-w'), 0),
         avail: last.avail,
         knobs: readKnobs(),
+        edge: edgeNow || readKnobs().edge,
         scrollLeft: g.scrollLeft, clientWidth: g.clientWidth, scrollWidth: g.scrollWidth,
         left: h.left, right: h.right, overflow: h.overflow,
         prev: prevBtn && !prevBtn.hidden ? prevBtn.textContent : null,
