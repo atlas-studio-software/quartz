@@ -241,7 +241,7 @@ function noticeWords(e) {
   if (!e) return null;
   if (e.ev === 'healed' || e.ev === 'woke-healed') {
     const why = e.ev === 'woke-healed' ? 'after the PC woke up, Windows still had it marked as covered'
-      : 'Windows had it marked as covered while it was in front';
+      : 'Windows had it marked as covered while nothing covered it';
     return `Quartz redrew the window: it had stopped drawing for ${secs(e.hiddenMs)} (${why}).`;
   }
   if (e.ev === 'user-fixed' && e.gaveUp) {
@@ -344,7 +344,8 @@ function describe(w, h, withClass) {
  */
 function measureCover(w, self, keepAbove) {
   const me = describe(w, self, false);
-  if (!me.visible || !me.rect) return { uncoveredPx: 0, above: [], selfVisible: me.visible };
+  // Cloaked = on another virtual desktop: Chromium calls that covered, and so do we.
+  if (!me.visible || !me.rect || me.cloaked) return { uncoveredPx: 0, above: [], selfVisible: me.visible, selfCloaked: !!me.cloaked };
   const vx = w.GetSystemMetrics(SM_XVIRTUALSCREEN); const vy = w.GetSystemMetrics(SM_YVIRTUALSCREEN);
   const screen = { left: vx, top: vy, right: vx + w.GetSystemMetrics(SM_CXVIRTUALSCREEN), bottom: vy + w.GetSystemMetrics(SM_CYVIRTUALSCREEN) };
   const cuts = [];
