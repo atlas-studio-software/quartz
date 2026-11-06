@@ -462,7 +462,10 @@
       // Everything else in the row changes what the strip may have; none of it
       // changes size because of the strip, so this cannot loop.
       const watch = () => {
-        for (const el of titlebar.children) if (el !== strip && !el.classList.contains('spacer')) ro.observe(el);
+        // (not the edge buttons: they sit outside the row, and their counts change inside these callbacks)
+        for (const el of titlebar.children) {
+          if (el !== strip && !el.classList.contains('spacer') && !el.classList.contains('strip-edge')) ro.observe(el);
+        }
       };
       watch();
       new MutationObserver(() => { watch(); relayout({ resized: true }); }).observe(titlebar, { childList: true });
