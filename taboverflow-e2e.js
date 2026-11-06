@@ -19,8 +19,9 @@
 //     user put it, even with the active chip scrolled out of view; activating a tab (the one in front
 //     too) or a resize brings the active chip back.
 // Then: drag-reorder on a strip that fits; a drag held at the edge of a scrolling strip steps it and
-// drops the chip far past the first screen; pinned chips keep 40px at the left; and a restart with
-// 40 tabs and the last one active boots with that tab in view.
+// drops the chip far past the first screen; pinned chips keep 40px at the left; and a restart with a
+// full session (home's strip filled to the session's 40-tab cap, less any tab the profile keeps in
+// another workspace) and the last tab active boots with that tab in view.
 // One summary line: "taboverflow-e2e: N passed, M failed".
 'use strict';
 const fs = require('fs');
@@ -341,17 +342,23 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     invariants('workspace 2 again', m);
     await c.ev('switchWorkspace(' + JSON.stringify(home) + ')');
     await settle();
-    // The restart below is about home's 40. The session keeps at most SESSION_MAX_TABS (40) tabs
-    // across ALL workspaces, so the second one's 30 go first, or the restart would bring back a mix.
+    // The restart below is about home's strip. The session keeps at most SESSION_MAX_TABS (40)
+    // tabs across ALL workspaces, so the second one's 30 go first, or the restart would bring back a mix.
     await c.ev('[' + wsIds.join(',') + '].forEach((id) => closeTab(id))');
     await c.ev('deleteWorkspace(' + JSON.stringify(ws) + ')');
     await settle();
-    const left = await c.ev('({ all: tabs.length, cap: typeof SESSION_MAX_TABS === "number" ? SESSION_MAX_TABS : null, shown: visibleTabs().length })');
-    check(left.all === 40 && left.shown === 40 && (left.cap === null || left.all <= left.cap), 'workspace 2 closed: home\'s 40 are every tab there is, within the session\'s cap', left);
+    const gone = await c.ev('({ ws2: tabs.filter((t) => tabWorkspace(t) === ' + JSON.stringify(ws) + ').length, workspace: workspaces.some((w) => w.id === ' + JSON.stringify(ws) + '), shown: visibleTabs().length })');
+    check(gone.ws2 === 0 && !gone.workspace && gone.shown === 40, 'workspace 2 closed and deleted: home keeps its 40', gone);
   }
 
-  /* ---- a restart with the last of 40 tabs in front --------------------------------------- */
+  /* ---- a restart with the last of a full session's tabs in front ------------------------- */
   {
+    // A full session: home's strip plus whatever else this profile always holds (a seeded
+    // workspace's own tab, say) comes to exactly the cap, so every tab is written and comes back.
+    const room = await c.ev('(() => { const cap = typeof SESSION_MAX_TABS === "number" ? SESSION_MAX_TABS : 40; const vis = visibleTabs(); const others = tabs.filter((t) => !vis.includes(t)); return { cap, others: others.length, list: others.slice(0, 4).map((t) => ({ id: t.id, url: String(t.url || "").slice(0, 60), ws: tabWorkspace(t) })) }; })()');
+    const N = room.cap - room.others;
+    check(N >= 30, 'boot 1: a full session leaves home at least 30 tabs (' + N + ')', room);
+    await c.ev('__ov.make(' + N + ', ' + JSON.stringify(BASE) + ')');
     const order = await ids();
     const lastId = order[order.length - 1];
     await c.ev('activateTab(' + lastId + ')');
@@ -361,17 +368,17 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     q = await launch({ cdp: CDP });
     c = q.chrome;
     await c.ev(PROBE);
-    await c.waitFor('visibleTabs().length >= 40', 20000).catch(() => 0);
+    await c.waitFor('visibleTabs().length >= ' + N, 20000).catch(() => 0);
     await settle();
     const m = await M();
     const act = m.rows.find((r) => r.active);
     const url = await c.ev('(getActiveTab() || {}).url');
-    check(m.n === 40 && url === lastUrl, 'boot 2: the 40 tabs came back with the last one in front', { n: m.n, url, lastUrl });
+    check(m.n === N && url === lastUrl, 'boot 2: the ' + N + ' tabs came back with the last one in front', { n: m.n, url, lastUrl });
     check(!!act && act.st === 'in', 'boot 2: the restored active tab is in view without touching anything', act);
-    invariants('boot 2 (40 tabs, default width ' + m.vw + ')', m);
+    invariants('boot 2 (' + N + ' tabs, default width ' + m.vw + ')', m);
     await setWidth(500);
     await settle();
-    invariants('boot 2 (40 tabs @500)', await M());
+    invariants('boot 2 (' + N + ' tabs @500)', await M());
     check(await q.quit(), 'boot 2: closing the window quit Quartz');
   }
   srv.close();
