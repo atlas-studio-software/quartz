@@ -63,6 +63,28 @@ module.exports = async function (check) {
   check(shape.cleanResult({ state: 'ok', items: [], avatar: 'http://x/y.png' }).avatar === undefined, 'shape: an http avatar dropped');
   check(shape.cleanResult({ state: 'ok', items: [], picker: true }).picker === undefined, 'shape: picker only on an error');
 
+  /* ---- a player that went back without playing (Disney+ /play/<id> straight back to /home) ---- */
+  var DP = 'https://www.disneyplus.com/play/9ba0f41b-6173-4ff1-8967-71cad0620244';
+  var DHOME = 'https://www.disneyplus.com/home';
+  check(P.inPlayer('disney', DP) && P.inPlayer('hulu', 'https://www.hulu.com/watch/' + BEAR_EP) && P.inPlayer('disney', 'http://127.0.0.1:5000/play/x'), 'player: the player addresses');
+  check(!P.inPlayer('disney', DHOME) && !P.inPlayer('disney', 'https://www.disneyplus.com/browse/entity-x') && !P.inPlayer('disney', 'https://www.disneyplus.com/play/') &&
+    !P.inPlayer('prime', 'https://www.primevideo.com/play/x') && !P.inPlayer('youtube', 'https://www.youtube.com/watch?v=x') && !P.inPlayer('disney', 'not a url'), 'player: anything else is not');
+  var bb = P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, played: false, eme: null });
+  check(/^Disney\+ went back to its home page instead of playing: it stopped before the video asked for Widevine\. .*Edge can play it\.$/.test(bb), 'bounce: home, no Widevine seen', bb);
+  check(/never asked Quartz for a licence/.test(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, eme: { granted: true } })), 'bounce: Widevine granted, no licence asked');
+  check(/licence server turned Quartz down \(no licence\)/.test(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, eme: { granted: true, licence: 'no-licence' } })), 'bounce: the licence outcome says it');
+  check(/Widevine wasn’t available/.test(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, eme: { refused: true } })), 'bounce: Widevine refused');
+  check(/went back to another page/.test(P.bounced({ service: 'disney', from: DP, to: 'https://www.disneyplus.com/browse/entity-x', ms: 4000 })), 'bounce: back to the title page');
+  check(/^Hulu went back to its home page/.test(P.bounced({ service: 'hulu', from: 'https://www.hulu.com/watch/' + BEAR_EP, to: 'https://www.hulu.com/hub/home', ms: 2000 })), 'bounce: Hulu too');
+  check(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, played: true }) === '', 'bounce: not after a video played');
+  check(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: 4000, user: true }) === '', 'bounce: not his own Back');
+  check(P.bounced({ service: 'disney', from: DP, to: DHOME, ms: P.BOUNCE_MS + 1 }) === '' && P.bounced({ service: 'disney', from: DP, to: DHOME }) === '', 'bounce: not after a long stay, not without a time');
+  check(P.bounced({ service: 'disney', from: DP, to: DP + '?x=1', ms: 1000 }) === '' && P.bounced({ service: 'disney', from: DHOME, to: DHOME, ms: 1000 }) === '', 'bounce: only out of the player');
+  check(P.bounced({ service: 'disney', from: DP, to: 'https://www.disneyplus.com/select-profile', ms: 1000 }) === '' &&
+    P.bounced({ service: 'disney', from: DP, to: 'https://www.disneyplus.com/identity/login', ms: 1000 }) === '' &&
+    P.bounced({ service: 'disney', from: DP, to: 'https://login.disney.com/x', ms: 1000 }) === '', 'bounce: a sign-in or profile pick is not one');
+  check(P.bounced({ service: 'prime', from: 'https://www.primevideo.com/play/x', to: 'https://www.primevideo.com/', ms: 1000 }) === '' && P.bounced(null) === '', 'bounce: only the services with a player address');
+
   /* ---- the fallback ---- */
   var play = 'https://www.hulu.com/watch/' + BEAR_EP;
   check(P.refusal({ service: 'hulu', playUrl: play, url: play, code: 200 }) === '', 'refusal: the player took it');

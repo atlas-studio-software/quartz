@@ -552,6 +552,18 @@ scriptlets off for youtube.com 5 of 5. An in-stream ad can still play, as it alr
 reload path — this fixes the player, it does not skip ads. It also stops the "Script failed to
 execute" rejections in the main log, which were those injections losing the race.
 
+**Disney+ and scriptlets.** disneyplus.com joined the same list (x.com and twitter.com are there for
+their sign-in). The list carries two json-prune rules for it (`stream.insertion*`, `pods.0.ads`,
+`ads.*`) that patch `JSON.parse` in the page, so the playback answer Disney+'s player is built from
+comes back with fields missing. Play there is an in-page move to `/play/<id>`, and Disney+'s own code
+sends a player that fails to start back to `/home` with nothing on screen. That is what the user
+reported: Play, from Lumen and from Disney+'s own home page, went back to the home page every time.
+Not measured live (it needs a signed-in account); the engine's answer for the page was checked offline.
+Whatever the cause of a refusal, Lumen's layer no longer lets it pass silently: when a Disney+ or Hulu
+page reaches the player address and leaves it before any video starts, the tile says the service went
+back without playing, what the page did with Widevine, and offers Open in Edge for that title
+(`watch/playurl.js` `bounced()`, `watch-player.js` `trackPlayer()`).
+
 **Tab audio and pinning.** A chip grows a speaker button the first time its guest plays
 something; clicking it mutes the tab without raising it, and the mute rides in the session entry
 and is re-applied on `dom-ready`, since a fresh guest is born unmuted. The speaker follows

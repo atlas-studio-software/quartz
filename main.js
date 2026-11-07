@@ -3222,8 +3222,19 @@ function applyUnbreakRules(engine) {
  * you in now", a form that no longer responds, or a verification step that
  * never completes. There is no document load to reload past, which is why X
  * never recovered the way YouTube did.
+ *
+ * disneyplus.com is here for the same mechanism, in its player. The list carries
+ * two json-prune rules for it (stream.insertion.adSession, stream.insertion.points,
+ * stream.insertion, stream.sources.*.insertion, pods.0.ads; and ads.metadata,
+ * ads.document, ads.dxc, ads.live, ads.vod), which patch JSON.parse in the page
+ * so the playback answer Disney+'s player is built from comes back with those
+ * fields gone. Play is an in-page move to /play/<id> on a same-document SPA,
+ * and Disney+'s own code sends a player that fails to start back to /home with
+ * nothing on screen. The user's report (11-06): Play, from Lumen or from Disney+'s
+ * own home page, "just kept going back to the Disney home page". Same trade as
+ * YouTube: the network rules still block, only the in-page rewriting goes.
  */
-const SCRIPTLET_FREE_HOSTS = ['youtube.com', 'x.com', 'twitter.com'];
+const SCRIPTLET_FREE_HOSTS = ['youtube.com', 'x.com', 'twitter.com', 'disneyplus.com'];
 
 function scriptletsAllowedOn(url) {
   const host = hostOfUrl(url);

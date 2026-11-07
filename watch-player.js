@@ -264,8 +264,10 @@
     // s.pageTitle: the page's latest own title (a new document starts without one). The bar falls back to it
     // when the slot has no title of its own, so a move in the page that keeps its title (a &t= jump sends no
     // page-title-updated) no longer drops the bar to the bare "YouTube".
-    v.addEventListener('did-navigate', function (e) { if (s.view === v) { s.url = e.url || s.url; s.pageTitle = ''; dropMovedTitle(s); syncBar(); } });
-    v.addEventListener('did-navigate-in-page', function (e) { if (s.view === v && e.isMainFrame) { s.url = e.url || s.url; dropMovedTitle(s); syncBar(); } });
+    v.addEventListener('did-navigate', function (e) { if (s.view === v) { s.url = e.url || s.url; s.pageTitle = ''; s.eme = null; dropMovedTitle(s); syncBar(); trackPlayer(s, s.url); } });
+    v.addEventListener('did-navigate-in-page', function (e) { if (s.view === v && e.isMainFrame) { s.url = e.url || s.url; dropMovedTitle(s); syncBar(); trackPlayer(s, s.url); } });
+    // A video that started is what tells "his own Back" from "the service's player gave up" (trackPlayer).
+    v.addEventListener('media-started-playing', function () { if (s.view === v && s.pl) s.pl.played = true; });
     v.addEventListener('page-title-updated', function (e) { if (s.view === v) { s.pageTitle = String((e && e.title) || ''); if (!s.title) syncBar(); } });
     v.addEventListener('did-fail-load', function (e) {
       if (s.view !== v || !e.isMainFrame || e.errorCode === -3) return;   // -3: aborted (a redirect, a stop)
@@ -306,6 +308,35 @@
     if (s.tile && s.tile.parentNode) s.tile.parentNode.removeChild(s.tile);
   }
 
+  /*
+   * Disney+ and Hulu can refuse a title without a word: the page reaches the service's player address
+   * (Disney+ /play/<id>) and goes straight back to the home page, again on every Play. Nothing reaches the
+   * DRM bar then, because no licence was ever asked for. Lumen says it instead: the state over the tile,
+   * with Open in Edge (to the player address, so Edge starts the title itself) and a way back to the
+   * service's page, plus one quartz.log line. watch/playurl.js bounced() decides; a video that started,
+   * or the layer's own Back, is never a refusal.
+   */
+  function trackPlayer(s, url) {
+    var P = window.LumenPlay;
+    if (!P || typeof P.inPlayer !== 'function' || typeof P.bounced !== 'function') return;
+    if (P.inPlayer(s.service, url)) {
+      var path = pathOf(url);
+      if (!s.pl || s.pl.path !== path) s.pl = { url: url, path: path, at: Date.now(), played: false };
+      s.bounced = null;
+      return;
+    }
+    var pl = s.pl;
+    if (!pl) return;
+    s.pl = null;
+    var why = P.bounced({ service: s.service, from: pl.url, to: url, ms: Date.now() - pl.at, played: pl.played,
+      user: Date.now() - (s.backAt || 0) < 3000, eme: s.eme || null });
+    if (!why) return;
+    s.bounced = { from: pl.url, why: why };
+    showState(s, 'refused', why);
+    if (api && typeof api.report === 'function') api.report('bounce', why, pl.url).catch(function () { /* the line is extra; the state is on screen */ });
+  }
+  function pathOf(url) { try { return new URL(url).pathname; } catch (e) { return String(url || ''); } }
+
   function showState(s, kind, text) {
     var st = s.state;
     st.replaceChildren();
@@ -324,6 +355,11 @@
       try { s.view.reload(); } catch (e) { showState(s, 'failed', 'The page couldn’t reload: ' + ((e && e.message) || e) + '. Open the title again, or open it in a tab.'); }
     }));
     X('stateActs', s, kind, acts);
+    // A player that went back: the service's own page is still there under the state, so he can browse on.
+    if (kind === 'refused' && s.bounced && s.view) acts.appendChild(btn('', 'Back to ' + (svcName(s.service) || 'the page'), function () {
+      st.hidden = true;
+      s.tile.classList.remove('has-state');
+    }));
     acts.appendChild(btn('', 'Open in a tab', function () { toTab(s); }));
     box.appendChild(acts);
     st.appendChild(box);
@@ -544,6 +580,7 @@
     // test seam (_state().backs): the last few Backs, where each came from, whether the page could go back.
     L.backs = (L.backs || []).slice(-5).concat([{ src: src || 'key', can: can, t: Date.now() % 100000 }]);
     if (can && !(s.state && !s.state.hidden && s.state.getAttribute('data-kind') === 'blocked')) {
+      s.backAt = Date.now();   // his own Back out of a player is never "the player went back" (trackPlayer)
       s.state.hidden = true;
       s.tile.classList.remove('has-state');
       try { var gb = v.goBack(); if (gb && gb.catch) gb.catch(function () { /* the page went */ }); return true; } catch (e) { /* close instead */ }
@@ -566,8 +603,10 @@
     if (!slot) return;
     if (!drm || typeof drm.openInEdge !== 'function') { toast('Couldn’t open Microsoft Edge: this window has no channel to the browser', true); return; }
     if (b) b.disabled = true;
-    if (api) api.escape('Open in Edge' + (why ? ': ' + why : slot.blocked ? ': ' + slot.blocked : (slot.refused ? ': licence refused' : '')), slot.url);
-    drm.openInEdge(slot.url).then(function (r) {
+    // After a player that went back, the page sits on the home page: Edge gets the player address instead.
+    var target = slot.bounced && slot.state && !slot.state.hidden ? slot.bounced.from : slot.url;
+    if (api) api.escape('Open in Edge' + (why ? ': ' + why : slot.blocked ? ': ' + slot.blocked : (slot.bounced ? ': the player went back' : slot.refused ? ': licence refused' : '')), target);
+    drm.openInEdge(target).then(function (r) {
       if (b) b.disabled = false;
       if (r && r.ok) {
         toast('Opened in Microsoft Edge' + (slot.blocked ? ': ' + slot.blocked : ''));
@@ -719,9 +758,15 @@
     if (drm && typeof drm.onSignal === 'function') {
       drm.onSignal(function (sig) {
         var s = sig && slotOf(sig.wcId);
-        if (!s || sig.kind !== 'licence') return;
+        if (!s) return;
+        // What the page did with Widevine, for the words when its player goes back without playing (trackPlayer).
+        var e = s.eme || (s.eme = { granted: false, refused: false, encrypted: false, licence: '' });
+        if (sig.kind === 'request') { if (sig.granted === true) e.granted = true; else e.refused = true; }
+        else if (sig.kind === 'encrypted') e.encrypted = true;
+        if (sig.kind !== 'licence') return;
         var Sites = window.DrmSites;
         if (Sites && typeof Sites.isLicenceOutcome === 'function' && !Sites.isLicenceOutcome(sig.outcome)) return;
+        if (!e.licence) e.licence = String(sig.outcome || '').slice(0, 40);
         showState(s, 'refused', (svcName(s.service) || 'The service') + ' refused to license this video inside Quartz' + (sig.outcome ? ' (' + String(sig.outcome).replace(/-/g, ' ') + ')' : '') + '. Edge can play it.');
       });
     }
@@ -763,6 +808,7 @@
         backs: L.backs || [],
         slots: L.slots.map(function (s) {
           return { wcId: s.wcId, url: s.url, service: s.service, title: s.title, blocked: s.blocked, refused: s.refused,
+            bounced: s.bounced ? s.bounced.from : '', inPlayer: !!s.pl, eme: s.eme || null,
             state: s.state.hidden ? '' : s.state.getAttribute('data-kind'), stateText: s.state.hidden ? '' : s.state.textContent, view: !!s.view };
         })
       };

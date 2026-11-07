@@ -103,6 +103,10 @@ async function startServers(mock) {
       if (p === '/__p/noframe') return sendHtml(res, '<!doctype html><title>No framing</title><p id="nf">This page refuses to be framed.</p>', { 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'" });
       if (p === '/__p/licence') return sendHtml(res, LICENCE_PAGE);
       if (p === '/__p/widevine') return sendHtml(res, PLAY_HTML);
+      // A player that gives up without a word (Disney+ in the user's report): /play/<id> straight back to /home.
+      if (p === '/play/bounce') return sendHtml(res, '<!doctype html><title>Player</title><p id="pl">Loading the player</p><script>setTimeout(() => history.pushState({}, "", "/home"), 1500)</script>');
+      // A player that played, then went home (his own way out of the page): never a refusal.
+      if (p === '/play/plays') return sendHtml(res, '<!doctype html><title>Player</title><video id="v" src="/__media/clip.mp4" muted autoplay playsinline></video><script>document.getElementById("v").addEventListener("playing", () => setTimeout(() => history.pushState({}, "", "/home"), 1200), { once: true })</script>');
       if (PLAYER_PATH.test(p)) return sendHtml(res, playerPage(svc + ' ' + (p === '/watch' ? 'video' : p.replace(/^\/(__p\/)?/, '')), other.origin, auth.origin, svc === 'youtube' && p === '/watch' && u.searchParams.get('spa') === '1'));
       // Everything else is the reader's: the mock answers.
       const up = http.request({ host: '127.0.0.1', port: mock.ports[svc], path: req.url, method: req.method, headers: Object.assign({}, req.headers, { host: '127.0.0.1:' + mock.ports[svc] }) }, (r) => {
@@ -526,6 +530,26 @@ run('watch-player-e2e', async ({ check, launch, say, profileDir }) => {
       check(stub.indexOf(FD + '/__p/licence') !== -1, 'its Open in Edge goes to Edge (the stub), never launched for real');
       check(logHas(/left the layer \(Open in Edge: licence refused\)/), 'quartz.log: the Edge way out has its line');
     }
+    if ((await chrome.ev(ST)).open) await chrome.ev('WatchPlayer.close("e2e"), 1');
+
+    // Disney+'s player going straight back to its home page, nothing on screen (the user's report, 11-06): Lumen says so.
+    await chrome.ev(`openInLumen(${JSON.stringify(FD + '/play/bounce')}, { service: 'disney', title: 'Bounce test' }), 1`);
+    const bo = await chrome.waitFor(`(() => { const s = ${ST}; return s.slots[0] && s.slots[0].state === 'refused' ? s.slots[0] : null; })()`, 15000).catch(() => null);
+    check(!!bo && /went back to its home page instead of playing/.test(bo.stateText) && /Open in Edge/.test(bo.stateText) && /Back to Disney\+/.test(bo.stateText) && bo.bounced === FD + '/play/bounce',
+      'a player that goes back to the home page without playing shows why, with Open in Edge and Back to Disney+', bo && { text: bo.stateText, url: bo.url, bounced: bo.bounced });
+    check(logHas(/Lumen player: Disney\+ went back to its home page instead of playing/), 'quartz.log: the player going back has its line');
+    if (bo) {
+      await chrome.ev('[...document.querySelectorAll(".wp-state .wp-btn")].find((b) => b.textContent === "Open in Edge").click(), 1');
+      await sleep(1200);
+      let stub = ''; try { stub = fs.readFileSync(EDGE_STUB, 'utf8'); } catch (e) { stub = ''; }
+      check(stub.indexOf(FD + '/play/bounce') !== -1, 'its Open in Edge sends the player address, not the home page it landed on');
+    }
+    if ((await chrome.ev(ST)).open) await chrome.ev('WatchPlayer.close("e2e"), 1');
+    await chrome.ev(`openInLumen(${JSON.stringify(FD + '/play/plays')}, { service: 'disney', title: 'Plays test' }), 1`);
+    const pw = await chrome.waitFor(`(() => { const s = ${ST}; return s.slots[0] && /\/home$/.test(s.slots[0].url) ? s.slots[0] : null; })()`, 15000).catch(() => null);
+    await sleep(600);
+    const pw2 = (await chrome.ev(ST)).slots[0];
+    check(!!pw && pw2 && pw2.state === '' && !pw2.bounced, 'a player that played and then went home is not a refusal', pw2 && { url: pw2.url, state: pw2.state, text: pw2.stateText });
     if ((await chrome.ev(ST)).open) await chrome.ev('WatchPlayer.close("e2e"), 1');
 
     // TMDB's where-to-watch page: in the layer (the TMDB guide), not a tab; its Disney Plus link,

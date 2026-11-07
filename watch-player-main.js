@@ -554,6 +554,13 @@ function create(deps) {
       exitLine(why, String(p.url || ''), /^Open in Edge/.test(why) ? 'edge' : 'tab');
       return { ok: true };
     });
+    on('watch-player:report', (p) => {
+      // The chrome already shows it over the tile; this is the log's copy. Host only, never the title's address.
+      if (p.kind !== 'bounce') return { ok: false };
+      const text = String(p.text || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
+      log(Hosts.HUB_NAME + ' player: ' + text.replace(/\.$/, '') + ' (' + hostOf(String(p.url || '')) + ')');
+      return { ok: true };
+    });
     on('watch-player:closed', (p) => {
       // Fresh after watching: re-read the services that were in the layer.
       const ids = Array.isArray(p.services) ? p.services.filter((id) => typeof id === 'string').slice(0, MAX_TILES) : [];

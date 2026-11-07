@@ -149,6 +149,54 @@
     return '';
   }
 
+  /* ------------------------------------------------------------ a player that went back */
+
+  /*
+   * Disney+ and Hulu (one platform) play at their own player address: Disney+ /play/<id>, Hulu
+   * /watch/<id>. When either won't play a title in this browser it doesn't always say so: its
+   * player can route straight back to its home page (or the page it came from) with nothing on
+   * screen. The user, 11-06: "it just kept going back to the Disney home page". The layer watches
+   * for it: the page reached the player address and left it again before any video started.
+   */
+  var PLAYER_PATH = { disney: /^\/play\/[^\/]+/i, hulu: /^\/watch\/[^\/]+/i };
+  var BOUNCE_MS = 90000;   // longer than that at the player is watching, or waiting, not a refusal
+  var NOT_A_BOUNCE = /\/(login|log-in|signin|sign-in|welcome|identity|select-profile|profiles|edit-profiles|account)(\/|$)/i;
+
+  /** Is url the service's own player address (Disney+ /play/<id>, Hulu /watch/<id>)? */
+  function inPlayer(service, url) {
+    var re = PLAYER_PATH[service];
+    var u = parse(url);
+    return !!(re && u && (u.protocol === 'https:' || u.protocol === 'http:') && re.test(u.pathname));
+  }
+
+  /*
+   * Did the service's player send the page away without playing? info: { service, from (the player
+   * address), to (where the page went), ms (time spent at the player), played (a video started),
+   * user (the layer's own Back did it), eme: { granted, refused, encrypted, licence } (what the page
+   * did with Widevine, from drm-preload.js). '' when it isn't a refusal; else one whole sentence.
+   */
+  function bounced(info) {
+    var x = obj(info) || {};
+    var name = NAMES[x.service];
+    if (!name || !PLAYER_PATH[x.service] || x.played === true || x.user === true) return '';
+    if (!inPlayer(x.service, x.from) || inPlayer(x.service, x.to)) return '';
+    var ms = num(x.ms);
+    if (ms === null || ms < 0 || ms > BOUNCE_MS) return '';
+    var to = parse(x.to);
+    if (!to) return '';
+    var host = to.hostname.toLowerCase();
+    for (var i = 0; i < AUTH_HOSTS.length; i++) if (hostIs(host, AUTH_HOSTS[i])) return '';
+    if (hostIs(host, 'disney.com') || NOT_A_BOUNCE.test(to.pathname)) return '';   // sign in or pick a profile first: that's what he needs
+    var where = /^\/(home|hub\/home)?\/?$/i.test(to.pathname) ? 'its home page' : 'another page';
+    var eme = obj(x.eme) || {};
+    var why;
+    if (str(eme.licence)) why = 'its licence server turned Quartz down (' + str(eme.licence).replace(/-/g, ' ') + ')';
+    else if (eme.refused === true && eme.granted !== true) why = 'Quartz’s Widevine wasn’t available to it';
+    else if (eme.encrypted === true || eme.granted === true) why = 'it never asked Quartz for a licence for this video';
+    else why = 'it stopped before the video asked for Widevine';
+    return name + ' went back to ' + where + ' instead of playing: ' + why + '. ' + name + ' does this when it won’t play a title in this browser. Edge can play it.';
+  }
+
   /* ------------------------------------------------------------ resume words */
 
   /** "S2 E4", "S2:E4 The Bear", "S2 E4 · Bears" -> { s: 2, e: 4 }; "E4" -> { s: null, e: 4 }; else null. */
@@ -257,6 +305,9 @@
     huluPlayId: huluPlayId,
     primeAutoplayUrl: primeAutoplayUrl,
     refusal: refusal,
+    inPlayer: inPlayer,
+    bounced: bounced,
+    BOUNCE_MS: BOUNCE_MS,
     epOf: epOf,
     epText: epText,
     leftText: leftText,

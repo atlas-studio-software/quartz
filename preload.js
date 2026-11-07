@@ -898,6 +898,8 @@ contextBridge.exposeInMainWorld('api', {
     alive: (wcId) => ipcRenderer.invoke('watch-player:alive', { wcId: Number(wcId) }),
     memory: () => ipcRenderer.invoke('watch-player:memory'),
     escape: (why, url) => ipcRenderer.invoke('watch-player:escape', { why: String(why || ''), url: String(url || '') }),
+    // The layer saw something worth a quartz.log line (a player that went back without playing).
+    report: (kind, text, url) => ipcRenderer.invoke('watch-player:report', { kind: String(kind || ''), text: String(text || ''), url: String(url || '') }),
     closed: (services) => ipcRenderer.invoke('watch-player:closed', { services: Array.isArray(services) ? services.map(String) : [] }),
     sheetRect: (id, rect) => ipcRenderer.invoke('watch-player:sheet-rect', { id: Number(id), rect: rect && typeof rect === 'object' ? { x: +rect.x || 0, y: +rect.y || 0, width: +rect.width || 0, height: +rect.height || 0 } : null }),
     sheetClose: (id, why) => ipcRenderer.invoke('watch-player:sheet-close', { id: Number(id), why: String(why || '') }),
