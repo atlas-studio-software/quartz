@@ -11117,14 +11117,20 @@ let sessionLocalFailTold = false;
 let lastRestoreNote = '';
 const SESSION_NOTE_MS = 9000;
 
-/** Say something about the session where the user will see it: the toast, else the note bar. */
+/**
+ * Say something about the session where the user will see it: the toast, AND the note bar over
+ * the tab in front. The toast is shared and the next one wipes it (a boot often has another thing
+ * to say a moment later), so the bar is what makes the note stay: it is there until dismissed.
+ */
 function sessionNote(message) {
   const toast = window.Toast;
   if (toast && typeof toast.show === 'function') {
-    try { toast.show(message, SESSION_NOTE_MS); return; } catch (err) { /* the bar says it instead */ }
+    try { toast.show(message, SESSION_NOTE_MS); } catch (err) { /* the bar still says it */ }
   }
   const tab = getActiveTab();
-  if (tab) showAppNote(tab, message, '');
+  if (!tab) return;
+  showAppNote(tab, message, '');
+  if (tab.noteEl && tab.noteEl.dataset) tab.noteEl.dataset.sessionNote = '1';
 }
 
 /** After each write: tell the user, once per run of capped saves, that tabs were left out. */

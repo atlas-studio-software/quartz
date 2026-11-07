@@ -51,6 +51,8 @@ run('sessions-e2e', async ({ check, launch, say, profileDir }) => {
     while (Date.now() - t0 < ms) { v = fileView(); if (v && pred(v)) return v; await sleep(200); }
     return v;
   }
+  /** The session note on the bar over the tab in front ('' when there is none). */
+  const BAR = `((() => { const t = getActiveTab(); const n = t && t.noteEl; return n && n.dataset.sessionNote === '1' ? n.textContent : ''; })())`;
   /** The strip as the chrome holds it: own-origin page tabs in strip order. */
   const STRIP = `tabs.filter((t) => t.kind === 'page' && String(readCurrentUrl(t) || t.url).indexOf(${JSON.stringify(B + '/')}) === 0)
     .map((t) => ({ id: t.id, url: String(readCurrentUrl(t) || t.url).slice(${B.length}), pinned: !!t.pinned, asleep: !!t.asleep, title: t.title || '', active: t.id === activeTabId }))`;
@@ -165,7 +167,7 @@ run('sessions-e2e', async ({ check, launch, say, profileDir }) => {
     for (let i = 0; i < 120; i++) createTab(${JSON.stringify(B)} + '/h' + i + '.html', { background: true, asleep: true });
     const last = createTab(${JSON.stringify(B)} + '/z.html');
     activateTab(last.id);
-    return { ws, home, total: tabs.length, stored: sessionSnapshot().tabs.length };
+    return { ws, home, total: tabs.length, inWs: tabs.filter((t) => tabWorkspace(t) === ws).length, stored: sessionSnapshot().tabs.length };
   })()`);
   check(big.stored === big.total && big.total >= 185, 'boot 3: a ' + big.total + '-tab session is stored whole (' + big.stored + ')', big);
   // What one save of that session costs in the chrome: snapshot, localStorage, the IPC to main.
@@ -186,12 +188,14 @@ run('sessions-e2e', async ({ check, launch, say, profileDir }) => {
     awake: tabs.filter((t) => t.kind === 'page' && !t.asleep).length, max: RESTORE_AWAKE_MAX,
     front: String((getActiveTab() || {}).url || '').slice(${B.length}), note: lastRestoreNote })`);
   check(b4.total === big.total, 'boot 4: all ' + big.total + ' tabs came back (' + b4.total + ')', b4);
-  check(b4.big === 60, 'boot 4: the second workspace has its 60', b4.big);
+  check(b4.big === big.inWs && b4.big >= 60, 'boot 4: the second workspace has its ' + big.inWs, b4.big);
   check(b4.front === '/z.html', 'boot 4: the tab in front is the one that was in front', b4.front);
   check(b4.awake >= 1 && b4.awake <= b4.max, 'boot 4: sleep off, yet only ' + b4.awake + ' page(s) booted awake (bound ' + b4.max + ')', b4);
   check(/To keep startup light/.test(b4.note), 'boot 4: the lazy boot says so on screen', b4.note);
-  const toast4 = await c.ev("(document.getElementById('settings-toast') || {}).textContent || ''");
-  check(/To keep startup light/.test(toast4), 'boot 4: the note is the toast the user sees', toast4);
+  // The toast is shared (another boot message can replace it a moment later), so the note also
+  // sits on the bar over the tab in front until the user dismisses it.
+  const bar4 = await c.ev(BAR);
+  check(/To keep startup light/.test(bar4), 'boot 4: the note stays on the bar over the front tab', bar4);
   check(srv.hits('/h5.html') === 0, 'boot 4: a tab nobody opened has not loaded', srv.hits('/h5.html'));
   await c.ev(`(() => { const t = tabs.find((x) => String(x.url).endsWith('/h5.html')); activateTab(t.id); return 1; })()`);
   const h5 = await c.waitFor(`(() => { const t = getActiveTab(); return t && t.ready && t.title === 'Page H5'; })()`, 15000).catch((e) => e.message);
@@ -215,12 +219,12 @@ run('sessions-e2e', async ({ check, launch, say, profileDir }) => {
   c = q.chrome;
   await c.waitFor('tabs.length >= ' + MAX, 60000).catch(() => 0);
   const b5 = await c.ev(`({ ours: tabs.filter((t) => String(t.url).indexOf(${JSON.stringify(B + '/r')}) === 0).length, note: lastRestoreNote,
-    toast: (document.getElementById('settings-toast') || {}).textContent || '' })`);
+    bar: ${BAR} })`);
   check(b5.ours === MAX, 'boot 5: the first ' + MAX + ' of ' + (MAX + 7) + ' came back (' + b5.ours + ')', b5.ours);
-  check(new RegExp('restored your first ' + MAX + ' tabs; 7 more').test(b5.note) && b5.toast.indexOf('7 more') !== -1,
+  check(new RegExp('restored your first ' + MAX + ' tabs; 7 more').test(b5.note) && b5.bar.indexOf('7 more') !== -1,
     'boot 5: the note on screen says 7 were not opened', b5);
   await c.ev(`(() => { createTab(${JSON.stringify(B)} + '/over.html', { background: true, asleep: true }); return 1; })()`);
-  const over = await c.waitFor(`(() => { const t = (document.getElementById('settings-toast') || {}).textContent || ''; return /were not saved|was not saved/.test(t) ? t : null; })()`, 8000).catch(() => null);
+  const over = await c.waitFor(`(() => { const t = ${BAR}; return /were not saved|was not saved/.test(t) ? t : null; })()`, 8000).catch(() => null);
   check(!!over && new RegExp('first ' + MAX + ' tabs.*1 more was not saved').test(over), 'boot 5: a tab past the bound is said at save time ("' + over + '")', over);
   check(await q.quit(), 'boot 5: closing the window quit Quartz');
   say('session.json at the end: ' + JSON.stringify(fileView()));
