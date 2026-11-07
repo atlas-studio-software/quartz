@@ -546,9 +546,10 @@ run('watch-player-e2e', async ({ check, launch, say, profileDir }) => {
     }
     if ((await chrome.ev(ST)).open) await chrome.ev('WatchPlayer.close("e2e"), 1');
     await chrome.ev(`openInLumen(${JSON.stringify(FD + '/play/plays')}, { service: 'disney', title: 'Plays test' }), 1`);
-    const pw = await chrome.waitFor(`(() => { const s = ${ST}; return s.slots[0] && /\/home$/.test(s.slots[0].url) ? s.slots[0] : null; })()`, 15000).catch(() => null);
+    const pw = await chrome.waitFor(`(() => { const s = ${ST}; return s.slots[0] && String(s.slots[0].url).endsWith("/home") ? s.slots[0] : null; })()`, 15000).catch(() => null);
     await sleep(600);
     const pw2 = (await chrome.ev(ST)).slots[0];
+    // (A regex literal with an escaped slash inside this template literal loses its backslash and turns the rest into a comment.)
     check(!!pw && pw2 && pw2.state === '' && !pw2.bounced, 'a player that played and then went home is not a refusal', pw2 && { url: pw2.url, state: pw2.state, text: pw2.stateText });
     if ((await chrome.ev(ST)).open) await chrome.ev('WatchPlayer.close("e2e"), 1');
 
