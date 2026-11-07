@@ -113,7 +113,7 @@ const sorted = (set) => Array.from(set).sort((a, b) => a - b);
 {
   // restoreSession() actually uses the plan (source check, the e2e proves it live).
   const body = cutFunction('restoreSession');
-  ok('restoreSession builds from restoreAsleepRows', /restoreAsleepRows\(building, session\.active, wantCurrent, sleepOthers, lazyRestore\)/.test(body));
+  ok('restoreSession builds from restoreAsleepRows', /restoreAsleepRows\(building, session\.active, wantCurrent, sleepOthers, lazyRestore, RESTORE_AWAKE_MAX\)/.test(body));
   ok('restoreSession: bornAsleep comes from the plan', /const bornAsleep = plan\.asleep\.has\(row\.index\)/.test(body));
   ok('restoreSession: lazy gate is backgroundSleepAllowed()', /lazyRestore = backgroundSleepAllowed\(\)/.test(body));
   const gate = cutFunction('backgroundSleepAllowed');

@@ -11013,7 +11013,23 @@ const SESSION_SAVE_DELAY = 500;
 // survives a kill (localStorage loses its last write then). At 300 ms a cloud runner's busy main
 // missed it after a kill and the last tab opened did not come back (sessions-e2e, boot 3).
 const SESSION_READ_TIMEOUT = 3000;
-const SESSION_MAX_TABS = 40;
+// The most tabs one session keeps, across every workspace. Not a number real use should meet
+// (it was 40, and a restart quietly lost every tab past it): it is a guard, so a corrupt or
+// runaway file cannot rebuild thousands of chips. A stored tab is about 150-300 characters of
+// JSON (url, title, a few flags; favicons are NOT stored), so 500 is roughly 100-150 KB.
+// Hitting it is never silent: noteSessionCap() says how many were kept and how many were not.
+const SESSION_MAX_TABS = 500;
+// The most characters of JSON the stored tabs may take, whatever their count. localStorage holds
+// about 5 million characters per origin and the chrome's settings share it; main refuses a file
+// copy over SESSION_MAX_BYTES (main.js), which is sized above 3 bytes for each of these. Only
+// a run of enormous urls can reach it, and then the tabs past it go the way the count bound's do.
+const SESSION_MAX_CHARS = 1500000;
+// How many page renderers a restore may boot awake, whatever the sleep settings say. With tab
+// sleep off, a session of 8 comes back fully awake as it always has; a bigger one comes back
+// lazily anyway (see restoreAsleepRows()), because 150 renderers at once would stall the machine
+// before the user looked at any of them, and a tab that has never been shown since the restart
+// has no state yet that a renderer would keep.
+const RESTORE_AWAKE_MAX = 8;
 // 'main' plus however many the user made; a bound so a corrupt file cannot
 // grow the switcher without limit.
 const SESSION_MAX_WORKSPACES = 24;
@@ -11052,6 +11068,72 @@ function sessionUrlFor(tab) {
   // Web pages only: a file:// or data: tab is not worth reopening cold.
   if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) return null;
   return parsed.href;
+}
+
+/**
+ * The stored entries the bounds let through, in strip order: the first `maxTabs`, then only as
+ * many of those as fit `maxChars` characters of JSON. Pure, so the session-cap harness runs this
+ * very function from the source. `reason` is 'count' or 'size' when anything was left out, else ''.
+ * @returns {{kept:Array<object>, dropped:number, reason:string}}
+ */
+function capSessionEntries(entries, maxTabs, maxChars) {
+  const list = Array.isArray(entries) ? entries : [];
+  let keep = Math.min(list.length, Math.max(0, Math.floor(maxTabs) || 0));
+  let reason = keep < list.length ? 'count' : '';
+  let used = 0;
+  for (let i = 0; i < keep; i++) {
+    used += JSON.stringify(list[i]).length + 1; // the comma between entries
+    if (used > maxChars) { keep = i; reason = 'size'; break; }
+  }
+  return { kept: keep === list.length ? list : list.slice(0, keep), dropped: list.length - keep, reason: reason };
+}
+
+/**
+ * What the user is told when a bound left tabs out of the saved session, in plain words. Pure (the
+ * harness checks the wording). `when` is 'save' (this run's tabs did not all fit) or 'restore'
+ * (the stored file held more than this build reads back).
+ */
+function sessionCapMessage(kept, dropped, reason, when) {
+  const n = (k) => k + (k === 1 ? ' tab' : ' tabs');
+  const why = reason === 'size'
+    ? 'their addresses are too long to store'
+    : 'a session keeps at most ' + SESSION_MAX_TABS + ' tabs';
+  if (when === 'restore') {
+    return 'Quartz restored your first ' + n(kept) + '; ' + dropped + ' more in the saved session '
+      + 'were not opened (' + why + ').';
+  }
+  return 'Quartz kept your first ' + n(kept) + ' for the next restart; ' + dropped + ' more '
+    + (dropped === 1 ? 'was' : 'were') + ' not saved (' + why + '). Close some to bring them in.';
+}
+
+// The last snapshot's bound check (sessionSnapshot), and whether the user has been told about the
+// run of saves it belongs to: told once when a save first leaves tabs out, and again only after a
+// save that fitted. A toast on every debounced save would be noise.
+let lastSessionCap = { total: 0, kept: 0, dropped: 0, reason: '' };
+let sessionCapTold = false;
+// The localStorage copy failing (quota, blocked) is said once a run, not on every save.
+let sessionLocalFailTold = false;
+// The note the last restore showed ('' when it had nothing to say); the e2e reads it back.
+let lastRestoreNote = '';
+const SESSION_NOTE_MS = 9000;
+
+/** Say something about the session where the user will see it: the toast, else the note bar. */
+function sessionNote(message) {
+  const toast = window.Toast;
+  if (toast && typeof toast.show === 'function') {
+    try { toast.show(message, SESSION_NOTE_MS); return; } catch (err) { /* the bar says it instead */ }
+  }
+  const tab = getActiveTab();
+  if (tab) showAppNote(tab, message, '');
+}
+
+/** After each write: tell the user, once per run of capped saves, that tabs were left out. */
+function noteSessionCap() {
+  const cap = lastSessionCap;
+  if (!cap.dropped) { sessionCapTold = false; return; }
+  if (sessionCapTold) return;
+  sessionCapTold = true;
+  sessionNote(sessionCapMessage(cap.kept, cap.dropped, cap.reason, 'save'));
 }
 
 /**
@@ -11123,7 +11205,9 @@ function sessionSnapshot() {
     seatById.set(tab.id, entries.length);
     entries.push(entry);
   }
-  const capped = entries.slice(0, SESSION_MAX_TABS);
+  const cap = capSessionEntries(entries, SESSION_MAX_TABS, SESSION_MAX_CHARS);
+  const capped = cap.kept;
+  lastSessionCap = { total: entries.length, kept: capped.length, dropped: cap.dropped, reason: cap.reason };
   const seatOf = (id) => {
     const at = seatById.has(id) ? seatById.get(id) : -1;
     return at < capped.length ? at : -1;
@@ -11171,7 +11255,16 @@ function writeSession() {
   try {
     // Zero tabs is a legitimate state and is stored as such.
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(snapshot));
-  } catch (err) { /* storage blocked or full — this run just loses its session */ }
+  } catch (err) {
+    // Storage blocked or full. The file copy below still carries the session, and boot reads
+    // both, so the tabs are not lost; but the user hears about it once rather than never.
+    if (!sessionLocalFailTold) {
+      sessionLocalFailTold = true;
+      sessionNote('Quartz could not save your tabs to its local storage ('
+        + ((err && err.name) || 'storage refused') + '); the session file still has them.');
+    }
+  }
+  try { noteSessionCap(); } catch (err) { /* a note must never stop the file copy */ }
 
   // The durable copy. preload may predate api.session, and the write is fire
   // and forget either way: nothing in the chrome waits on it.
@@ -11269,6 +11362,9 @@ function sanitiseSession(parsed) {
   }
 
   const entries = [];
+  // Stored rows past SESSION_MAX_TABS kept entries: not read at all (a runaway file is exactly what
+  // the bound is for), but counted, so restoreSession() can say how many did not come back.
+  let overflow = 0;
   // Where each stored index would land in `entries`, recorded before it is
   // judged: a kept entry lands exactly there, a dropped one leaves the next
   // kept entry in its seat. Read back below so `active` and each workspace's
@@ -11290,7 +11386,7 @@ function sanitiseSession(parsed) {
         claude: true, beside: true, cwd: cwd, url: '', pinned: false, muted: false,
         collapsed: !!(entry && entry.collapsed), ws: ws, app: '', native: '', title: ''
       });
-      if (entries.length >= SESSION_MAX_TABS) break;
+      if (entries.length >= SESSION_MAX_TABS) { overflow = parsed.tabs.length - seatOf.length; break; }
       continue;
     }
     if (entry && typeof entry.native === 'string' && entry.native.trim()) {
@@ -11300,7 +11396,7 @@ function sanitiseSession(parsed) {
         claude: false, cwd: '', url: '', pinned: false, muted: false,
         collapsed: !!(entry && entry.collapsed), ws: ws, app: '', native: appId, title: ''
       });
-      if (entries.length >= SESSION_MAX_TABS) break;
+      if (entries.length >= SESSION_MAX_TABS) { overflow = parsed.tabs.length - seatOf.length; break; }
       continue;
     }
     const url = (entry && typeof entry.url === 'string') ? entry.url : '';
@@ -11332,7 +11428,7 @@ function sanitiseSession(parsed) {
       app: (appId && appId.length <= APP_ID_MAX) ? appId : '',
       native: '', title: storedTitle, scroll: scroll
     });
-    if (entries.length >= SESSION_MAX_TABS) break;
+    if (entries.length >= SESSION_MAX_TABS) { overflow = parsed.tabs.length - seatOf.length; break; }
   }
   if (!entries.length) return null;
 
@@ -11356,6 +11452,7 @@ function sanitiseSession(parsed) {
   const savedAt = Number(parsed.savedAt);
   return {
     entries: entries,
+    overflow: overflow,
     urls: entries.filter((e) => !e.claude).map((e) => e.url),
     active: inRange ? active : entries.length - 1,
     workspaces: wsList,
@@ -11456,27 +11553,54 @@ function loadSession() {
  * The front row is predicted the same way restoreSession() picks its target
  * afterwards: the stored active row if it is in `current`, else the last row
  * of `current`; with nothing in `current`, the active row, else the last row.
+ *
+ * The settings get the last word only while they are cheap. `awakeMax` (RESTORE_AWAKE_MAX) is the
+ * most page renderers a boot may start: when the two rules above, as the user set them, would
+ * leave more pages than that awake, the boot goes lazy ANYWAY (`forced`): the front page plus the
+ * pinned pages of `current`, still within awakeMax, and every other page waits for its first
+ * click. A tab that has never been shown since the restart has nothing a renderer would keep
+ * (no scroll, no form, no playback), so loading it on that click loses nothing. Nothing puts it
+ * back to sleep later that the settings would not: once clicked it is an ordinary awake tab, and
+ * with tab sleep off nothing ever sleeps it again. An omitted awakeMax means no bound.
  * @param {Array<{entry:object,index:number}>} rows  in build order
- * @returns {{front:number, asleep:Set<number>}} stored indices
+ * @returns {{front:number, asleep:Set<number>, forced:boolean, awake:number}} stored indices,
+ *          whether the bound overrode the settings, and how many pages are born awake
  */
-function restoreAsleepRows(rows, active, current, sleepOthers, lazy) {
+function restoreAsleepRows(rows, active, current, sleepOthers, lazy, awakeMax) {
   const list = Array.isArray(rows) ? rows : [];
   const inCurrent = list.filter((r) => r.entry.ws === current);
   const pool = inCurrent.length ? inCurrent : list;
   const activeRow = pool.find((r) => r.index === active);
   const frontRow = activeRow || pool[pool.length - 1] || null;
   const front = frontRow ? frontRow.index : -1;
-  const asleep = new Set();
-  for (const r of list) {
-    const e = r.entry;
-    if (e.claude || e.native) continue;
-    if (e.ws !== current) {
-      if (sleepOthers) asleep.add(r.index);
-      continue;
+  const pages = list.filter((r) => !r.entry.claude && !r.entry.native);
+  const plan = (others, inside) => {
+    const asleep = new Set();
+    for (const r of pages) {
+      const e = r.entry;
+      if (e.ws !== current) {
+        if (others) asleep.add(r.index);
+        continue;
+      }
+      if (inside && r.index !== front && !e.pinned) asleep.add(r.index);
     }
-    if (lazy && r.index !== front && !e.pinned) asleep.add(r.index);
+    return asleep;
+  };
+  let asleep = plan(sleepOthers, lazy);
+  const bound = (typeof awakeMax === 'number' && awakeMax >= 1) ? Math.floor(awakeMax) : Infinity;
+  const forced = pages.length - asleep.size > bound;
+  if (forced) {
+    asleep = plan(true, true);
+    // Pinned pages of `current` stay awake, but within the bound too: the front page first,
+    // then the pins in strip order, and any pin past the bound waits for its click like the rest.
+    let room = bound - (pages.some((r) => r.index === front) ? 1 : 0);
+    for (const r of pages) {
+      if (asleep.has(r.index) || r.index === front) continue;
+      if (room > 0) room--;
+      else asleep.add(r.index);
+    }
   }
-  return { front: front, asleep: asleep };
+  return { front: front, asleep: asleep, forced: forced, awake: pages.length - asleep.size };
 }
 
 /**
@@ -11555,6 +11679,7 @@ function restoreSession(snapshot) {
   let wanted = null;
   let predictedFront = null; // the tab restoreAsleepRows() kept awake to be raised
   let lazyRestore = false;
+  let restoreForced = null; // the plan, when RESTORE_AWAKE_MAX overrode the sleep settings
   try {
     // All background: the strip is built in order, then the saved tab is raised.
     const resume = settingGet('claudeResume') !== false; // unset means yes
@@ -11569,7 +11694,9 @@ function restoreSession(snapshot) {
     lazyRestore = backgroundSleepAllowed();
     const building = ordered.filter((row) =>
       !(phoneRows.length > 1 && phoneRows.indexOf(row) !== -1 && row !== phoneRow));
-    const plan = restoreAsleepRows(building, session.active, wantCurrent, sleepOthers, lazyRestore);
+    // RESTORE_AWAKE_MAX: a big session comes back lazily whatever the settings say (see there).
+    const plan = restoreAsleepRows(building, session.active, wantCurrent, sleepOthers, lazyRestore, RESTORE_AWAKE_MAX);
+    if (plan.forced) { lazyRestore = true; restoreForced = plan; }
     for (const row of building) {
       const entry = row.entry;
       // Page tabs only: a Claude chamber and a native app tab have their own
@@ -11657,10 +11784,22 @@ function restoreSession(snapshot) {
   }
   emitWorkspaceChange(); // one event for the whole rebuild
   saveSession(); // one write, now that the strip is settled
+  // Everything the boot did differently from "every tab, as the settings say", in ONE note: the
+  // toast holds one message, and a second call would wipe the first.
+  const said = [];
+  if (session.overflow > 0) {
+    said.push(sessionCapMessage(session.entries.length, session.overflow, 'count', 'restore'));
+  }
+  if (restoreForced) {
+    said.push('To keep startup light, ' + restoreForced.awake + ' of your ' + created.length
+      + ' restored tabs started loading; the others load the first time you open them.');
+  }
   if (phoneRows.length > 1) {
-    phoneTabNote('The saved session had ' + phoneRows.length + ' phone tabs; one came back, '
+    said.push('The saved session had ' + phoneRows.length + ' phone tabs; one came back, '
       + 'because the phone stream has room for one.');
   }
+  if (said.length) lastRestoreNote = said.join(' ');
+  if (said.length) sessionNote(lastRestoreNote);
   return true;
 }
 

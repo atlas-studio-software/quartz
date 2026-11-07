@@ -20,8 +20,8 @@
 //     too) or a resize brings the active chip back.
 // Then: drag-reorder on a strip that fits; a drag held at the edge of a scrolling strip steps it and
 // drops the chip far past the first screen; pinned chips keep 40px at the left; and a restart with a
-// full session (home's strip filled to the session's 40-tab cap, less any tab the profile keeps in
-// another workspace) and the last tab active boots with that tab in view.
+// big session (90 tabs in home, past the 40 the session used to keep) and the last tab active brings
+// every tab back and boots with that tab in view.
 // One summary line: "taboverflow-e2e: N passed, M failed".
 'use strict';
 const fs = require('fs');
@@ -342,8 +342,8 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     invariants('workspace 2 again', m);
     await c.ev('switchWorkspace(' + JSON.stringify(home) + ')');
     await settle();
-    // The restart below is about home's strip. The session keeps at most SESSION_MAX_TABS (40)
-    // tabs across ALL workspaces, so the second one's 30 go first, or the restart would bring back a mix.
+    // The restart below is about home's strip, so the second workspace's 30 go first (and
+    // closing a workspace's tabs, then the workspace, must leave home's strip alone).
     await c.ev('[' + wsIds.join(',') + '].forEach((id) => closeTab(id))');
     await c.ev('deleteWorkspace(' + JSON.stringify(ws) + ')');
     await settle();
@@ -353,12 +353,14 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
 
   /* ---- a restart with the last of a full session's tabs in front ------------------------- */
   {
-    // A full session: home's strip plus whatever else this profile always holds (a seeded
-    // workspace's own tab, say) comes to exactly the cap, so every tab is written and comes back.
+    // A big session: 90 tabs in home, more than twice the 40 the session used to keep (a restart
+    // quietly lost every tab past 40), plus whatever else this profile always holds (a seeded
+    // workspace's own tab, say). Every one is written and comes back.
+    const N = 90;
     const room = await c.ev('(() => { const cap = typeof SESSION_MAX_TABS === "number" ? SESSION_MAX_TABS : 40; const vis = visibleTabs(); const others = tabs.filter((t) => !vis.includes(t)); return { cap, others: others.length, list: others.slice(0, 4).map((t) => ({ id: t.id, url: String(t.url || "").slice(0, 60), ws: tabWorkspace(t) })) }; })()');
-    const N = room.cap - room.others;
-    check(N >= 30, 'boot 1: a full session leaves home at least 30 tabs (' + N + ')', room);
+    check(room.cap >= N + room.others + 100, 'boot 1: the session bound (' + room.cap + ') is far past ' + (N + room.others) + ' tabs', room);
     await c.ev('__ov.make(' + N + ', ' + JSON.stringify(BASE) + ')');
+    const before = await c.ev('tabs.length');
     const order = await ids();
     const lastId = order[order.length - 1];
     await c.ev('activateTab(' + lastId + ')');
@@ -374,6 +376,9 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     const act = m.rows.find((r) => r.active);
     const url = await c.ev('(getActiveTab() || {}).url');
     check(m.n === N && url === lastUrl, 'boot 2: the ' + N + ' tabs came back with the last one in front', { n: m.n, url, lastUrl });
+    const after = await c.ev('({ all: tabs.length, awake: tabs.filter((t) => t.kind === "page" && !t.asleep).length, note: typeof lastRestoreNote === "string" ? lastRestoreNote : "" })');
+    check(after.all === before, 'boot 2: every tab of every workspace came back (' + after.all + ' of ' + before + ')', after);
+    check(!/not opened|not saved/.test(after.note), 'boot 2: nothing was left out, and no note says so', after.note);
     check(!!act && act.st === 'in', 'boot 2: the restored active tab is in view without touching anything', act);
     invariants('boot 2 (' + N + ' tabs, default width ' + m.vw + ')', m);
     await setWidth(500);

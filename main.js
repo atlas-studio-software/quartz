@@ -2144,8 +2144,13 @@ function sessionStatePath() {
   return path.join(app.getPath('userData'), 'session.json');
 }
 
-/** Snapshots are small; anything this big is a bug or a runaway, not a session. */
-const SESSION_MAX_BYTES = 256 * 1024;
+/**
+ * Anything this big is a bug or a runaway, not a session. The renderer bounds its own snapshot
+ * (app.js SESSION_MAX_TABS, SESSION_MAX_CHARS: 1.5 million characters of tabs, at most 3 UTF-8
+ * bytes each), so a snapshot it means to write always fits under this one. At 256 KB, 500 tabs
+ * with long urls could pass the renderer's bounds and still be refused here without a word.
+ */
+const SESSION_MAX_BYTES = 6 * 1024 * 1024;
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);

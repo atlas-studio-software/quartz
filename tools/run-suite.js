@@ -117,6 +117,9 @@ const TESTS = [
   { name: 'profilemove', file: 'profilemove-harness.js' },
   // session.json's writer: a refused rename (a scanner holding the file) keeps the snapshot.
   { name: 'sessionfile', file: 'sessionfile-harness.js' },
+  // How many tabs a session keeps (the count and size bounds, the notice when one bites, the read
+  // side's overflow count) and the restore rule that keeps a big session lazy whatever the settings.
+  { name: 'sessioncap', file: 'sessioncap-harness.js' },
   // Tab sleep rules: the idle clock starts when a tab leaves the screen, a tab making sound (or heard in
   // the last 2 minutes) never sleeps, lazy restore and the backgrounded new tab page; sleeping early
   // (memory low, heavy pages), the safe-to-sleep probe, the speaker following Chromium, tabsleep-main.js.
@@ -217,7 +220,7 @@ const TESTS = [
   { name: 'toprow-e2e', file: 'toprow-e2e.js', e2e: true },
   // The daily paths (tests/e2e-kit.js): session restore across restarts, tab sleep and wake,
   // find in page, downloads, the address bar.
-  { name: 'sessions-e2e', file: 'sessions-e2e.js', e2e: true },
+  { name: 'sessions-e2e', file: 'sessions-e2e.js', e2e: true, timeout: 480 },
   { name: 'closetabs-e2e', file: 'closetabs-e2e.js', e2e: true },
   // The same in a real Quartz at 500-1920 px with 1-80 tabs: nothing unreachable, counts true, + and drag.
   { name: 'taboverflow-e2e', file: 'taboverflow-e2e.js', e2e: true, timeout: 600 },
