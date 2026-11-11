@@ -63,6 +63,42 @@ d = D({ argv: ['e', '.', '--test'] });
 eq('--test without a port: none added', [d.mode, d.append], ['test-off', null]);
 d = D({ argv: ['e', '.', '--test-profile'], cliPort: '9500' });
 eq('test profile with its own port: kept', [d.mode, d.append, d.requestedPort], ['command-line', null, 9500]);
+
+// A command-line port that is already taken: the next free one of N+1..N+8, said in plain words.
+const held = (ports) => (port) => ({ ok: true, pids: ports.includes(port) ? [77] : [] });
+d = D({ cliPort: '9341', probe: held([9341]) });
+eq('cli busy: next port appended', [d.mode, d.append, d.requestedPort], ['command-line-fallback', 9342, 9341]);
+eq('cli busy: the window sentence', d.notice, 'Remote debugging port 9341 was in use by another process, so Quartz is on 9342.');
+ok('cli busy: reason names the pid', /9341.*pid 77.*9342/.test(d.reason), d.reason);
+d = D({ cliPort: '9341', probe: held([9341, 9342, 9343]) });
+eq('cli busy: skips taken candidates', [d.mode, d.append], ['command-line-fallback', 9344]);
+const asked = [];
+d = D({ cliPort: '9341', probe: held([9341]), probeNext: (q) => { asked.push(q); return { ok: true, pids: q < 9345 ? [5] : [] }; } });
+eq('cli busy: candidates go to probeNext, in order', [d.append, asked], [9345, [9342, 9343, 9344, 9345]]);
+d = D({ cliPort: '9341', probe: held([9341, 9342, 9343, 9344, 9345, 9346, 9347, 9348, 9349]) });
+eq('cli busy, no free port: nothing appended', [d.mode, d.append, d.requestedPort], ['command-line-busy', null, 9341]);
+ok('cli busy, no free port: the sentence says off and why', /9341 was in use.*9342-9349.*off for this run/.test(d.notice), d.notice);
+d = D({ cliPort: '9341', probe: held([9341, 9342, 9343, 9344, 9345, 9346, 9347, 9348, 9349, 9350]) });
+eq('cli busy: never looks past N+8', d.mode, 'command-line-busy');
+d = D({ cliPort: '9341', probe: held([9341]), probeNext: (q) => (q === 9342 ? { ok: false, error: 'x' } : { ok: true, pids: [] }) });
+eq('cli busy: an uncheckable candidate is skipped, not taken', d.append, 9343);
+d = D({ cliPort: '65535', probe: held([65535]) });
+eq('cli busy at 65535: no range, off', [d.mode, d.append, /65535 was in use by another process, so remote/.test(d.notice)], ['command-line-busy', null, true]);
+d = D({ cliPort: '9341', probe: () => ({ ok: false, error: 'netstat did not run' }) });
+eq('cli unchecked: kept, says why', [d.mode, d.append, /could not check/.test(d.reason)], ['command-line', null, true]);
+let cliProbed = false;
+d = D({ cliPort: '0', probe: () => { cliProbed = true; return busy(); } });
+eq('cli port 0: kept, never probed', [d.mode, d.append, cliProbed], ['command-line', null, false]);
+d = D({ cliPort: 'abc', probe: busy });
+eq('cli port not a number: left to Chromium', [d.mode, d.append], ['command-line', null]);
+d = D({ argv: ['e', '.', '--test-profile'], cliPort: '9500', probe: held([9500]) });
+eq('test profile, busy port: moves too', [d.mode, d.append], ['command-line-fallback', 9501]);
+d = D({});
+eq('no flag: the fallback never invents a port of its own kind', d.mode === 'command-line-fallback' || d.mode === 'command-line-busy', false);
+const snap = cdp.snapshotProbe(() => ({ status: 0, stdout: '  TCP    127.0.0.1:9341   0.0.0.0:0   LISTENING   8216\n' }));
+eq('snapshotProbe: reads one netstat for every port', [snap(9341).pids, snap(9342).pids], [[8216], []]);
+const snapBad = cdp.snapshotProbe(() => ({ status: 1, stdout: '' }));
+eq('snapshotProbe: a failed netstat is not "free"', snapBad(9342).ok, false);
 d = D({ argv: ['e', '.', '--test-profile'], env: { QUARTZ_TEST_CDP_DEFAULT_PORT: '9612' } });
 eq('test hook: plans like a normal start on its own port', [d.mode, d.append, d.requestedPort], ['default', 9612, 9612]);
 d = D({ argv: ['e', '.', '--test'], env: { QUARTZ_TEST_CDP_DEFAULT_PORT: '9612' } });
@@ -141,6 +177,18 @@ function mkApp(dir, switches) { const a = fakeApp(dir, switches); a.commandLine.
   s = await p.confirm(() => {});
   eq('cli: recorded', [s.ok, s.mode, s.port], [true, 'command-line', 9618]);
   eq('cli: Settings switch does not govern it', p.describe().governed, false);
+
+  // A command-line port that is taken: plan() appends the next one and cdp.json records why.
+  fs.unlinkSync(path.join(tmp, cdp.ACTIVE_PORT_FILE));
+  app = mkApp(tmp, { 'remote-debugging-port': '9341' });
+  p = cdp.plan({ app, argv: ['e', '.'], env: {}, probe: (q) => ({ ok: true, pids: q === 9341 ? [8216] : [] }), probeNext: () => ({ ok: true, pids: [] }) });
+  eq('cli busy plan: next port appended', app.appended, [['remote-debugging-port', '9342']]);
+  s = JSON.parse(fs.readFileSync(path.join(tmp, cdp.STATE_FILE), 'utf8'));
+  eq('cli busy plan: cdp.json has requested, planned port, notice', [s.requested, s.plannedPort, s.mode, /so Quartz is on 9342/.test(s.notice)], [9341, 9342, 'command-line-fallback', true]);
+  setTimeout(() => fs.writeFileSync(path.join(tmp, cdp.ACTIVE_PORT_FILE), '9342\n/devtools/browser/fb'), 100);
+  s = await p.confirm(() => {});
+  eq('cli busy confirm: port is the one Chromium bound', [s.ok, s.port, s.requested, !!s.notice], [true, 9342, 9341, true]);
+  eq('cli busy describe: carries the notice', /9341 was in use/.test(p.describe().notice || ''), true);
 
   // The server never comes up: plain failure with the reason, after the timeout.
   fs.unlinkSync(path.join(tmp, cdp.ACTIVE_PORT_FILE));

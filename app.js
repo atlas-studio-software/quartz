@@ -14402,6 +14402,31 @@ if (window.api && window.api.freeze && typeof window.api.freeze.onNotice === 'fu
   });
 }
 
+// The DevTools port (cdp-main.js): a --remote-debugging-port that was taken, so Quartz moved to
+// the next free one or has none this run, is said on screen once at startup (cdp.json and the
+// log say it too). While main still waits for Chromium's server, ask again for a few seconds.
+function showCdpNoticeOnce() {
+  const app = window.api && window.api.app;
+  if (!app || typeof app.cdp !== 'function') return;
+  let tries = 0;
+  const ask = () => {
+    Promise.resolve().then(() => app.cdp()).then((c) => {
+      if (c && typeof c.notice === 'string' && c.notice) {
+        window.__quartzCdpNotice = c.notice;
+        try {
+          if (window.Settings && typeof window.Settings.toast === 'function') window.Settings.toast(c.notice, 15000);
+          else console.warn('[cdp] ' + c.notice);
+        } catch (_) { console.warn('[cdp] ' + c.notice); }
+        return;
+      }
+      if (c && !c.ok && /^waiting/.test(String(c.error || '')) && ++tries < 12) setTimeout(ask, 1000);
+    }).catch(() => { /* Settings > Claude shows the same state, with the reason */ });
+  };
+  setTimeout(ask, 1500);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showCdpNoticeOnce, { once: true });
+else showCdpNoticeOnce();
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init, { once: true });
 } else {

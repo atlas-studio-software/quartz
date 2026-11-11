@@ -54,8 +54,12 @@ const TESTS = [
   { name: 'closetabs', file: 'closetabs-harness.js' },
   // The tab strip past full (tabfit.js): the fit plan, what counts as out of view, reveal and paging.
   { name: 'tabfit', file: 'tabfit-harness.js' },
-  // The always-on DevTools port (cdp-main.js): every decide() branch, the netstat parse, plan()/confirm() on a fake app.
+  // The DevTools port (cdp-main.js): every decide() branch (a taken command-line port included), the netstat parse,
+  // plan()/confirm() on a fake app.
   { name: 'cdp', file: 'cdp-harness.js' },
+  // Child trees (childreap.js): which descendants are proven ours (creation time, image, parent read from the
+  // handle), then live node trees it starts itself: killTree, the reap after a child exits, reapAll.
+  { name: 'childreap', file: 'childreap-harness.js' },
   // Spotify auto-pause: config migration, the hold machine -> link -> engine, the SMTC helper's wrapper
   // (a fake child), and test mode never sending. Then the shared host protocol (byte-identical with Mantle's).
   { name: 'autopause', file: 'autopause-harness.js' },
@@ -204,6 +208,8 @@ const TESTS = [
   { name: 'freezewatch-e2e', file: 'freezewatch-e2e.js', e2e: true, needs: () => (process.env.GITHUB_ACTIONS === 'true' || process.env.QUARTZ_ALLOW_ON_SCREEN === '1' ? null : 'freezewatch-e2e: puts a window on screen (occlusion needs it), so it runs on a CI runner only') },
   // The DevTools port in a real copy: 127.0.0.1 only, the busy fallback, off, a command-line port, the handoff.
   { name: 'cdp-e2e', file: 'cdp-e2e.js', e2e: true },
+  // A --remote-debugging-port that is taken: the next free port, cdp.json and the window say so; none free: off, and why.
+  { name: 'debugport-e2e', file: 'debugport-e2e.js', e2e: true },
   { name: 'drm-e2e', file: 'drm-e2e.js', e2e: true },
   // castlabs ECS only (package.json's electron = a +wvcus tag): the CDM loads, a public Widevine test
   // stream plays in a real tab (needs the internet: Shaka + Google's test licence proxy), the bar says
