@@ -6100,8 +6100,24 @@ app.on('web-contents-created', (_event, contents) => {
 // Shutdown
 // ---------------------------------------------------------------------------
 
+// A process started through child_process inherits the DevTools listen socket, and so does
+// whatever IT starts: one left running keeps the debugging port taken after the quit.
+// childreap.js tracks those trees (the notes pane's helper, reader and one-shot commands) and
+// ends the root and its proven descendants, nothing else.
+const childreap = require('./childreap');
+childreap.setLog((line) => { if (qlog) qlog.log.line('[childreap] ' + line); else console.log('[childreap] ' + line); });
+function reapChildTrees() {
+  try {
+    const all = childreap.reapAll('quit');
+    if (all.killed.length || all.skipped.length || all.errors.length) {
+      if (qlog) qlog.log.line('[childreap] ' + all.line); else console.log('[childreap] ' + all.line);
+    }
+  } catch { /* best effort: the quit goes on */ }
+}
+
 app.on('window-all-closed', () => {
   killAll();
+  reapChildTrees();
   handles.clear();
   for (const id of Array.from(ptyOut.keys())) ptyFlushFinal(id);
   app.quit();
@@ -6124,6 +6140,7 @@ app.on('before-quit', (event) => {
   // A word added from the menu a moment ago must not be lost to the quit.
   try { spell.flush(); } catch { /* best effort */ }
   killAll();
+  reapChildTrees();
   handles.clear();
   for (const id of Array.from(ptyOut.keys())) ptyFlushFinal(id);
   // The tab tools: every pane's key revoked and config file deleted, the pipe closed.

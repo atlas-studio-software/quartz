@@ -125,6 +125,8 @@ const crypto = require('crypto');
 const http = require('http');
 const childProcess = require('child_process');
 const procfind = require('./procfind');
+// Ends a child AND what it started (they inherit the DevTools socket; see childreap.js).
+const childreap = require('./childreap');
 
 /* ---------------------------------------------------------------- constants */
 
@@ -831,13 +833,14 @@ function create(options) {
         resolve({ ok: false, code: -1, out: '', err: '', reason: (err && err.message) || 'spawn failed' });
         return;
       }
+      childreap.track(child, { images: [path.basename(file).toLowerCase() + (path.extname(file) ? '' : '.exe'), 'conhost.exe'], label: file });
       let out = '';
       let errOut = '';
       let done = false;
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
-        try { child.kill(); } catch { /* already gone */ }
+        childreap.killTree(child, 'timed out');
         resolve({ ok: false, code: -1, out, err: errOut, reason: 'timed out after ' + seconds(timeoutMs) });
       }, timeoutMs);
       if (timer.unref) timer.unref();
@@ -1147,6 +1150,7 @@ function create(options) {
       setReader('uia', 'error', 'could not start notes-reader.ps1: ' + ((err && err.message) || 'spawn failed'));
       return false;
     }
+    childreap.track(psChild, { images: ['powershell.exe', 'conhost.exe'], label: 'notes reader' });
     psBuffer = '';
     psChild.stdout.setEncoding('utf8');
     psChild.stdout.on('data', (chunk) => {
@@ -1188,7 +1192,7 @@ function create(options) {
     try { psChild.stdin.write(JSON.stringify({ id: 0, cmd: 'quit' }) + '\n'); } catch { /* ignore */ }
     const child = psChild;
     psChild = null;
-    setTimeout(() => { try { child.kill(); } catch { /* already gone */ } }, 300).unref?.();
+    setTimeout(() => { childreap.killTree(child, 'reader stopped'); }, 300).unref?.();
     if (why) { /* the caller sets the visible reason */ }
   }
 
@@ -1429,6 +1433,8 @@ function create(options) {
         resolve({ ok: false, spawnFailed: true, reason: 'could not start the helper (' + claudeBin + '): ' + ((err && err.message) || 'spawn failed') });
         return;
       }
+      // Claude Code starts git.exe (and a console host); child.kill() alone would leave them running.
+      childreap.track(child, { images: [path.basename(claudeBin), 'claude.exe', 'git.exe', 'conhost.exe'], label: 'notes helper' });
       const record = { child, killed: false };
       let out = '';
       let errOut = '';
@@ -1436,7 +1442,7 @@ function create(options) {
       const finish = (value) => { if (!done) { done = true; clearTimeout(timer); resolve(value); } };
       const timer = setTimeout(() => {
         record.killed = 'timeout';
-        try { child.kill(); } catch { /* ignore */ }
+        childreap.killTree(child, 'timed out');
         finish({ ok: false, timedOut: true, reason: 'the helper did not answer in ' + Math.round(timeoutMs / 1000) + ' s' });
       }, timeoutMs);
       if (timer.unref) timer.unref();
@@ -1501,7 +1507,7 @@ function create(options) {
     // One child at a time: a newer question kills the older one, visibly.
     if (inflight && inflight.record && inflight.record.child) {
       inflight.record.killed = 'superseded';
-      try { inflight.record.child.kill(); } catch { /* already gone */ }
+      childreap.killTree(inflight.record.child, 'superseded');
     }
     inflight = { subjectId, hash, record: null };
 
@@ -1741,7 +1747,7 @@ function create(options) {
     stopPsReader(why);
     if (inflight && inflight.record && inflight.record.child) {
       inflight.record.killed = 'superseded';
-      try { inflight.record.child.kill(); } catch { /* already gone */ }
+      childreap.killTree(inflight.record.child, 'pane stopped');
     }
     inflight = null;
     if (budgetReader) { try { budgetReader.stop(); } catch { /* best effort */ } budgetReader = null; }
