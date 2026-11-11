@@ -233,31 +233,33 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     return 'hue 30 ' + a + ' ms, null ' + b + ' ms';
   });
 
-  await test('glass follows within 1 s (blur, dim, panel)', async () => {
+  await test('glass follows within 1 s (blur, dim, panel); the picture stays sharp whatever the blur', async () => {
     fw('--app', 'helm', 'set', 'glass.dark.blurPx', '10');
-    const a = must(await waitFor('Backdrop._lastRender() && Backdrop._lastRender().blur === 3', 1000), 'blur 10 -> 3 bitmap px');
+    // CONTRACT "2026-11-11: sharp painted glass": the synced blur is Mantle's;
+    // Quartz's bitmap is never blurred (and never re-made for a blur change).
+    const a = must(await waitFor('Backdrop.state().glass.blurPx === 10 && Backdrop._lastRender() && Backdrop._lastRender().blur === 0', 1000), 'blur 10 synced, bitmap still sharp (0)');
     fw('--app', 'helm', 'set', 'glass.dark.dim', '0.7');
     const b = must(await waitFor("Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) >= 0.7", 1000), 'dim .7');
     fw('--app', 'helm', 'set', 'glass.dark.panel', '-0.1');
     const c = must(await waitFor("/0\\.56\\)/.test(getComputedStyle(document.documentElement).getPropertyValue('--surface-1'))", 1000), 'panel -.1 -> surface-1 .56');
     fw('--app', 'helm', 'set', 'glass.dark.blurPx', '5'); fw('--app', 'helm', 'set', 'glass.dark.dim', '0.5'); fw('--app', 'helm', 'set', 'glass.dark.panel', '0');
-    must(await waitFor("Backdrop._lastRender().blur === 1.5 && Backdrop.state().glass.floor === 0.5 && Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) === Backdrop.state().glass.alpha && !document.documentElement.style.getPropertyValue('--surface-1')", 1500), 'back to seed, no inline surfaces');
+    must(await waitFor("Backdrop._lastRender().blur === 0 && Backdrop.state().glass.blurPx === 5 && Backdrop.state().glass.floor === 0.5 && Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) === Backdrop.state().glass.alpha && !document.documentElement.style.getPropertyValue('--surface-1')", 1500), 'back to seed, no inline surfaces');
     return 'blur ' + a + ' ms, dim ' + b + ' ms, panel ' + c + ' ms';
   });
 
-  await test('light applies glass.light (blur + saturate 150%, white wash at dim, panel)', async () => {
+  await test('light applies glass.light (sharp: no blur and no saturate; white wash at dim, panel)', async () => {
     fw('--app', 'helm', 'set', 'theme', 'light');
     must(await waitFor("document.documentElement.getAttribute('data-theme') === 'light' && Backdrop.state().glass.theme === 'light'", 1500), 'light');
     const LOOKV = "(() => { const r = Backdrop._lastRender(); const g = Backdrop.state().glass; const cs = getComputedStyle(document.documentElement); const w = getComputedStyle(document.querySelector('.backdrop > .bg-wash')).backgroundColor; return { blur: r && r.blur, filter: r && r.filter, key: r && r.key, blurPx: g.blurPx, alpha: g.alpha, source: g.source, why: g.sourceReason, sat: g.saturate, wash: w, s1: cs.getPropertyValue('--surface-1').trim(), titlebar: getComputedStyle(document.getElementById('titlebar')).backgroundColor }; })()";
-    const seed = must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 3.6 && /saturate\\(150%\\)/.test(v.filter || '') && v.alpha === 0.45 && /255, 255, 255, 0\\.45/.test(v.wash) ? v : null; })()", 3000), 'light seed: 12 px -> 3.6, saturate, white .45') && await ev(LOOKV);
+    const seed = must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && !v.filter && v.sat === 100 && v.blurPx === 12 && v.alpha === 0.45 && /255, 255, 255, 0\\.45/.test(v.wash) ? v : null; })()", 3000), 'light seed: synced blur 12 but sharp, no saturate, white .45') && await ev(LOOKV);
     if (!/not published|stale|own picture|Windows|off/.test(seed.why || '')) throw new Error('light own value without a reason: ' + JSON.stringify(seed));
     fw('--app', 'helm', 'set', 'glass.light.blurPx', '30'); fw('--app', 'helm', 'set', 'glass.light.dim', '0.7'); fw('--app', 'helm', 'set', 'glass.light.panel', '-0.2');
     must(await waitFile((d) => d.look.glass.v.light.blurPx === 30 && d.look.glass.v.light.dim === 0.7, 1500), 'file carries light 30/.7');
-    const moved = must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 9 && v.alpha === 0.7 && /255, 255, 255, 0\\.7\\)/.test(v.wash) && /255, 255, 255, 0\\.56\\)/.test(v.s1) ? v : null; })()", 2000), 'light 30/.7/-.2 applied') && await ev(LOOKV);
+    const moved = must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && v.blurPx === 30 && v.alpha === 0.7 && /255, 255, 255, 0\\.7\\)/.test(v.wash) && /255, 255, 255, 0\\.56\\)/.test(v.s1) ? v : null; })()", 2000), 'light 30/.7/-.2 applied') && await ev(LOOKV);
     fw('--app', 'helm', 'set', 'glass.light.blurPx', '12'); fw('--app', 'helm', 'set', 'glass.light.dim', '0.45'); fw('--app', 'helm', 'set', 'glass.light.panel', '0');
-    must(await waitFor("Backdrop._lastRender().blur === 3.6 && Backdrop.state().glass.alpha === 0.45 && !document.documentElement.style.getPropertyValue('--surface-1')", 2000), 'light seed again');
+    must(await waitFor("Backdrop._lastRender().blur === 0 && Backdrop.state().glass.blurPx === 12 && Backdrop.state().glass.alpha === 0.45 && !document.documentElement.style.getPropertyValue('--surface-1')", 2000), 'light seed again');
     fw('--app', 'helm', 'set', 'theme', 'dark');
-    const dark = must(await waitFor("document.documentElement.getAttribute('data-theme') === 'dark' && Backdrop._lastRender().blur === 1.5 && !/sat/.test(Backdrop._lastRender().key) && Backdrop.state().glass.saturate === 100 ? Backdrop.state().glass : null", 1500), 'dark again, no saturate') && await ev('Backdrop.state().glass');
+    const dark = must(await waitFor("document.documentElement.getAttribute('data-theme') === 'dark' && Backdrop._lastRender().blur === 0 && !/sat/.test(Backdrop._lastRender().key) && Backdrop.state().glass.saturate === 100 ? Backdrop.state().glass : null", 1500), 'dark again, no saturate') && await ev('Backdrop.state().glass');
     return 'seed ' + JSON.stringify(seed) + '\n    moved ' + JSON.stringify({ blur: moved.blur, alpha: moved.alpha, wash: moved.wash, s1: moved.s1 }) + '\n    dark ' + JSON.stringify({ alpha: dark.alpha, source: dark.source });
   });
 
@@ -435,13 +437,13 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     const reread = (await ev(RK)) !== key0;
     await ev('Settings.open(), 1');
     const NOTE = "(() => { const e = document.querySelector('[data-glass-guard]'); return e ? { hidden: e.hidden, text: e.textContent } : null; })()";
-    const n1 = must(await waitFor(NOTE + " && /shared with Mantle and Helm/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings note says shared') && await ev(NOTE);
+    const n1 = must(await waitFor(NOTE + " && /^Automatic: 0\\.50, raised to 0\\.60 so text stays readable/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: automatic, raised') && await ev(NOTE);
     await writeGuard({ dark: { alpha: 0.6, dim: 0.6, blurPx: 5, contrast: 4.3 } });
-    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; const css = Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')); return g.source === 'own' && /Dim \\.60/.test(g.sourceReason || '') && css === g.alpha ? g : null; })()", 3000), 'stale dim .6 -> own with a reason');
-    const n2 = must(await waitFor(NOTE + " && /worked out by Quartz: .*Dim \\.60/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings note says Quartz + reason') && await ev(NOTE);
+    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; const css = Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')); return g.source === 'dim' && g.alpha === 0.5 && /Dim 0\\.60/.test(g.sourceReason || '') && css === 0.5 ? g : null; })()", 3000), 'stale dim .6 -> the Dim .5 with a reason');
+    const n2 = must(await waitFor(NOTE + " && /^Automatic: 0\\.50, not raised: .*Dim 0\\.60/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings row: not raised + reason') && await ev(NOTE);
     await ev('Settings.close && Settings.close(), 1');
     await writeGuard(undefined);
-    must(await waitFor("Backdrop.state().glass.source === 'own' && /no shared value/.test(Backdrop.state().glass.sourceReason || '')", 3000), 'guard removed -> own, "no shared value"');
+    must(await waitFor("Backdrop.state().glass.source === 'dim' && Backdrop.state().glass.alpha === 0.5 && /no shared value/.test(Backdrop.state().glass.sourceReason || '')", 3000), 'guard removed -> the Dim, "no shared value"');
     return 'shared ' + a + ' ms (still re-read for the rev bump: ' + reread + '), stale ' + b + ' ms\n    note shared: "' + n1.text + '"\n    note own:    "' + n2.text + '"';
   });
 
@@ -450,15 +452,15 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     must(await waitFor("document.documentElement.getAttribute('data-theme') === 'light' && Backdrop.state().kind === 'desktop' && Backdrop.state().state === 'ok' && Backdrop.state().glass.blurPx === 12", 3000), 'light desktop ok');
     const WASH = "Number((/rgba?\\(([^)]+)\\)/.exec(getComputedStyle(document.querySelector('.backdrop > .bg-wash')).backgroundColor) || [0, '0,0,0,1'])[1].split(/[ ,/]+/).filter(Boolean)[3] || 1)";
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 } });
-    const m = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'own' && /light top band not published by Mantle yet/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'no light entry: dim .45 with the reason');
+    const m = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'dim' && /light top band not published by Mantle yet/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'no light entry: dim .45 with the reason');
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 }, light: { alpha: 0.55, contrast: 4.9, dim: 0.45, blurPx: 12, region: { topDip: 0, heightDip: 100 }, monitor: [1536, 864] } });
     const a = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'shared' && g.alpha === 0.55 && g.raised && " + WASH + " === 0.55 && Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) === 0.55 ? g : null; })()", 3000), 'shared light .55 is the wash');
     await ev('Settings.open(), 1');
     const NOTE = "(() => { const e = document.querySelector('[data-glass-guard]'); return e ? { hidden: e.hidden, text: e.textContent } : null; })()";
-    const n1 = must(await waitFor(NOTE + " && /^Light wash \\.55, shared with Mantle and Helm/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings note: light shared') && await ev(NOTE);
+    const n1 = must(await waitFor(NOTE + " && /^Automatic: 0\\.45, raised to 0\\.55 so text stays readable/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: light automatic, raised') && await ev(NOTE);
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 }, light: { alpha: 0.55, contrast: 4.9, dim: 0.45, blurPx: 8 } });
-    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'own' && /stale/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'stale blur -> dim .45, reason says stale');
-    const n2 = must(await waitFor(NOTE + " && /^Light wash \\.45 \\(the Dim, not raised\\): light top band is stale/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings note: stale reason') && await ev(NOTE);
+    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'dim' && /blur 8 px, not this Dim 0\\.45 and blur 12 px/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'stale blur -> dim .45, the reason names both blurs');
+    const n2 = must(await waitFor(NOTE + " && /^Automatic: 0\\.45, not raised: Mantle worked out the light top band for Dim 0\\.45 and blur 8 px/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings row: stale reason') && await ev(NOTE);
     await ev('Settings.close && Settings.close(), 1');
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 } });
     fw('--app', 'helm', 'set', 'theme', 'dark');

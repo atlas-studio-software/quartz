@@ -30,8 +30,8 @@
   var READY_TIMEOUT_MS = 4000;
   var APP_NAMES = { helm: 'Helm', quartz: 'Quartz', mantle: 'Mantle' };
   var SEED_GLASS = {
-    dark: { blurPx: 5, dim: 0.5, panel: 0 },
-    light: { blurPx: 12, dim: 0.45, panel: 0 },
+    dark: { blurPx: 0, dim: 0.3, panel: 0 },
+    light: { blurPx: 0, dim: 0.3, panel: 0 },
     render: 'picture'
   };
   var OLD_WINDOW = 'this window predates Look Sync; restart Quartz';
@@ -84,13 +84,32 @@
     return Math.min(hi, Math.max(lo, n));
   }
 
+  /* dimAuto (optional, absent = automatic): kept only as a real boolean, so
+     another app's Manual choice survives a write from here and backdrop.js
+     can read glassFor(theme).dimAuto. Not inherited from dflt: a preview
+     says its own mode, and absent stays absent. */
   function cleanThemeGlass(g, dflt) {
     g = g && typeof g === 'object' ? g : {};
-    return {
+    var out = {
       blurPx: Math.round(num(g.blurPx, 0, 64, dflt.blurPx)),
       dim: Math.round(num(g.dim, 0.2, 0.9, dflt.dim) * 100) / 100,
       panel: Math.round(num(g.panel, -0.3, 0.15, dflt.panel) * 100) / 100
     };
+    if (typeof g.dimAuto === 'boolean') out.dimAuto = g.dimAuto;
+    return out;
+  }
+
+  /* One order-stable form of a glass group for comparing: both sides cleaned
+     the same way, keys in a fixed order, so key order or an absent-vs-true
+     dimAuto (both automatic) never reads as a change. */
+  function glassKey(g) {
+    g = g && typeof g === 'object' ? g : {};
+    function one(t, d) {
+      var c = cleanThemeGlass(t, d);
+      return [c.blurPx, c.dim, c.panel, c.dimAuto === false ? 'manual' : 'auto'].join(',');
+    }
+    return [one(g.dark, SEED_GLASS.dark), one(g.light, SEED_GLASS.light),
+      g.render === 'seeThrough' ? 'seeThrough' : 'picture'].join('|');
   }
 
   function storedGlass() {
@@ -197,7 +216,12 @@
 
   function previewGlass(t, g) {
     t = t === 'light' ? 'light' : 'dark';
-    st.preview[t] = g ? cleanThemeGlass(g, storedGlass()[t]) : null;
+    var stored = storedGlass()[t];
+    var p = g ? cleanThemeGlass(g, stored) : null;
+    /* A preview that names no mode (an older caller) keeps the stored one;
+       Settings' Dim drag says dimAuto false itself. */
+    if (p && !('dimAuto' in p) && typeof stored.dimAuto === 'boolean') p.dimAuto = stored.dimAuto;
+    st.preview[t] = p;
     fireGlass();
   }
 
@@ -260,7 +284,7 @@
         s.set({ accentHue: hue });
       }
       if (ch.glass !== undefined && s) {
-        if (JSON.stringify(storedGlass()) !== JSON.stringify(ch.glass)) said.push(describe('glass', ch.glass));
+        if (glassKey(storedGlass()) !== glassKey(ch.glass)) said.push(describe('glass', ch.glass));
         s.set({ glass: ch.glass });
       }
     } finally {

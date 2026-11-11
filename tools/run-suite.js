@@ -127,6 +127,7 @@ const TESTS = [
   // look-sync's reads and writes when Windows refuses look.json for a moment (scanner, another app):
   // a refused read is retried and re-checked, so a change that landed is followed, never lost.
   { name: 'looksync', file: 'looksync-harness.js' },
+  { name: 'settings-glass', file: 'settings-glass-harness.js' },
   { name: 'toprow', file: 'toprow-harness.js' },
   // The background layer: the picture shows unblurred whenever the window has a still picture, whatever
   // tab is in front (the top band never changes with the front tab), and says why when it cannot.

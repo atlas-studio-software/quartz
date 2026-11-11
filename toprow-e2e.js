@@ -5,7 +5,7 @@ require('./tools/lowcpu-optional.js');   // first: one capped browser at a time 
 //
 // 1. A fake Mantle: a named-pipe server on a private pipe (TOPROW_PIPE), recording every line
 //    with its arrival time. Never the real \\.\pipe\look-sync-toprow.
-// 2. A temp look-sync dir (snow-peak as Mantle's desktop still, dark, glass 5/.50/0) via
+// 2. A temp look-sync dir (snow-peak as Mantle's desktop still, dark; glass dark 0/.50/0, light 12/.45/0) via
 //    LOOK_SYNC_DIR; never the real %APPDATA%\look-sync.
 // 3. Quartz: --test-profile --profile-name=toprowe2e<pid> --offscreen --show-inactive --measure-visible:
 //    created off every monitor with no taskbar button (main.js), so it is never on the user's screen;
@@ -16,15 +16,20 @@ require('./tools/lowcpu-optional.js');   // first: one capped browser at a time 
 //      ORDER/TIMING: the first hint after the action was SENT before the renderer's next
 //      requestAnimationFrame callback (the frame that draws the change is produced after it),
 //      and the fake Mantle received that same hint; arrival vs that rAF is reported.
-//      FADES: the Home fade in/out is followed with per-frame hints.
+//      FADES: a fade in flight is followed with per-frame hints.
+//      THE RULE (2026-11-11): Quartz paints the desktop still SHARP with no scrim, the shared
+//      wash the only tint. wash only when the synced blurPx is 0 (dark here: Mantle's copy is
+//      then the same sharp still); at blur 12 (light here) Mantle's copy would be blurred, so
+//      the row goes as cols from the sharp bitmap, and the why says so.
 //      PIXELS: the window's real top row (Page.captureScreenshot of the chrome, decoded in
 //      the page) against what the hint predicts: wash = the still, cover-fitted on the
 //      monitor, blurred at the shared blurPx, lined up at the window's place, under
 //      rgb at alpha; cols / flat as sent. Max and mean error in levels, per channel.
 // Kills ONLY the process it started, deletes the temp profile and look dir.
 // Prints PASS/FAIL/SKIP lines and one summary line: "toprow-e2e: N passed, M failed[, K skipped]".
-// The wash PIXELS checks need the window on a monitor, so they are SKIPPED (with the reason) while
-// the window is off-screen; the hints, order, timing and the cols/flat pixel checks still run.
+// The PIXELS checks of a wash or of cols from the lined desktop still need the window on a monitor,
+// so they are SKIPPED (with the reason) while the window is off-screen; the hints, order, timing and
+// the cover-fitted cols / flat pixel checks still run.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -87,7 +92,8 @@ function makeLookDir() {
     look: {
       theme: { v: 'dark', rev: 1, by: 'mantle' },
       accent: { v: { hue: null }, rev: 1, by: 'mantle' },
-      glass: { v: { dark: { blurPx: 5, dim: 0.5, panel: 0 }, light: { blurPx: 12, dim: 0.45, panel: 0 }, render: 'picture' }, rev: 1, by: 'mantle' },
+      // dark at blur 0 (the 2026-11-11 seed): wash; light at the old 12: cols (Mantle would blur its copy)
+      glass: { v: { dark: { blurPx: 0, dim: 0.5, panel: 0 }, light: { blurPx: 12, dim: 0.45, panel: 0 }, render: 'picture' }, rev: 1, by: 'mantle' },
     },
     desktop: { ok: true, reason: null, id: 'builtin:snow-peak', type: 'builtin', title: 'builtin:snow-peak', file: STILL_SRC, still, stillSize: null, rev: 3, by: 'mantle' },
   }, null, 2));
@@ -186,12 +192,16 @@ async function pixels(name, limit) {
   const N = 40;
   const act = await topRowActual(N);
   let pred;
-  if (top.kind === 'wash') {
-    // A wash is the still LINED UP with the monitor at the window's place. The --offscreen test
-    // window is off every monitor (the user's screen stays clear), so there is no screen place to
-    // compare against: the prediction would sample outside the still. Said, never passed quietly.
+  // A wash, or cols from a LINED bitmap (the desktop still at blur > 0), is the still lined up with
+  // the monitor at the window's place. The --offscreen test window is off every monitor (the user's
+  // screen stays clear), so there is no screen place to compare against: the prediction would sample
+  // outside the still. Said, never passed quietly.
+  const lined = top.kind === 'wash' || (top.kind === 'cols' && await ev("!!(Backdrop.toprowSource() || {}).lined"));
+  if (lined) {
     const off = await ev("(() => { const p = LookSync.place(); if (!p) return 'no place'; const c = p.content, d = p.display; return c.x + c.width <= d.x || c.x >= d.x + d.width || c.y + c.height <= d.y || c.y >= d.y + d.height ? 'window at ' + c.x + ',' + c.y + ', monitor ' + d.x + ',' + d.y + ' ' + d.width + 'x' + d.height : ''; })()");
-    if (off) { skip++; console.log('SKIP pixels ' + name + ': wash ' + top.alpha + ' is lined up with the monitor, and the off-screen test window is on none (' + off + ')'); return null; }
+    if (off) { skip++; console.log('SKIP pixels ' + name + ': ' + (top.kind === 'wash' ? 'wash ' + top.alpha : 'cols from the lined desktop still') + ' is lined up with the monitor, and the off-screen test window is on none (' + off + ')'); return null; }
+  }
+  if (top.kind === 'wash') {
     const blur = await ev("(() => { const g = Backdrop.state().glass; return g.blurPx; })()");
     pred = (await ev('__tr.predictWash(' + JSON.stringify(top) + ', ' + N + ', ' + blur + ')')).cols;
   } else if (top.kind === 'flat') {
@@ -312,8 +322,13 @@ async function step(name, src, expectKind, settleMs) {
     await sleep(500);
     const ntId = await ev('getActiveTab().id');
     const home1 = await ev('Toprow.status()');
-    check(home1.top.kind === 'wash' && Math.abs(home1.top.alpha - 0.75) < 0.011, 'Home (new tab in front): wash .75', JSON.stringify(home1.top));
-    await pixels('dark Home', 12);
+    // No scrim: the row is the picture under the shared wash alone, at the wash's alpha (dark: the strip
+    // has no fill), the same alpha the backdrop reports.
+    const glass1 = await ev('Backdrop.state().glass');
+    check(home1.top.kind === 'wash' && typeof glass1.alpha === 'number' && Math.abs(home1.top.alpha - glass1.alpha) < 0.011,
+      'new tab in front, dark, blur 0: wash at the wash alpha alone (no scrim)', JSON.stringify(home1.top) + ' vs glass alpha ' + glass1.alpha + ', blurPx ' + glass1.blurPx);
+    check(glass1.blurPx === 0 && /blur 0/.test(home1.why), 'dark, blur 0: the why says Mantle draws the same sharp still', home1.why);
+    await pixels('dark, new tab in front', 12);
 
     // Home -> a web page -> a split -> back: the top band is the SAME the whole time (the user wants
     // the new tab's look on every tab). No hint changes (nothing in the row's stack moved), the Home
@@ -325,7 +340,7 @@ async function step(name, src, expectKind, settleMs) {
       " alpha: s.glass.alpha, tb: q('#titlebar').borderBottomColor, nav: q('.navrow').borderBottomColor }; })()";
     const band0 = await ev(BAND);
     const row0 = await topRowActual(40);
-    check(band0.on && band0.attr && band0.photoVis === 'hidden', 'new tab in front: the unblurred picture, blurred layer covered', JSON.stringify(band0));
+    check(band0.on && band0.attr && band0.photoVis === 'hidden', 'new tab in front: the sharp picture, the bitmap layer covered', JSON.stringify(band0));
     async function sameBand(name, src, ready) {
       await ev("(() => { Toprow._log(true); window.__bandOut = 0; if (window.__bandMo) __bandMo.disconnect();" +
         " window.__bandMo = new MutationObserver(() => { if (document.querySelector('.bg-clear').getAttribute('data-on') !== 'in' || !document.body.hasAttribute('data-bg-home')) __bandOut++; });" +
@@ -337,8 +352,8 @@ async function step(name, src, expectKind, settleMs) {
       const page2 = await ev('({ log: Toprow._log() || [], out: __bandOut, top: Toprow.status().top })');
       await ev('(__bandMo.disconnect(), Toprow._log(false), 1)');
       const band = await ev(BAND);
-      check(JSON.stringify(band) === JSON.stringify(band0), name + ': background stack identical (Home on, same wash and alpha, hairlines)', JSON.stringify(band));
-      check(page2.out === 0, name + ': the Home layer never faded out', page2.out + ' flips');
+      check(JSON.stringify(band) === JSON.stringify(band0), name + ': background stack identical (sharp layer on, same wash and alpha, hairlines)', JSON.stringify(band));
+      check(page2.out === 0, name + ': the sharp layer never faded out', page2.out + ' flips');
       check(page2.log.every((h) => JSON.stringify(h.top) === JSON.stringify(home1.top)) && JSON.stringify(page2.top) === JSON.stringify(home1.top),
         name + ': top-row hint unchanged', page2.log.length + ' hints; now ' + JSON.stringify(page2.top));
       const row = await topRowActual(40);
@@ -354,7 +369,9 @@ async function step(name, src, expectKind, settleMs) {
     await sameBand('web page -> new tab', 'activateTab(' + JSON.stringify(ntId) + ')',
       "(() => { const t = getActiveTab(); return !!t && t.id === " + JSON.stringify(ntId) + "; })()");
     // theme: light, then dark
-    await step('dark -> light', "QuartzTheme.setMode('light')", 'wash', 700);
+    // light at blur 12: Mantle's copy would be blurred and Quartz paints it sharp, so cols, said in the why
+    const toLight = await step('dark -> light', "QuartzTheme.setMode('light')", 'cols', 700);
+    check(/Mantle would blur its copy at 12 px and Quartz paints it sharp/.test(toLight.final && toLight.final.why), 'light, blur 12: cols, the why says Mantle would blur', toLight.final && toLight.final.why);
     await pixels('light (new tab in front)', 6);
     await step('light -> dark', "QuartzTheme.setMode('dark')", 'wash', 700);
 

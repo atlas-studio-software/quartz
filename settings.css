@@ -1217,7 +1217,17 @@ html[data-theme="light"] #settings-panel {
    wide enough for "64 px" and "+30". */
 #settings-panel .set-glass-ctl .set-bg-dim-value { min-width: 38px; }
 #settings-panel .set-glass-title { margin-bottom: 2px; }
-#settings-panel .set-glass-guard { margin: 2px 0 4px; color: var(--warn); }
+/* The Dim row's mode line ("Automatic: ..." / "Manual: ..."), always shown. */
+#settings-panel .set-glass-guard { margin: 2px 0 4px; color: var(--text-2); }
+/* Auto beside the Dim readout: a small button, accent-soft while Dim is
+   automatic (aria-pressed), like the gallery chips. */
+#settings-panel .set-glass-auto { flex: none; height: 24px; margin-top: 0; padding: 0 10px; align-items: center; }
+#settings-panel .set-glass-auto[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text-2);
+  cursor: default;
+}
 
 /* "Same as desktop": the one line, and the way to change it. */
 #settings-panel .set-bg-desktop .set-bg-row { margin-top: 8px; }

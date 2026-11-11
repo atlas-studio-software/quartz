@@ -45,7 +45,7 @@
  *     bgMigration:  1 once the one-time move to 'desktop' ran
  *     claudeSkipMigration: 1 once the one-time skip-permissions check ran
  *     lookSync:     true | false,           // "Match Helm and Mantle"
- *     glass:        { dark: { blurPx, dim, panel }, light: { ... },
+ *     glass:        { dark: { blurPx, dim, panel, dimAuto? }, light: { ... },
  *                     render: 'picture' }    // shared through Look Sync
  *     music:        { enabled, source: 'ambient'|'files',
  *                     where: 'newtab'|'anywhere', volume: 0..1,
@@ -237,12 +237,14 @@
        mode is always per app either way. */
     lookSync: true,
     /* The glass over the background, per theme: blurPx 0..64 (integer),
-       dim 0.20..0.90, panel -0.30..+0.15 (added to the surfaces' alpha).
-       = LS.SEED's glass, which matches today's look. backdrop.js reads the
-       effective value through LookSync.glassFor(theme). */
+       dim 0.20..0.90, panel -0.30..+0.15 (added to the surfaces' alpha),
+       and an optional dimAuto (absent = true): automatic raises the wash
+       over a bright picture, false uses exactly dim. The picture is painted
+       sharp whatever blurPx says (Mantle's guard and surfaces still use it).
+       backdrop.js reads the effective value through LookSync.glassFor(theme). */
     glass: {
-      dark: { blurPx: 5, dim: 0.5, panel: 0 },
-      light: { blurPx: 12, dim: 0.45, panel: 0 },
+      dark: { blurPx: 0, dim: 0.3, panel: 0 },
+      light: { blurPx: 0, dim: 0.3, panel: 0 },
       render: 'picture'
     },
     /* The apps pinned to the new tab page's dock: apps.js ids, webapps.js
@@ -686,6 +688,10 @@
         dim: glassNumber(t.dim, GLASS_RANGE.dim, d.dim, false),
         panel: glassNumber(t.panel, GLASS_RANGE.panel, d.panel, false)
       };
+      /* Automatic or manual Dim, shared with Helm and Mantle: kept when it
+         is a real boolean, so a write from here never erases another app's
+         Manual choice; anything else is dropped (absent = automatic). */
+      if (typeof t.dimAuto === 'boolean') out[theme].dimAuto = t.dimAuto;
     });
     /* 'picture' is the only render the user chose; a short id from a newer app
        is kept rather than dropped, so syncing never erases it. */
@@ -2879,7 +2885,7 @@
     slider.addEventListener('change', onChange);
     wrap.appendChild(slider);
     wrap.appendChild(readout);
-    return { row: controlRow(label, id, wrap), slider: slider };
+    return { row: controlRow(label, id, wrap), slider: slider, wrap: wrap };
   }
 
   /** ".58" (the guard's way of writing an alpha). */
@@ -2887,6 +2893,32 @@
     var n = Math.round(Number(a) * 100) / 100;
     if (!isFinite(n)) return '?';
     return n.toFixed(2).replace(/^0(?=\.)/, '');
+  }
+
+  /** "0.30" (the Dim row's way of writing its own value). */
+  function dimText(a) {
+    var n = Math.round(Number(a) * 100) / 100;
+    return isFinite(n) ? n.toFixed(2) : '?';
+  }
+
+  /**
+   * The whole glass group after one edit to `theme` (pure; the caller sets it).
+   * `values` is { blurPx, dim, panel } from the sliders, or null to keep the
+   * stored ones. kind 'dim': the user moved Dim, so it turns Manual
+   * (dimAuto false). 'auto': back to Automatic (dimAuto true), values as they
+   * are. Anything else (Blur, See-through) keeps dimAuto exactly as stored,
+   * absent included.
+   */
+  function glassEdit(all, theme, values, kind) {
+    var out = normalizeGlass(all);
+    var prev = out[theme];
+    var next = values ? { blurPx: values.blurPx, dim: values.dim, panel: values.panel }
+      : { blurPx: prev.blurPx, dim: prev.dim, panel: prev.panel };
+    if (kind === 'dim') next.dimAuto = false;
+    else if (kind === 'auto') next.dimAuto = true;
+    else if (typeof prev.dimAuto === 'boolean') next.dimAuto = prev.dimAuto;
+    out[theme] = next;
+    return normalizeGlass(out);
   }
 
   function renderGlass() {
@@ -2898,6 +2930,7 @@
     var theme = isLight() ? 'light' : 'dark';
     field.setAttribute('data-glass-theme', theme);
     var g = glass()[theme];
+    var auto = g.dimAuto !== false;
     var ls = lookSyncApi();
     var canPreview = !!(ls && typeof ls.previewGlass === 'function');
 
@@ -2910,38 +2943,55 @@
         panel: -Number(see.slider.value) / 100
       };
     }
-    function onInput() {
-      if (!canPreview) return;
-      try { ls.previewGlass(theme, normalizeGlass(withTheme(current()))[theme]); } catch (err) { /* glue's problem; change still saves */ }
+    function inputFor(kind) {
+      return function () {
+        if (!canPreview) return;
+        try { ls.previewGlass(theme, glassEdit(glass(), theme, current(), kind)[theme]); } catch (err) { /* glue's problem; change still saves */ }
+      };
     }
-    function withTheme(v) {
-      var all_ = glass();
-      all_[theme] = v;
-      return all_;
-    }
-    function onChange() {
-      set({ glass: withTheme(current()) });
-      if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
+    function changeFor(kind) {
+      return function () {
+        set({ glass: glassEdit(glass(), theme, current(), kind) });
+        if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
+      };
     }
 
     field.appendChild(el('p', 'set-hint set-glass-title',
       'Glass for the ' + (theme === 'light' ? 'Light' : 'Dark') + ' theme (switch theme to set the other):'));
     blur = glassSlider('Blur', 'set-glass-blur', GLASS_RANGE.blurPx[0], GLASS_RANGE.blurPx[1], g.blurPx,
-      function (v) { return v + ' px'; }, onInput, onChange);
+      function (v) { return v + ' px'; }, inputFor('blur'), changeFor('blur'));
     field.appendChild(blur.row);
     dim = glassSlider('Dim', 'set-glass-dim', Math.round(GLASS_RANGE.dim[0] * 100), Math.round(GLASS_RANGE.dim[1] * 100),
-      Math.round(g.dim * 100), function (v) { return v + '%'; }, onInput, onChange);
+      Math.round(g.dim * 100), function (v) { return v + '%'; }, inputFor('dim'), changeFor('dim'));
+    /* Auto: back to the automatic wash (the Dim, raised over a bright
+       picture). Pressed while it already is; still focusable, so the
+       keyboard can find it and a screen reader hears its state. */
+    var autoBtn = el('button', 'set-btn set-glass-auto', 'Auto');
+    autoBtn.type = 'button';
+    autoBtn.setAttribute('data-glass-auto', '');
+    autoBtn.setAttribute('aria-pressed', auto ? 'true' : 'false');
+    autoBtn.setAttribute('aria-disabled', auto ? 'true' : 'false');
+    autoBtn.setAttribute('aria-label', auto
+      ? 'Auto: Dim is automatic, raised over bright pictures so text stays readable'
+      : 'Auto: make Dim automatic, raised over bright pictures so text stays readable');
+    autoBtn.title = auto ? 'Dim is automatic' : 'Make Dim automatic';
+    autoBtn.addEventListener('click', function () {
+      if (glass()[theme].dimAuto !== false) return;   // already automatic
+      set({ glass: glassEdit(glass(), theme, null, 'auto') });
+      if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
+    });
+    dim.wrap.appendChild(autoBtn);
     field.appendChild(dim.row);
     var guard = el('p', 'set-note set-glass-guard');
     guard.setAttribute('data-glass-guard', '');
     guard.setAttribute('role', 'status');
     field.appendChild(guard);
     see = glassSlider('See-through', 'set-glass-see', Math.round(-GLASS_RANGE.panel[1] * 100), Math.round(-GLASS_RANGE.panel[0] * 100),
-      Math.round(-g.panel * 100), function (v) { return (v > 0 ? '+' : '') + v; }, onInput, onChange);
+      Math.round(-g.panel * 100), function (v) { return (v > 0 ? '+' : '') + v; }, inputFor('see'), changeFor('see'));
     field.appendChild(see.row);
-    field.appendChild(el('p', 'set-hint', theme === 'light'
-      ? 'Blur softens the picture behind the tabs; Dim lays white over it so text stays readable; See-through makes the panels clearer (+) or more solid (−).'
-      : 'Blur softens the picture behind the tabs; Dim darkens it so text stays readable; See-through makes the panels clearer (+) or more solid (−).'));
+    field.appendChild(el('p', 'set-hint', 'Quartz paints the picture sharp; Blur is shared with Mantle (its bars and the top-band check). '
+      + (theme === 'light' ? 'Dim lays a white tint over the picture' : 'Dim lays a tint over the picture')
+      + ' so text stays readable; Auto raises it over bright pictures. See-through makes the panels clearer (+) or more solid (−).'));
     if (!ls) {
       field.appendChild(el('p', 'set-note set-look-warn', LOOK_MISSING
         + '. These values are saved, but nothing in this window applies them until it loads.'));
@@ -2952,47 +3002,55 @@
     renderGlassGuard();
   }
 
-  /** The guard note under Dim, from backdrop.js's state (backdropchange). */
+  /**
+   * The Dim row's mode line (pure): backdrop.js's glass state `gs` for the
+   * theme on show, and the stored glass for that theme `g`. backdrop.js
+   * writes the whole line (gs.text: "Automatic: ..." / "Manual: ...").
+   * An older backdrop.js without it keeps its old wording, worked out here;
+   * no state at all is said, never blank.
+   */
+  function glassGuardText(gs, theme, g) {
+    g = g || {};
+    var mine = gs && (!gs.theme || gs.theme === theme);
+    if (mine && typeof gs.text === 'string' && gs.text.trim()) return gs.text.trim();
+    if (!mine) {
+      return (g.dimAuto === false ? 'Manual: ' : 'Automatic: ') + dimText(g.dim)
+        + ', the background layer has not reported yet.';
+    }
+    var why = gs.sourceReason ? ': ' + gs.sourceReason : '';
+    if (theme === 'light') {
+      // CONTRACT "Light look": Mantle's desktop.guard.light while following
+      // the desktop, else the Dim unraised and why (no silent fallback).
+      if (gs.source === 'shared') {
+        return 'Light wash ' + alphaText(gs.alpha) + ', shared with Mantle and Helm (worked out over the top of the screen)' +
+          (gs.raised ? '; raised from ' + alphaText(gs.floor) + ' so text stays readable over this dark photo.' : '.');
+      }
+      return 'Light wash ' + alphaText(gs.alpha) + ' (the Dim, not raised)' + why + '.';
+    }
+    if (gs.source === 'shared') {
+      // CONTRACT "Shared top-band darkening": Mantle's one value for the top
+      // of the screen, the same one Mantle's top bar and Helm use.
+      return 'Dark wash ' + alphaText(gs.alpha) + ', shared with Mantle and Helm (worked out over the top of the screen)' +
+        (gs.raised ? '; raised from ' + alphaText(gs.floor) + ' so text stays readable over this bright photo.' : '.');
+    }
+    if (gs.source !== 'own' && !gs.raised) return 'Dark wash ' + alphaText(gs.alpha) + ' (the Dim, not raised)' + why + '.';
+    // Quartz's own value over its own strip, and why the shared one is not used.
+    return (gs.raised
+      ? 'Dim raised to ' + alphaText(gs.alpha) + ' over this bright photo so text stays readable'
+      : 'Dark wash ' + alphaText(gs.alpha)) +
+      ', worked out by Quartz' + why + '.';
+  }
+
+  /** The mode line under Dim, from backdrop.js's state (backdropchange). */
   function renderGlassGuard() {
     var note = bodyEl && bodyEl.querySelector('[data-glass-guard]');
     if (!note) return;
     var layer = window.Backdrop;
     var st = null;
     try { st = (layer && typeof layer.state === 'function') ? layer.state() : null; } catch (err) { st = null; }
-    var gs = st && st.glass;
     var theme = isLight() ? 'light' : 'dark';
-    var light = theme === 'light' && gs && gs.theme === 'light';
-    if (light) {
-      // CONTRACT "Light look": Mantle's desktop.guard.light while following
-      // the desktop, else the Dim unraised and why (no silent fallback).
-      if (gs.source === 'shared') {
-        note.textContent = 'Light wash ' + alphaText(gs.alpha) + ', shared with Mantle and Helm (worked out over the top of the screen)' +
-          (gs.raised ? '; raised from ' + alphaText(gs.floor) + ' so text stays readable over this dark photo.' : '.');
-      } else {
-        note.textContent = 'Light wash ' + alphaText(gs.alpha) + ' (the Dim, not raised)' +
-          (gs.sourceReason ? ': ' + gs.sourceReason : '') + '.';
-      }
-      note.hidden = false;
-      return;
-    }
-    var dark = theme === 'dark' && gs && (!gs.theme || gs.theme === theme);
-    if (dark && gs.source === 'shared') {
-      // CONTRACT "Shared top-band darkening": Mantle's one value for the top
-      // of the screen, the same one Mantle's top bar and Helm use.
-      note.textContent = 'Dark wash ' + alphaText(gs.alpha) + ', shared with Mantle and Helm (worked out over the top of the screen)' +
-        (gs.raised ? '; raised from ' + alphaText(gs.floor) + ' so text stays readable over this bright photo.' : '.');
-      note.hidden = false;
-    } else if (dark && (gs.source === 'own' || gs.raised)) {
-      // Quartz's own value over its own strip, and why the shared one is not used.
-      note.textContent = (gs.raised
-        ? 'Dim raised to ' + alphaText(gs.alpha) + ' over this bright photo so text stays readable'
-        : 'Dark wash ' + alphaText(gs.alpha)) +
-        ', worked out by Quartz' + (gs.sourceReason ? ': ' + gs.sourceReason : '') + '.';
-      note.hidden = false;
-    } else {
-      note.textContent = '';
-      note.hidden = true;
-    }
+    note.textContent = glassGuardText(st && st.glass, theme, glass()[theme]);
+    note.hidden = false;
   }
 
   /**
@@ -9494,6 +9552,9 @@
     _bgKinds: BG_KINDS,
     _renderLookSync: renderLookSync,
     _renderGlass: renderGlass,
+    _glassEdit: glassEdit,
+    _glassGuardText: glassGuardText,
+    _renderGlassGuard: renderGlassGuard,
     _renderDesktopLine: renderDesktopLine,
     _accentFallback: function () { return accentFallback; },
     _normalizeAppPins: normalizeAppPins,

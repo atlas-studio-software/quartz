@@ -64,29 +64,33 @@
    and the reason is in Backdrop.state() for Settings to show under
    the picker.
 
-   Glass (Look Sync): LookSync.glassFor(theme) -> { blurPx, dim, panel }
-   for the resolved theme. blurPx is the blur (Helm's 5 = the old fixed
-   value; light adds saturate(150%), CONTRACT "Light look"); dim is the
-   FLOOR of the window's wash (--chrome-glass-a: dark rgb(9 10 11), light
-   white), which Mantle's shared top-band value (desktop.guard.<theme>)
-   may raise while following the desktop, and in dark Quartz's own guard
-   otherwise (below); panel shifts the alpha of --surface-0..3 and
-   --overlay (0 = tokens.css as is).
+   Glass (Look Sync): LookSync.glassFor(theme) -> { blurPx, dim, panel,
+   dimAuto? } for the resolved theme. The picture is painted SHARP in both
+   themes whatever blurPx says (CONTRACT "2026-11-11: sharp painted glass
+   + tint override": no blur, no saturate); blurPx is Mantle's (its guard
+   is worked out at it). dim is the window's ONE tint (--chrome-glass-a:
+   dark rgb(9 10 11), light white) by look-sync's washAlpha: Manual
+   (dimAuto false) = exactly dim; Automatic = max(dim, Mantle's
+   desktop.guard.<theme>) while following the desktop, else dim with the
+   reason (dark over Quartz's own picture: Quartz's own check, washFor);
+   panel shifts the alpha of --surface-0..3 and --overlay (0 = tokens.css
+   as is).
 
    Public surface:
      <body data-bg-kind="desktop|builtin|image|video|none"
            data-bg-state="loading|ok|fallback">
      window.Backdrop.state()  -> { kind, state, reason, source,
-       glass: { theme, floor, alpha, raised, source, sourceReason, ownAlpha,
-                blurPx, panel, lined, offset:{x,y} },
+       glass: { theme, floor, alpha, raised, source, sourceReason, mode,
+                text, reason, ownAlpha, blurPx, dimAuto, panel, lined,
+                offset:{x,y} },
        home: { on, reason } }
      window.Backdrop.refresh() -> re-reads the source now
-     <body data-bg-home> while the picture shows UNBLURRED (Helm's Home
-       look, below). That is the window's look whenever it shows a still
+     <body data-bg-home> while the picture shows full size (.bg-clear,
+       below). That is the window's look whenever it shows a still
        picture, whatever tab is in front: the top band never changes with
-       the front tab (the user, 2026-11-11). The blurred layer is then
-       covered and stops drawing; it stays the look while the sharp copy
-       is being prepared and for a clip's still.
+       the front tab (the user, 2026-11-11). The small bitmap (.bg-photo,
+       also sharp now) is then covered and stops drawing; it shows while
+       the full-size copy is being prepared and for a clip's still.
      window.Backdrop.recopyWallpaper() -> { ok, reason, copiedAt }
      'backdropchange' on document, detail = state()
    ============================================================ */
@@ -103,16 +107,17 @@
      bitmap blur stays round(5 * SCALE, .1) = 1.5 px. Seeds = LS.SEED glass,
      used when neither LookSync nor Settings answers. */
   var SEED_GLASS = {
-    dark: { blurPx: 5, dim: 0.5, panel: 0 },
-    light: { blurPx: 12, dim: 0.45, panel: 0 }
+    dark: { blurPx: 0, dim: 0.3, panel: 0 },
+    light: { blurPx: 0, dim: 0.3, panel: 0 }
   };
   /* Light (CONTRACT "Light look", 2026-10-14, un-held): glass.light is
-     applied in light exactly as glass.dark is in dark. The ground is the
-     picture at blur(glass.light.blurPx) saturate(150%), Mantle's island
-     light; dark keeps its plain blur. LIGHT_WASH_DIM = backdrop.css's
-     fallback for the white wash when nothing has set --chrome-glass-a. */
-  var LIGHT_WASH_DIM = 0.45;
-  var LIGHT_SATURATE = 150;      // % (Mantle ui/shared/glass-light.css ground)
+     applied in light exactly as glass.dark is in dark. Since 2026-11-11
+     (CONTRACT "sharp painted glass + tint override") the picture is SHARP
+     in both themes: no blur and no saturate (light used to add
+     saturate(150%)). LIGHT_WASH_DIM = backdrop.css's fallback for the
+     white wash when nothing has set --chrome-glass-a (= the seed Dim). */
+  var LIGHT_WASH_DIM = 0.3;
+  var BITMAP_BLUR_PX = 0;        // the bitmap's blur, both themes: sharp
   var SCALE = 0.3;
   /* Overscan, in blur radii: Helm's .bg-photo sits at
      inset: calc(var(--bg-blur) * -2.5), so its picture is cover-fitted to
@@ -150,7 +155,10 @@
   /* Plain node (backdrop-harness.js) loads this file for its pure rules
      alone: no document, so nothing else runs. */
   if (typeof document === 'undefined') {
-    if (typeof module === 'object' && module && module.exports) module.exports = { homeReason: homeReason };
+    if (typeof module === 'object' && module && module.exports) {
+      module.exports = { homeReason: homeReason, washFrom: washFrom, deskForWashFrom: deskForWashFrom,
+                         normGlass: normGlass, SEED_GLASS: SEED_GLASS, BITMAP_BLUR_PX: BITMAP_BLUR_PX };
+    }
     return;
   }
 
@@ -165,8 +173,8 @@
   var recopyNote = null;         // a failed "Copy again", told once
   var lastRender = null;         // test seam: what the shown blur did
   var placeNow = null;           // LookSync.place(), the last valid one
-  var guard = { alpha: 0.5, brightest: null, ratio: null, raised: false };   // dark strip, last measured
-  var guardLight = { alpha: LIGHT_WASH_DIM, raised: false, source: 'own', reason: null, ratio: null };   // light wash
+  var guard = { alpha: 0.3, brightest: null, ratio: null, raised: false, source: 'dim', mode: 'auto', text: null };   // dark wash (washFor)
+  var guardLight = { alpha: LIGHT_WASH_DIM, raised: false, source: 'dim', reason: null, ratio: null, mode: 'auto', text: null };   // light wash
   var glassKey = null;           // the glass last announced in a backdropchange
   var deskReady = false;         // LookSync.ready() settled (or timed out)
   var deskWait = false;
@@ -207,11 +215,14 @@
   function normGlass(g, theme) {
     var seed = SEED_GLASS[theme === 'light' ? 'light' : 'dark'];
     g = g && typeof g === 'object' ? g : {};
-    return {
+    var out = {
       blurPx: Math.round(numIn(g.blurPx, 0, 64, seed.blurPx)),
       dim: Math.round(numIn(g.dim, 0.2, 0.9, seed.dim) * 100) / 100,
       panel: Math.round(numIn(g.panel, -0.3, 0.15, seed.panel) * 100) / 100
     };
+    // Absent = automatic tint; false = the user set Dim by hand (washFor).
+    if (typeof g.dimAuto === 'boolean') out.dimAuto = g.dimAuto;
+    return out;
   }
 
   /** The glass in effect for theme: LookSync's (a live preview included);
@@ -356,10 +367,12 @@
     };
   }
 
-  /** The glass in effect, for Settings' guard note and the tests. alpha is
-      the window's wash (--chrome-glass-a, >= floor): in dark the guard's
-      answer, in light Mantle's guard.light or the dim. offset = the
-      monitor's top-left relative to this window's content area (lined up only). */
+  /** The glass in effect, for Settings' Dim row and the tests. alpha is
+      the window's wash (--chrome-glass-a): washFor's answer for the theme
+      in effect (mode auto/manual; text = the Settings row, e.g.
+      "Automatic: 0.30, raised to 0.46 so text stays readable over this
+      picture" or "Manual: 0.20"). offset = the monitor's top-left relative
+      to this window's content area (lined up only). */
   function glassSnapshot() {
     var theme = themeNow();
     var g = glassFor(theme);
@@ -372,15 +385,20 @@
       floor: g.dim,
       alpha: gd.alpha,
       raised: !!gd.raised,
-      // Where alpha came from. 'shared' = Mantle's desktop.guard.<theme>;
-      // 'own' = Quartz's own value (dark: its guard over its own strip;
-      // light: the dim unraised), with sourceReason saying why the shared
-      // value is not in use. ownAlpha = Quartz's own answer (dark only).
-      source: gd.source || 'own',
+      // Where alpha came from. 'shared' = Mantle's desktop.guard.<theme>
+      // (valid, in the max); 'own' = Quartz's own check over its own
+      // picture (dark); 'dim' = the Dim unraised; 'manual' = the user's Dim.
+      // sourceReason says why the shared value is not in use (null when it
+      // is). ownAlpha = Quartz's own answer (dark only, for the record).
+      source: gd.source || 'dim',
       sourceReason: gd.reason || null,
+      mode: gd.mode || 'auto',
+      text: gd.text || null,
+      reason: gd.why || null,
       ownAlpha: dark && typeof guard.own === 'number' ? guard.own : null,
-      saturate: dark ? 100 : LIGHT_SATURATE,
-      blurPx: g.blurPx,
+      saturate: 100,                 // sharp: no saturate in either theme
+      blurPx: g.blurPx,              // the SYNCED blur (Mantle's); the picture is painted sharp
+      dimAuto: g.dimAuto !== false,
       panel: g.panel,
       lined: lined,
       offset: { x: off.x, y: off.y }
@@ -388,7 +406,7 @@
   }
 
   function glassKeyOf(g) {
-    return [g.theme, g.floor, g.alpha, g.raised, g.source, g.sourceReason, g.blurPx, g.panel, g.lined].join('|');
+    return [g.theme, g.floor, g.alpha, g.raised, g.source, g.sourceReason, g.mode, g.text, g.blurPx, g.panel, g.lined].join('|');
   }
 
   function dispatchChange() {
@@ -568,10 +586,11 @@
   /* --- Helm's Home: the picture unblurred ------------------------------ */
 
   /*
-   * Helm's Home look (helm ui/shell/home.css, chrome.js Background): an
-   * UNBLURRED copy of the picture (.bg-clear) over the blurred layer, which
-   * is hidden once it is covered; a 96px scrim (rgb(9 10 11 / .5) -> 0)
-   * under the tab bar, and the ONE wash still over the whole window.
+   * The picture full size and SHARP (.bg-clear) over the small bitmap
+   * layer, which is hidden once it is covered, and the ONE wash over the
+   * whole window. No scrim (2026-11-11: the old 96px Home scrim made row 0
+   * darker than the rest in one state only; the wash is the only tint now,
+   * so the user's Dim, or the automatic raise, controls all of it).
    *
    * Quartz shows it WHENEVER the window has a still picture, whatever tab
    * is in front: a new tab, a web page, Lumen, a Claude tab, History,
@@ -587,10 +606,11 @@
    * Lined up, the copy is the MONITOR, cover-fitted the way the desktop
    * draws it and moved like the blurred layer.
    *
-   * Both themes. A clip ('video') has no sharp copy: the chrome keeps the
-   * clip's blurred still (with any tab in front) and the clip plays on the
-   * new tab itself. While the sharp copy is being prepared, or when it
-   * cannot be decoded, the blurred layer stays up and home.reason says why.
+   * Both themes. A clip ('video') has no full-size copy: the chrome keeps
+   * the clip's small still (sharp, with any tab in front) and the clip plays
+   * on the new tab itself. While the full-size copy is being prepared, or
+   * when it cannot be decoded, the small bitmap stays up and home.reason
+   * says why.
    * Only opacity / transform animate, once when the picture first lands or
    * goes; nothing runs at rest.
    */
@@ -608,7 +628,7 @@
    * tab is in front is deliberately NOT an input.
    */
   function homeReason(kind, state, reason, hasShown, hasClear) {
-    if (kind === 'video') return 'a clip: the chrome keeps its blurred still and the clip plays on the new tab itself';
+    if (kind === 'video') return "a clip: the chrome keeps the clip's small still and the clip plays on the new tab itself";
     if (kind !== 'desktop' && kind !== 'builtin' && kind !== 'image') return 'no picture is chosen';
     if (!hasShown && state === 'fallback') {
       return 'no picture could be shown' + (reason ? ' (' + reason + ')' : '');
@@ -691,7 +711,7 @@
     }, function (err) {
       if (my !== homeSeq) return;
       // The blurred layer stays; say why the sharp one is missing.
-      home.reason = 'the picture could not be decoded unblurred, so the chrome shows it blurred (' + reasonOf(err) + ')';
+      home.reason = 'the picture could not be decoded full size, so the chrome shows its small copy (' + reasonOf(err) + ')';
       homeOut();
     });
   }
@@ -880,41 +900,115 @@
   }
 
   /**
-   * Re-read the dark strip's wash from the CACHED pixels of what is shown
-   * (never a canvas read): on show, when a move ends, when the floor moves.
-   * Lined up, the band is the monitor rows behind the window's top strip;
-   * otherwise the frame's top band, as always. --chrome-glass-a is the wash
-   * of the theme in effect: dark's guard in dark, light's in light (a theme
-   * flip re-runs this, onLook).
+   * The wash of the theme in effect, worked out again: on show, when a move
+   * ends, when the glass, the theme or Mantle's record moves (a theme flip
+   * re-runs this, onLook). Both themes are kept (state() reports the one in
+   * effect); --chrome-glass-a is the one in effect.
    */
   function refreshGuard(quiet) {
     refreshLightGuard();
-    if (themeNow() === 'light') {
-      applyGlass(guardLight.alpha);
-      if (booted && !quiet) announceGlass();
-      return;
-    }
     refreshDarkGuard();
+    applyGlass(themeNow() === 'light' ? guardLight.alpha : guard.alpha);
     if (booted && !quiet) announceGlass();
   }
 
   /**
-   * CONTRACT "Light look": the light wash is white at glass.light.dim, raised
-   * to Mantle's desktop.guard.light while following the desktop and that
-   * value is fresh (worked out for this light dim and blur). Quartz has no
-   * light guard of its own: anything else is the dim unraised, with the
-   * reason (Settings shows it).
+   * CONTRACT "2026-11-11: sharp painted glass + tint override": ONE tint
+   * over the sharp picture, by look-sync's washAlpha (looksync/
+   * wash.browser.js), the same rule as Helm and Mantle:
+   *   Manual (glass.<theme>.dimAuto false): exactly the Dim.
+   *   Automatic: max(Dim, Mantle's desktop.guard.<theme>) while Quartz paints
+   *   Mantle's current still and that value is valid (worked out for this
+   *   Dim and blur); otherwise the Dim, with the reason.
+   * Over Quartz's OWN picture (built-in, own picture, a clip) Mantle has
+   * nothing to say about it, so automatic dark keeps Quartz's own check over
+   * its own strip (own, Mantle's bar rule from the Dim up), as before; light
+   * has no check of its own and stays at the Dim, with that reason.
+   * -> washAlpha's { alpha, mode, raised, guarded, reason, dim, contrast,
+   *    text } plus source: 'shared' | 'own' | 'dim' | 'manual'.
    */
-  function refreshLightGuard() {
-    var g = glassFor('light');
-    var shared = sharedGuard(g, 'light');
-    if (shared.alpha !== null) {
-      guardLight = { alpha: shared.alpha, raised: shared.alpha > g.dim + 1e-9, source: 'shared', reason: null, ratio: shared.contrast };
-    } else {
-      guardLight = { alpha: g.dim, raised: false, source: 'own', reason: shared.reason, ratio: null };
-    }
+  function washFor(g, theme, own) {
+    return washFrom(window.LookWash, g, theme, deskForWash(theme), own);
   }
 
+  /** Pure (backdrop-harness.js): washFor with its inputs passed in. W =
+      window.LookWash; pre = deskForWashFrom's answer; own = Quartz's own
+      check over its own strip ({ alpha, ratio }) or null. */
+  function washFrom(W, g, theme, pre, own) {
+    var t = theme === 'light' ? 'light' : 'dark';
+    var manual = g.dimAuto === false;
+    if (!W || typeof W.washAlpha !== 'function') {
+      var miss = 'the shared tint rule (looksync/wash.browser.js) did not load, so the tint is the Dim unraised';
+      return { alpha: g.dim, mode: manual ? 'manual' : 'auto', raised: false, guarded: false, reason: miss, dim: g.dim,
+               contrast: null, source: manual ? 'manual' : 'dim',
+               text: (manual ? 'Manual: ' : 'Automatic: ') + g.dim.toFixed(2) + ', not raised: ' + miss };
+    }
+    var look = { glass: {} };
+    look.glass[t] = g;
+    pre = pre || { desk: null, reason: 'no desktop record was looked up', ownPicture: false };
+    var r = W.washAlpha(look, pre.desk, t, pre.reason ? { unusable: pre.reason } : null);
+    r.source = r.mode === 'manual' ? 'manual' : r.guarded ? 'shared' : 'dim';
+    // Quartz's own picture, dark, automatic: its own check, said as such.
+    if (r.mode === 'auto' && pre.ownPicture && t === 'dark' && own && typeof own.alpha === 'number') {
+      var a = Math.max(g.dim, own.alpha);
+      var raised = a > g.dim + 1e-9;
+      var by = " (worked out by Quartz: " + pre.reason + ')';
+      r = { alpha: a, mode: 'auto', raised: raised, guarded: false, dim: g.dim, contrast: own.ratio, source: 'own',
+            reason: (raised ? 'raised to ' + a.toFixed(2) + ' so text stays readable over this picture'
+              : 'text already reads over this picture at this Dim') + by,
+            text: 'Automatic: ' + g.dim.toFixed(2) + ', ' + (raised ? 'raised to ' + a.toFixed(2) + ' so text stays readable over this picture'
+              : 'text already reads over this picture at this Dim') + by };
+    }
+    return r;
+  }
+
+  /**
+   * The desktop record washAlpha may use for theme, or why not. Quartz's own
+   * checks come first (washAlpha cannot know them): the picture shown must
+   * be Mantle's current still, with Look Sync on. -> { desk, reason,
+   * ownPicture } (desk = { ok, still, guard: { <theme>: entry } } or null).
+   */
+  function deskForWash(theme) {
+    var on = true;
+    var ls = window.LookSync;
+    if (ls && typeof ls.enabled === 'function') {
+      try { on = ls.enabled() !== false; } catch (err) { on = true; }
+    }
+    return deskForWashFrom(current.kind, on, current.kind === 'desktop' ? deskInfo() : null,
+      shown ? shown.srcKey : null, theme);
+  }
+
+  /** Pure (backdrop-harness.js): kind = the published kind; syncOn = Look
+      Sync's switch; d = deskInfo(); shownKey = the srcKey of the picture
+      on the layer (null: none yet). */
+  function deskForWashFrom(kind, syncOn, d, shownKey, theme) {
+    function no(why, ownPicture) { return { desk: null, reason: why, ownPicture: !!ownPicture }; }
+    if (kind !== 'desktop') {
+      return kind === 'none' ? no('no picture is shown')
+        : no("the background is Quartz's own picture, not the desktop", true);
+    }
+    if (!syncOn) return no('Look Sync is off');
+    if (!d || d.state !== 'ok') return no("Quartz is showing Windows' wallpaper, not Mantle's");
+    if (!shownKey || shownKey !== 'desktop|' + d.stillUrl) return no("Mantle's wallpaper is still being prepared");
+    var light = theme === 'light';
+    var sg = light ? d.guardLight : d.guard;
+    if (!sg) {
+      return no(light ? (d.guardLightReason || 'light top band not published by Mantle yet')
+        : (d.guardReason || "Mantle's record has no shared value"));
+    }
+    var guardRec = {};
+    guardRec[light ? 'light' : 'dark'] = sg;
+    return { desk: { ok: true, still: d.stillUrl, guard: guardRec }, reason: null, ownPicture: false };
+  }
+
+  function refreshLightGuard() {
+    var w = washFor(glassFor('light'), 'light', null);
+    guardLight = { alpha: w.alpha, raised: w.raised, source: w.source, reason: w.source === 'shared' ? null : w.reason,
+                   ratio: w.contrast, mode: w.mode, text: w.text, why: w.reason };
+  }
+
+  /** Dark: Quartz's own check over the bitmap's band (kept for its own
+      pictures, and reported as ownAlpha), then the shared rule. */
   function refreshDarkGuard() {
     var g = glassFor('dark');
     var floor = g.dim;
@@ -926,69 +1020,10 @@
       var rect = shown.lined && placeNow ? guardBand(placeNow, shown.layout) : shown.band;
       own = guardAlpha(px ? bandCandidates(px.data, px.w, rect) : [], floor);
     }
-    var shared = sharedGuard(g, 'dark');
-    if (shared.alpha !== null) {
-      guard = { alpha: shared.alpha, brightest: own.brightest, ratio: shared.contrast, raised: shared.alpha > floor + 1e-9,
-                source: 'shared', reason: null, own: own.alpha };
-    } else {
-      guard = { alpha: own.alpha, brightest: own.brightest, ratio: own.ratio, raised: own.raised,
-                source: 'own', reason: shared.reason, own: own.alpha };
-    }
-    // No picture and nothing shared: today's CSS fallback (.5) unless the floor moved.
-    if (!shown && guard.source === 'own') applyGlass(Math.abs(floor - GLASS_FLOOR) < 0.001 ? null : floor);
-    else applyGlass(guard.alpha);
-  }
-
-  /**
-   * CONTRACT "Shared top-band darkening": Mantle works out ONE dark alpha
-   * over the top 144 DIP of the monitor (Mantle's top bar, every app's strip,
-   * this toolbar) and publishes it as desktop.guard. While Quartz follows
-   * the desktop (Mantle's still on screen, sync on) and the value is fresh
-   * (worked out for the dark glass in effect: same dim, same blur), it IS
-   * the wash, over the whole window, as in Helm. Anything else keeps
-   * Quartz's own value (guardAlpha over its own strip) and says why, in
-   * words, for Settings: { alpha, contrast, reason }.
-   */
-  function sharedGuard(g, theme) {
-    var light = theme === 'light';
-    function no(why) { return { alpha: null, contrast: null, reason: why }; }
-    var kind = current.kind;
-    if (kind !== 'desktop') {
-      return no(kind === 'none' ? 'no picture is shown'
-        : "the background is Quartz's own picture, not the desktop");
-    }
-    var ls = window.LookSync;
-    if (ls && typeof ls.enabled === 'function') {
-      var on = true;
-      try { on = ls.enabled() !== false; } catch (err) { on = true; }
-      if (!on) return no('Look Sync is off');
-    }
-    var d = deskInfo();
-    if (d.state !== 'ok') return no("Quartz is showing Windows' wallpaper, not Mantle's");
-    if (!shown || shown.srcKey !== 'desktop|' + d.stillUrl) return no("Mantle's wallpaper is still being prepared");
-    var sg = light ? d.guardLight : d.guard;
-    if (!sg) {
-      return no(light ? (d.guardLightReason || 'light top band not published by Mantle yet')
-        : (d.guardReason || "Mantle's record has no shared value"));
-    }
-    var dim = Number(sg.dim);
-    var blur = Number(sg.blurPx);
-    if (!isFinite(dim) || Math.abs(dim - g.dim) > 0.001 || !isFinite(blur) || Math.round(blur) !== g.blurPx) {
-      if (light) {
-        return no('light top band is stale: Mantle worked it out for Dim ' + alphaWords(dim) + ' and blur ' +
-          (isFinite(blur) ? blur : '?') + ' px, not this Dim ' + alphaWords(g.dim) + ' and blur ' + g.blurPx +
-          ' px (waiting for Mantle to work it out again)');
-      }
-      return no("Mantle's shared value was worked out for Dim " + alphaWords(dim) + ' and blur ' +
-        (isFinite(blur) ? blur : '?') + ' px, not this Dim ' + alphaWords(g.dim) + ' and blur ' + g.blurPx +
-        ' px (waiting for Mantle to work it out again)');
-    }
-    var a = Number(sg.alpha);
-    var ceil = Math.max(GLASS_CEIL, g.dim);
-    if (!isFinite(a) || a < g.dim - 1e-9 || a > ceil + 1e-9) {
-      return no((light ? "Mantle's light top band " : "Mantle's shared value ") + alphaWords(a) + ' is outside ' + alphaWords(g.dim) + '-' + alphaWords(ceil));
-    }
-    return { alpha: Math.round(a * 100) / 100, contrast: typeof sg.contrast === 'number' && isFinite(sg.contrast) ? sg.contrast : null, reason: null };
+    var w = washFor(g, 'dark', shown ? own : null);
+    guard = { alpha: w.alpha, brightest: own.brightest, ratio: w.source === 'own' ? own.ratio : w.contrast, raised: w.raised,
+              source: w.source, reason: w.source === 'shared' ? null : w.reason, own: own.alpha,
+              mode: w.mode, text: w.text, why: w.reason };
   }
 
   /** .5 -> ".50", the way the guard writes an alpha. */
@@ -1192,13 +1227,19 @@
     var ctx = out.getContext('2d');
     var filtered = false;
     var filterUsed = null;
-    if ('filter' in ctx) {
-      // Light's ground is Mantle's island light: blur, then saturate(150%).
+    // Sharp (CONTRACT "2026-11-11: sharp painted glass"): plan() asks for
+    // blur 0 and saturate 100, so nothing is filtered and the bitmap is the
+    // picture itself, only smaller.
+    var sharp = !(b > 0) && !(p.saturate && p.saturate !== 100);
+    if (!sharp && 'filter' in ctx) {
       ctx.filter = 'blur(' + b + 'px)' + (p.saturate && p.saturate !== 100 ? ' saturate(' + p.saturate + '%)' : '');
       filtered = ctx.filter !== 'none';
       filterUsed = filtered ? ctx.filter : null;
     }
-    if (filtered) {
+    if (sharp) {
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(big, -m, -m);
+    } else if (filtered) {
       ctx.drawImage(big, -m, -m);
       ctx.filter = 'none';
     } else {
@@ -1665,9 +1706,10 @@
    */
   function plan(cfg) {
     var kind = normKind(cfg && cfg.kind);
-    var g = glassFor(themeNow());
-    var light = themeNow() === 'light';
-    var p = { kind: kind, blurPx: g.blurPx, saturate: light ? LIGHT_SATURATE : 100, srcKey: null, key: null, desk: null, lined: false, mon: null };
+    // The bitmap is SHARP in both themes (CONTRACT "2026-11-11: sharp
+    // painted glass"): blur 0 and no saturate, whatever glass.blurPx says.
+    // The synced blur only matters to Mantle (its guard, its own bars).
+    var p = { kind: kind, blurPx: BITMAP_BLUR_PX, saturate: 100, srcKey: null, key: null, desk: null, lined: false, mon: null };
     if (kind === 'none') { p.key = 'none'; return p; }
     if (kind === 'desktop') {
       p.desk = deskInfo();
@@ -1913,7 +1955,10 @@
         layout: shown ? shown.layout : null, pixels: shown ? shown.pixels : null,
         outW: shown && shown.info ? shown.info.outWidth : null,
         outH: shown && shown.info ? shown.info.outHeight : null,
-        place: placeNow, deskStillUrl: d && d.state === 'ok' ? d.stillUrl : null
+        place: placeNow, deskStillUrl: d && d.state === 'ok' ? d.stillUrl : null,
+        // The SYNCED blur of the theme in effect (what Mantle blurs its own
+        // copy of the still at) and the bitmap's (0: sharp, both themes).
+        blurPx: glassFor(themeNow()).blurPx, bitmapBlurPx: BITMAP_BLUR_PX
       };
     },
     // test seams

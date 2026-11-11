@@ -18,14 +18,16 @@
    toolbar). Bottom to top:
 
      .bg-base     --bg, opaque
-     .bg-photo    the blurred picture (backdrop.js), when it has landed;
-                  lined up with the screen for "Same as desktop"
-     .bg-clear    Helm's Home look: the picture UNBLURRED, whenever the
-                  window has a still picture (any tab in front, both
-                  themes); its ::after is a 96px scrim, the wash colour
-                  at .5 at row 0
-     .bg-wash     the wash: dark --chrome-glass-a (the guard), light
-                  --bg-dim over a picture
+     .bg-photo    backdrop.js's small bitmap of the picture (a downscaled
+                  SHARP copy: no blur, no saturate, both themes), when it
+                  has landed; lined up with the screen for "Same as desktop".
+                  A clip shows only this layer.
+     .bg-clear    the picture SHARP at full size, whenever the window has a
+                  still picture (desktop / built-in / own image; any tab in
+                  front, both themes). No scrim: the shared wash is the only
+                  tint (the user's 2026-11-11 rule). A ::after gradient, if
+                  one ever comes back, is still read and counted.
+     .bg-wash     the wash: the one shared tint over the picture
      #titlebar    dark: no fill (a workspace's 7% tint, if any); light:
                   --surface-0 (+ the tint); inside .chrome-layer, which
                   fades in once at boot
@@ -38,18 +40,22 @@
    workspace tint, a fade in flight are all whatever the page really
    paints this frame), and topFor() turns them into the hint:
 
-     wash   the picture is Mantle's current desktop still, lined up:
-            { rgb: S / (1 - k), alpha: 1 - k }. Mantle draws its own
-            blurred still at that spot under that colour. Home shows the
-            picture UNBLURRED; the hint still says wash (one picture, the
-            wash continues into the bar), at Home's effective alpha.
+     wash   the picture is Mantle's current desktop still, lined up, AND
+            the synced glass.<theme>.blurPx of the theme in effect is 0:
+            { rgb: S / (1 - k), alpha: 1 - k }. Mantle draws its own copy
+            of the still at that spot, blurred at blurPx x the monitor's
+            scale (look-sync CONTRACT "Top-row hints"), under that colour;
+            at blur 0 that is exactly the sharp still Quartz paints.
+     cols   the desktop still while blurPx > 0 (Mantle's copy would be
+            blurred, Quartz's is sharp) or blurPx unknown, and every other
+            picture (own picture, a clip's still, the Windows wallpaper
+            fallback, an old still while a new one is prepared): the row
+            worked out from backdrop.js's sharp downscaled bitmap, ~8 CSS
+            px per column, k * bitmap + S
      flat   no picture shows (none chosen, still loading): { rgb: S }
-     cols   some other picture (Own picture, a clip's still, the Windows
-            wallpaper fallback, an old still while a new one is blurred):
-            the row worked out from backdrop.js's blurred bitmap, ~8 CSS px
-            per column, k * bitmap + S
      none   can't say: fullscreen (the chrome steps aside), a hovered
-            window button, a background this file cannot read
+            window button, a background this file cannot read, a bitmap
+            whose pixels can't be sampled (always with the reason)
 
    WHEN. A MutationObserver on everything that decides the stack (html's
    data-theme and inline style, where --chrome-glass-a lives; body's
@@ -57,7 +63,7 @@
    data-ws-colour) and backdropchange queue ONE compute as a microtask:
    microtasks run at the end of the task that made the change, before the
    browser renders, so the hint leaves in the same task. A fade in flight
-   (the Home's 280/300 ms, a picture landing, the boot entrance, a window
+   (the sharp layer's, a picture landing, the boot entrance, a window
    button's hover) is then followed once per animation frame, inside
    requestAnimationFrame, where the computed values are the frame about to
    be drawn; it stops when the fades end (and after LOOP_MAX_MS whatever
@@ -210,7 +216,8 @@
   /**
    * The hint for a composite.
    *   comp      { k, S } from compose()
-   *   pic       'still'  the picture is Mantle's current desktop still, lined up
+   *   pic       'still'  the picture is Mantle's current desktop still, lined up,
+   *                      and Mantle's copy matches it (pictureFor: blur 0)
    *             'bitmap' another picture, with sample(i, n) -> [r,g,b] for
    *                      column i of n across the window (opts.sample)
    *             null     no picture is on the layer at all
@@ -269,7 +276,8 @@
   }
 
   /**
-   * A sampler for the window's top row over backdrop.js's blurred bitmap.
+   * A sampler for the window's top row over backdrop.js's small bitmap
+   * (a sharp copy, downscaled; bitmapBlurPx 0).
    *   src  Backdrop.toprowSource(): { pixels, lined, layout, place, outW, outH }
    *   win  { w, h } the window's content in CSS px
    * Lined: the bitmap is the monitor at layout.sx/sy plus m px of overscan,
@@ -299,9 +307,82 @@
     };
   }
 
+  /**
+   * The sharp layer (.bg-clear) at row 0, as a compose() group.
+   *   afterImg  its ::after computed background-image. No scrim is the
+   *             normal case now ('none', '' or missing); a top-to-bottom
+   *             gradient, if one is ever there, is counted; anything else
+   *             can't be read.
+   * -> { layer } or { none: why }
+   */
+  function clearLayer(afterImg, opacity) {
+    var grp = [{ pic: true, opacity: 1 }];
+    if (afterImg !== undefined && afterImg !== null) {
+      var over = gradientTop(afterImg);
+      if (!over) return { none: "the sharp picture's overlay can't be read (" + String(afterImg).slice(0, 80) + ')' };
+      if (over.a > 0) grp.push({ rgb: [over.r, over.g, over.b], a: over.a });
+    }
+    return { layer: { group: grp, opacity: opacity === undefined ? 1 : opacity } };
+  }
+
+  /** "5 px", "0.5 px" */
+  function pxWords(v) { return (Math.round(v * 10) / 10) + ' px'; }
+
+  /**
+   * Which picture the row shows, and why, from backdrop.js's toprowSource().
+   *   on   a picture layer paints anything at row 0 (photo or sharp layer)
+   *   src  Backdrop.toprowSource() or null
+   * -> { pic: 'still'|'bitmap'|null, why }
+   * 'still' (a wash) only when the picture is Mantle's current desktop still,
+   * lined up, and the synced blurPx is 0: Quartz paints the still sharp and
+   * Mantle blurs its copy at blurPx, so at any other blur the two rows
+   * differ and the row goes per column from the (sharp) bitmap instead.
+   */
+  function pictureFor(on, src) {
+    var kind = src ? src.kind : 'unknown';
+    if (!on) {
+      return { pic: null, why: kind === 'none' ? 'no picture: the plain ground under the wash'
+        : 'the picture is not on screen yet: the plain ground under the wash' };
+    }
+    if (!(src && src.shown)) return { pic: null, why: 'a picture is fading out that the layer no longer names' };
+    var still = !!(src.lined && src.deskStillUrl && src.srcKey === 'desktop|' + src.deskStillUrl);
+    if (still) {
+      var b = src.blurPx;
+      var known = typeof b === 'number' && isFinite(b);
+      if (known && b === 0) return { pic: 'still', why: 'the desktop picture under the wash (blur 0: Mantle draws the same sharp still)' };
+      return {
+        pic: 'bitmap',
+        why: known
+          ? 'the desktop picture, sent per column: Mantle would blur its copy at ' + pxWords(b) + ' and Quartz paints it sharp'
+          : "the desktop picture, sent per column: the synced blur is not known (backdrop.js does not say it), so Mantle's copy might not match the sharp picture Quartz paints"
+      };
+    }
+    return {
+      pic: 'bitmap',
+      why: (kind === 'desktop'
+        ? (src.state === 'fallback' ? "Windows' wallpaper (Mantle's still is not in use)" : 'an older desktop still while the new one is prepared')
+        : kind === 'video' ? "the clip's still" : kind === 'builtin' ? 'a built-in photo' : kind === 'image' ? 'your own picture' : 'a picture') +
+        ', worked out per column'
+    };
+  }
+
+  /** A read stack -> the hint and its reason. st is { none: why } or
+      { comp, pic, why, sample, cols }; a bitmap that can't be sampled is
+      none, with the reason. */
+  function hintFor(st) {
+    if (!st || st.none) return { top: { kind: 'none' }, why: (st && st.none) || 'nothing was read' };
+    var top = topFor(st.comp, st.pic, { sample: st.sample, cols: st.cols });
+    var why = st.why;
+    if (top.kind === 'none' && st.pic === 'bitmap') {
+      why = "the picture's pixels can't be read (" + (typeof st.sample === 'function' ? 'a column came back empty' : 'no bitmap to sample') + '; ' + st.why + ')';
+    }
+    return { top: top, why: why };
+  }
+
   var maths = {
     parseColor: parseColor, gradientTop: gradientTop, imageLayers: imageLayers, compose: compose, mergeColours: mergeColours,
-    topFor: topFor, colCount: colCount, rowAverage: rowAverage, bitmapSampler: bitmapSampler
+    topFor: topFor, colCount: colCount, rowAverage: rowAverage, bitmapSampler: bitmapSampler,
+    clearLayer: clearLayer, pictureFor: pictureFor, hintFor: hintFor
   };
 
   if (typeof module === 'object' && module && module.exports && typeof document === 'undefined') {
@@ -355,7 +436,7 @@
     if (!base) return { none: "the base colour can't be read" };
     layers.push({ rgb: [base.r, base.g, base.b], a: 1 });   // opaque: what is under it never shows
 
-    // The blurred layer counts while it paints anything at all, a fade-out
+    // The bitmap layer counts while it paints anything at all, a fade-out
     // included (data-ready goes at once, the opacity takes 200ms).
     var photo = cs(photoEl);
     var photoOn = !!(photo && photo.visibility !== 'hidden' && photo.display !== 'none'
@@ -365,11 +446,13 @@
     var clear = cs(clearEl);
     var clearOn = !!(clear && clear.display !== 'none' && clearEl.hasAttribute('data-on'));
     if (clearOn) {
-      var scrim = gradientTop(cs(clearEl, '::after').backgroundImage);
-      if (!scrim) return { none: "the Home scrim can't be read" };
-      var grp = [{ pic: true, opacity: 1 }];
-      if (scrim.a > 0) grp.push({ rgb: [scrim.r, scrim.g, scrim.b], a: scrim.a });
-      layers.push({ group: grp, opacity: num(clear.opacity, 1) });
+      // No scrim is the normal case (the shared wash is the only tint); a
+      // ::after that paints is still counted, an unreadable one says so.
+      var after = cs(clearEl, '::after');
+      var afterImg = after && after.content !== 'none' && after.display !== 'none' ? after.backgroundImage : null;
+      var cl = clearLayer(afterImg, num(clear.opacity, 1));
+      if (cl.none) return { none: cl.none };
+      layers.push(cl.layer);
     }
 
     var wash = cs(washEl);
@@ -393,29 +476,11 @@
     }
 
     var comp = compose(layers);
-    var pic = null;
-    var why;
-    var kind = src ? src.kind : 'unknown';
-    if ((photoOn || clearOn) && !(src && src.shown)) {
-      why = 'a picture is fading out that the layer no longer names';   // pic stays null: none
-    } else if (photoOn || clearOn) {
-      var still = !!(src && src.lined && src.deskStillUrl && src.srcKey === 'desktop|' + src.deskStillUrl);
-      if (still) {
-        pic = 'still';
-        why = clearOn ? 'Home: the desktop picture under the wash and the scrim' : 'the desktop picture under the wash';
-      } else {
-        pic = 'bitmap';
-        why = (clearOn ? 'Home: ' : '') + (kind === 'desktop'
-          ? (src && src.state === 'fallback' ? "Windows' wallpaper (Mantle's still is not in use)" : 'an older desktop still while the new one is prepared')
-          : kind === 'video' ? "the clip's still" : kind === 'builtin' ? 'a built-in photo' : kind === 'image' ? 'your own picture' : 'a picture') + ', worked out per column';
-      }
-    } else {
-      why = kind === 'none' ? 'no picture: the plain ground under the wash'
-        : 'the picture is not on screen yet: the plain ground under the wash';
-    }
+    var pf = pictureFor(photoOn || clearOn, src);   // pic null with a picture on screen: none
+    var pic = pf.pic;
     var w = root.innerWidth, h = root.innerHeight;
     return {
-      comp: comp, pic: pic, why: why,
+      comp: comp, pic: pic, why: pf.why,
       sample: pic === 'bitmap' ? bitmapSampler(src, { w: w, h: h }) : null,
       cols: colCount(w)
     };
@@ -424,14 +489,7 @@
   function compute() {
     var st;
     try { st = readStack(); } catch (err) { st = { none: 'could not be worked out (' + ((err && err.message) || err) + ')' }; }
-    var top, why;
-    if (st.none) { top = { kind: 'none' }; why = st.none; }
-    else {
-      top = topFor(st.comp, st.pic, { sample: st.sample, cols: st.cols });
-      why = st.why;
-      if (top.kind === 'none' && st.pic === 'bitmap') why = "the picture's pixels can't be read (" + st.why + ')';
-    }
-    return { top: top, why: why };
+    return hintFor(st);
   }
 
   /** Work the row out now and send it if it changed. */

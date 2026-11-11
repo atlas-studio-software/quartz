@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit 0e9f76f (accent.js), Owen-Silva/look-sync.
+/* VENDORED from ~/look-sync commit 3fa3800 (accent.js), Owen-Silva/look-sync.
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 'use strict';
 /*

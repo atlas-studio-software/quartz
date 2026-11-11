@@ -11,13 +11,16 @@
  * file:// pages (index.html, newtab.html) can load it with a <script> tag:
  * it runs inside a function scope (its top-level consts never collide with a
  * page's globals) and leaves window.LookAccent = { tokens, ... }.
+ * wash.browser.js is look-sync.js's pure block (seeds, ranges, washAlpha:
+ * the one tint rule every app shares) wrapped the same way, for index.html:
+ * window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL }.
  * Never edit a vendored copy: change ~/look-sync, run its tests, re-copy.
  */
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const PINNED = '0e9f76f';
+const PINNED = '3fa3800';
 const SRC_REPO = process.env.LOOK_SYNC_REPO || path.join(require('os').homedir(), 'look-sync');
 // fake-writer.js is the test tool looksync-e2e drives the shared file with (it needs ./look-sync).
 const FILES = ['look-sync.js', 'accent.js', 'windows-mode.js', 'fake-writer.js'];
@@ -44,6 +47,15 @@ function build(commit) {
   out['accent.browser.js'] = header(commit, 'accent.js, wrapped for <script> pages') +
     '(function () {\nvar module = { exports: {} };\n' + acc +
     '\nwindow.LookAccent = module.exports;\n})();\n';
+  // wash.browser.js: look-sync.js's pure block (the seeds, ranges and
+  // washAlpha, between its "pure (browser-safe)" markers), wrapped the same
+  // way; it leaves window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL }.
+  const ls = show(commit, 'look-sync.js');
+  const m = /\/\/ ==== pure \(browser-safe\): begin ====\r?\n([\s\S]*?)\/\/ ==== pure \(browser-safe\): end ====/.exec(ls);
+  if (!m) throw new Error('look-sync.js at ' + commit + ' has no pure (browser-safe) block');
+  out['wash.browser.js'] = header(commit, 'look-sync.js pure block: washAlpha, wrapped for <script> pages') +
+    "(function () {\n'use strict';\n" + m[1] +
+    'window.LookWash = { washAlpha: washAlpha, SEED: SEED, RANGES: RANGES, WASH_CEIL: WASH_CEIL };\n})();\n';
   return out;
 }
 

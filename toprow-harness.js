@@ -31,7 +31,7 @@ const cm = T.parseColor('color(srgb 0.5 0.25 1 / 0.07)');
 ok(cm && near(cm.r, 127.5) && near(cm.g, 63.75) && near(cm.b, 255) && cm.a === 0.07, 'parse color(srgb) (color-mix tints)', cm);
 ok(T.parseColor('hsl(1 2 3)') === null && T.parseColor('') === null, 'unknown colour -> null');
 ok(T.gradientTop('none').a === 0, 'no image -> nothing');
-ok(T.gradientTop('linear-gradient(rgba(9, 10, 11, 0.5), rgba(9, 10, 11, 0))').a === 0.5, 'scrim gradient top = first stop');
+ok(T.gradientTop('linear-gradient(rgba(9, 10, 11, 0.5), rgba(9, 10, 11, 0))').a === 0.5, 'gradient top = first stop');
 ok(T.gradientTop('linear-gradient(to right, rgb(1, 2, 3), rgb(4, 5, 6))') === null, 'sideways gradient -> unknown');
 ok(T.gradientTop('url("x.png")') === null, 'an image -> unknown');
 const il = T.imageLayers('linear-gradient(rgba(184, 175, 213, 0.07), rgba(184, 175, 213, 0.07)), none');
@@ -48,23 +48,35 @@ const WASH_LIGHT = [236, 236, 234];
 const SURF0_LIGHT = { r: 244, g: 244, b: 242, a: 0.56 };
 const base = (c) => ({ rgb: c, a: 1 });
 const pic = (o) => ({ pic: true, opacity: o === undefined ? 1 : o });
-const home = (o) => ({ group: [pic(1), { rgb: WASH_DARK, a: 0.5 }], opacity: o });   // .bg-clear + its ::after at row 0
+// .bg-clear, the sharp layer: no scrim any more (its ::after paints nothing)
+const sharp = (o) => T.clearLayer('none', o).layer;
 
 function top(layers, kind, opts) { return T.topFor(T.compose(layers), kind, opts); }
+
+// The sharp layer: no scrim is normal (never none); a gradient, if present, still counts; junk -> none + why
+let cl = T.clearLayer('none', 1);
+ok(cl.layer && !cl.none && cl.layer.group.length === 1 && cl.layer.group[0].pic, 'sharp layer, no scrim: just the picture, not none', cl);
+ok(T.clearLayer(null, 1).layer && T.clearLayer('', 0.5).layer && T.clearLayer(undefined).layer.opacity === 1, 'sharp layer: ::after missing / empty is normal', T.clearLayer(null, 1));
+cl = T.clearLayer('linear-gradient(rgba(9, 10, 11, 0.5), rgba(9, 10, 11, 0))', 1);
+ok(cl.layer && cl.layer.group.length === 2 && cl.layer.group[1].a === 0.5, 'sharp layer: a ::after gradient, if present, is counted', cl);
+cl = T.clearLayer('url("x.png")', 1);
+ok(cl.none && /can't be read/.test(cl.none) && /x\.png/.test(cl.none), "sharp layer: an unreadable ::after -> none, says why", cl);
 
 // Dark, a web page / Files / History / Reader / Settings open / a Claude tab: desktop still under the wash
 let t = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
 ok(t.kind === 'wash' && near(t.alpha, 0.5) && nearRgb(t.rgb, WASH_DARK), 'dark page: wash .50', t);
 t = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.62 }], 'still');
 ok(t.kind === 'wash' && near(t.alpha, 0.62), 'dark page, guard raised: wash .62', t);
-// Dark Home (new tab in front): unblurred picture, scrim .5 at row 0, wash .5 -> .75
-t = top([base(BG_DARK), { pic: true, opacity: 1 }, home(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
-ok(t.kind === 'wash' && near(t.alpha, 0.75) && nearRgb(t.rgb, WASH_DARK), 'dark Home: wash .75', t);
-t = top([base(BG_DARK), home(1), { rgb: WASH_DARK, a: 0.62 }], 'still');
-ok(t.kind === 'wash' && near(t.alpha, 1 - 0.5 * 0.38), 'dark Home, guard .62: wash .81', t);
-// Halfway through the Home fade (blurred layer still drawn under it)
-t = top([base(BG_DARK), pic(1), home(0.5), { rgb: WASH_DARK, a: 0.5 }], 'still');
-ok(t.kind === 'wash' && near(t.alpha, 0.625), 'dark Home fade at .5: wash .625', t);
+// The sharp layer over the bitmap (any tab in front): no scrim, so the row is the wash alone, the
+// same as a web page's (one look in every state)
+const pageTop = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
+t = top([base(BG_DARK), pic(1), sharp(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
+ok(t.kind === 'wash' && near(t.alpha, 0.5) && nearRgb(t.rgb, WASH_DARK) && JSON.stringify(t) === JSON.stringify(pageTop), 'dark, sharp layer on: wash .50, same as without it', t);
+t = top([base(BG_DARK), sharp(1), { rgb: WASH_DARK, a: 0.62 }], 'still');
+ok(t.kind === 'wash' && near(t.alpha, 0.62), 'dark, sharp layer, guard .62: wash .62', t);
+// Halfway through the sharp layer's fade (bitmap still drawn under it): the picture's weight stays 1
+t = top([base(BG_DARK), pic(1), sharp(0.5), { rgb: WASH_DARK, a: 0.5 }], 'still');
+ok(t.kind === 'wash' && near(t.alpha, 0.5), 'dark, sharp layer fading at .5: still wash .50', t);
 // Workspace tint on the strip (dark: no fill + the 7% tint)
 const tint = { r: 120, g: 200, b: 255, a: 0.07 };
 const merged = T.mergeColours([{ r: 0, g: 0, b: 0, a: 0 }, tint], 1);
@@ -120,6 +132,61 @@ c0 = samp(0, 25);                              // window x 0..8 -> bitmap 2 + (3
 ok(c0 && near(c0[0], 93, 1e-6) && near(c0[1], 2 + 100.5 * 0.3 - 0.5, 1e-6), 'lined sampler: right spot on the monitor', c0);
 ok(T.topFor({ k: 0.5, S: [1, 2, 3] }, 'bitmap', { sample: () => null, cols: 4 }).kind === 'none', 'unreadable bitmap: none');
 ok(T.colCount(1280) === 160 && T.colCount(3840) === 240 && T.colCount(10) === 8, 'column count: ~8 CSS px, 8..240');
+
+// Which picture, from toprowSource(): wash only for the lined desktop still at blur 0
+const STILL_URL = 'file:///stills/wall-1.jpg';
+const src = (extra) => Object.assign({ kind: 'desktop', state: 'ok', shown: true, lined: true, deskStillUrl: STILL_URL,
+  srcKey: 'desktop|' + STILL_URL, bitmapBlurPx: 0 }, extra);
+let pf = T.pictureFor(true, src({ blurPx: 0 }));
+ok(pf.pic === 'still' && /desktop picture under the wash/.test(pf.why), 'desktop still at blur 0: still (a wash)', pf);
+pf = T.pictureFor(true, src({ blurPx: 5 }));
+ok(pf.pic === 'bitmap' && /desktop picture, sent per column: Mantle would blur its copy at 5 px and Quartz paints it sharp/.test(pf.why), 'desktop still at blur 5: bitmap, says Mantle would blur and Quartz is sharp', pf);
+pf = T.pictureFor(true, src({ blurPx: 0.5 }));
+ok(pf.pic === 'bitmap' && /0\.5 px/.test(pf.why), 'desktop still at blur 0.5: bitmap', pf);
+pf = T.pictureFor(true, src({}));
+ok(pf.pic === 'bitmap' && /not known/.test(pf.why), 'blurPx missing (older backdrop): bitmap, says the blur is not known', pf);
+pf = T.pictureFor(true, src({ blurPx: '0' }));
+ok(pf.pic === 'bitmap' && /not known/.test(pf.why), 'blurPx not a number: treated as unknown', pf);
+pf = T.pictureFor(true, src({ blurPx: 0, srcKey: 'desktop|file:///stills/older.jpg' }));
+ok(pf.pic === 'bitmap' && /older desktop still/.test(pf.why), 'an older still on screen: bitmap even at blur 0', pf);
+pf = T.pictureFor(true, src({ blurPx: 0, kind: 'builtin', lined: false, srcKey: 'builtin|x' }));
+ok(pf.pic === 'bitmap' && /built-in photo/.test(pf.why), 'built-in photo: bitmap', pf);
+pf = T.pictureFor(true, src({ blurPx: 0, kind: 'video', lined: false, srcKey: 'video|x' }));
+ok(pf.pic === 'bitmap' && /clip/.test(pf.why), "a clip's still: bitmap", pf);
+pf = T.pictureFor(true, src({ shown: false }));
+ok(pf.pic === null && /fading out/.test(pf.why), 'a picture on screen the layer no longer names: null, says why', pf);
+pf = T.pictureFor(false, src({ kind: 'none', shown: false }));
+ok(pf.pic === null && /no picture/.test(pf.why), 'no picture chosen: null', pf);
+pf = T.pictureFor(true, null);
+ok(pf.pic === null, 'no toprowSource at all: null (a picture nobody names -> none)', pf);
+
+// The hint, end to end through hintFor (what compute() sends)
+const darkComp = T.compose([base(BG_DARK), pic(1), sharp(1), { rgb: WASH_DARK, a: 0.5 }, merged]);
+const W1280 = { w: 1280, h: 800 };
+const sharpBm = bitmap(400, 260, (x, y) => [x % 256, y % 256, 90]);
+const linedSrc = (extra) => src(Object.assign({ pixels: sharpBm, layout: { m: 0, sx: 0.3, sy: 0.3 }, place: { content: { x: 0, y: 0 }, display: { x: 0, y: 0 } } }, extra));
+function stFor(s) {
+  const p = T.pictureFor(true, s);
+  return { comp: darkComp, pic: p.pic, why: p.why, sample: p.pic === 'bitmap' ? T.bitmapSampler(s, W1280) : null, cols: T.colCount(W1280.w) };
+}
+let h = T.hintFor(stFor(linedSrc({ blurPx: 0 })));
+const wa = 1 - darkComp.k;
+ok(h.top.kind === 'wash' && near(h.top.alpha, Math.round(wa * 1000) / 1000) &&
+  nearRgb(h.top.rgb, darkComp.S.map((v) => Math.round(v / wa))), 'still + blur 0: wash, alpha = 1 - k, rgb = S / (1 - k)', h);
+h = T.hintFor(stFor(linedSrc({ blurPx: 5 })));
+ok(h.top.kind === 'cols' && h.top.cols.length === 160 && /Mantle would blur its copy at 5 px and Quartz paints it sharp/.test(h.why), 'still + blur 5: cols (not wash), with the why', [h.top.kind, h.why]);
+const c5 = T.bitmapSampler(linedSrc({}), W1280)(0, 160);
+ok(h.top.cols && nearRgb(h.top.cols[0], [0, 1, 2].map((i) => Math.round(darkComp.k * c5[i] + darkComp.S[i])), 0), 'still + blur 5: cols = k * sharp bitmap + S', h.top.cols && h.top.cols[0]);
+h = T.hintFor(stFor(linedSrc({ blurPx: undefined })));
+ok(h.top.kind === 'cols' && /not known/.test(h.why), 'blurPx missing: cols, says so', [h.top.kind, h.why]);
+h = T.hintFor({ comp: darkComp, pic: 'bitmap', why: T.pictureFor(true, src({ blurPx: 5 })).why, sample: () => null, cols: 8 });
+ok(h.top.kind === 'none' && /pixels can't be read/.test(h.why) && /Mantle would blur/.test(h.why), 'cols sampler failing: none, with the reason', h);
+h = T.hintFor(stFor(src({ blurPx: 5, pixels: null })));
+ok(h.top.kind === 'none' && /no bitmap to sample/.test(h.why), 'no bitmap at all: none, with the reason', h);
+h = T.hintFor({ none: 'fullscreen: the chrome steps aside' });
+ok(h.top.kind === 'none' && h.why === 'fullscreen: the chrome steps aside', 'a stack that says none: none, its reason kept', h);
+h = T.hintFor({ comp: darkComp, pic: null, why: T.pictureFor(true, src({ shown: false })).why, sample: null, cols: 8 });
+ok(h.top.kind === 'none' && /fading out/.test(h.why), 'an unnamed picture: none, says why', h);
 
 /* ---- 2. the pipe client ---------------------------------------------- */
 

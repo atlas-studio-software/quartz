@@ -8,6 +8,8 @@
 // landed was simply not followed (looksync-e2e's 1 s follow checks, castlabs build). Every case runs
 // in its own temp dir, never %APPDATA%\look-sync. The last cases make REAL Windows locks with
 // PowerShell (FileShare.None: reads refused; FileShare.Read: replace-rename refused).
+// Case 7 loads the renderer glue (looksync.js) in tests/fake-dom.js with a fake store and bridge:
+// the glass seeds and glass.<theme>.dimAuto (automatic vs manual Dim) end to end through the glue.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -78,6 +80,89 @@ async function holdFile(file, share, ms) {
   return h;
 }
 
+/** looksync.js loaded as it ships in a fake window, with a fake Settings store and a fake main bridge. */
+async function bootGlue(storedGlassValue) {
+  const { makeWindow } = require('./tests/fake-dom');
+  const store = { glass: storedGlassValue, lookSync: true };
+  const listeners = [];
+  const settingsStub = {
+    get: (k) => (store[k] === undefined ? null : JSON.parse(JSON.stringify(store[k]))),
+    set: (patch) => {
+      Object.keys(patch).forEach((k) => { store[k] = JSON.parse(JSON.stringify(patch[k])); });
+      listeners.forEach((f) => f(Object.assign({}, store), Object.keys(patch)));
+    },
+    on: (f) => listeners.push(f)
+  };
+  const bridge = { published: [], locals: [], apply: null };
+  const api = {
+    hello: () => Promise.resolve({ ok: true, status: { state: 'ok', rev: 1, by: 'mantle', at: null, skipped: [] }, desktop: { state: 'ok', reason: null } }),
+    publish: (field, value) => { bridge.published.push({ field, value: JSON.parse(JSON.stringify(value)) }); return Promise.resolve({ ok: true, rev: 2 }); },
+    local: (v) => { bridge.locals.push(v); },
+    setEnabled: () => Promise.resolve({ ok: true }),
+    onStatus() {}, onDesktop() {}, onPlace() {},
+    onApply: (cb) => { bridge.apply = cb; }
+  };
+  const w = makeWindow({ api: { lookSync: api }, Settings: settingsStub, localStorage: { getItem: () => null } });
+  w.win.Settings = settingsStub;
+  const events = [];
+  ['lookglass', 'lookapplied'].forEach((t) => w.doc.addEventListener(t, (e) => events.push({ type: t, detail: e.detail })));
+  w.load(path.join(__dirname, 'looksync.js'));
+  await sleep(20); // start() runs on a timer, hello() resolves after
+  return { LS: w.win.LookSync, store, settings: settingsStub, bridge, events };
+}
+
+async function glueChecks() {
+  // seeds: nothing stored = the new look (sharp picture, lighter tint), automatic
+  {
+    const g = await bootGlue(undefined);
+    const dark = g.LS.glassFor('dark'), light = g.LS.glassFor('light');
+    ok('glue: seed dark = blur 0, dim 0.30, panel 0, no dimAuto', JSON.stringify(dark) === JSON.stringify({ blurPx: 0, dim: 0.3, panel: 0 }), dark);
+    ok('glue: seed light = blur 0, dim 0.30, panel 0, no dimAuto', JSON.stringify(light) === JSON.stringify({ blurPx: 0, dim: 0.3, panel: 0 }), light);
+  }
+  // dimAuto false kept through storedGlass -> glassFor; non-boolean dropped
+  {
+    const g = await bootGlue({ dark: { blurPx: 3, dim: 0.22, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0.4, panel: 0, dimAuto: 'no' }, render: 'picture' });
+    ok('glue: glassFor(dark) keeps dimAuto false', g.LS.glassFor('dark').dimAuto === false, g.LS.glassFor('dark'));
+    ok('glue: glassFor(light) drops a non-boolean dimAuto', !('dimAuto' in g.LS.glassFor('light')), g.LS.glassFor('light'));
+    // a preview while the user drags Dim (dimAuto false) shows during the drag, then clears
+    const g2 = await bootGlue({ dark: { blurPx: 0, dim: 0.3, panel: 0, dimAuto: true }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' });
+    ok('glue: stored dimAuto true is kept', g2.LS.glassFor('dark').dimAuto === true, g2.LS.glassFor('dark'));
+    g2.LS.previewGlass('dark', { blurPx: 0, dim: 0.25, panel: 0, dimAuto: false });
+    const during = g2.LS.glassFor('dark');
+    ok('glue: Dim-drag preview: glassFor says dimAuto false and the dragged dim', during.dimAuto === false && during.dim === 0.25, during);
+    const ev = g2.events.filter((e) => e.type === 'lookglass').pop();
+    ok('glue: Dim-drag preview: lookglass carries dimAuto false', ev && ev.detail.preview && ev.detail.glass.dimAuto === false, ev && ev.detail);
+    g2.LS.previewGlass('dark', { blurPx: 9, dim: 0.3, panel: 0 });
+    ok('glue: a preview naming no mode keeps the stored one', g2.LS.glassFor('dark').dimAuto === true, g2.LS.glassFor('dark'));
+    g2.LS.previewGlass('dark', null);
+    ok('glue: preview cleared: back to the stored value', g2.LS.glassFor('dark').dimAuto === true && g2.LS.glassFor('dark').dim === 0.3, g2.LS.glassFor('dark'));
+    // a local change publishes dimAuto to look.json
+    g2.settings.set({ glass: { dark: { blurPx: 0, dim: 0.2, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' } });
+    await sleep(10);
+    const pub = g2.bridge.published.filter((p) => p.field === 'glass').pop();
+    ok('glue: publish(glass) sends dimAuto false for dark', pub && pub.value.dark.dimAuto === false && pub.value.dark.dim === 0.2, pub);
+    ok('glue: publish(glass) leaves an absent dimAuto absent (light)', pub && !('dimAuto' in pub.value.light), pub);
+  }
+  // remote apply: only an absent-vs-true dimAuto and key order differ -> no "glass changed", no publish back
+  {
+    const g = await bootGlue({ dark: { blurPx: 0, dim: 0.3, panel: 0 }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' });
+    const before = g.bridge.published.length;
+    g.bridge.apply({ cause: 'adopt', by: 'mantle', rev: 3, changes: { glass: { render: 'picture', light: { panel: 0, dim: 0.3, blurPx: 0, dimAuto: true }, dark: { dimAuto: true, panel: 0, dim: 0.3, blurPx: 0 } } } });
+    await sleep(10);
+    const applied = g.events.filter((e) => e.type === 'lookapplied').pop();
+    ok('glue: remote glass equal but for dimAuto true / key order: no "glass changed"', applied && applied.detail.message === null, applied && applied.detail);
+    ok('glue: remote glass applied: nothing published back (no ping-pong)', g.bridge.published.length === before, g.bridge.published.slice(before));
+    ok('glue: remote dimAuto true is stored and read back', g.LS.glassFor('dark').dimAuto === true, g.LS.glassFor('dark'));
+    // a real change of mode (Mantle went Manual) does say so
+    g.bridge.apply({ cause: 'adopt', by: 'mantle', rev: 4, changes: { glass: { dark: { blurPx: 0, dim: 0.3, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0.3, panel: 0, dimAuto: true }, render: 'picture' } } });
+    await sleep(10);
+    const applied2 = g.events.filter((e) => e.type === 'lookapplied').pop();
+    ok('glue: remote Manual choice is a change ("glass changed")', applied2 && /glass changed/.test(applied2.detail.message || ''), applied2 && applied2.detail);
+    ok('glue: remote Manual choice: glassFor(dark).dimAuto false', g.LS.glassFor('dark').dimAuto === false, g.LS.glassFor('dark'));
+    ok('glue: remote Manual choice: still nothing published back', g.bridge.published.length === before, g.bridge.published.slice(before));
+  }
+}
+
 (async () => {
   try {
     // 1. a refusal shorter than the retries: the change is followed, no error shown
@@ -146,6 +231,11 @@ async function holdFile(file, share, ms) {
       ok('missing file: no error, no re-check', !s.states.some((x) => x.state === 'error') && !s.recheckTimer, s.states.map((x) => x.state));
       s.close();
     }
+
+    // 7. the renderer glue (looksync.js) and glass.<theme>.dimAuto: seeds, kept through
+    //    storedGlass / glassFor / previewGlass / publish, a non-boolean dropped, and a remote glass
+    //    that differs only by an absent-vs-true dimAuto or key order is no change (no toast, no publish).
+    await glueChecks();
 
     if (process.env.GITHUB_ACTIONS === 'true') {
       // Seen on the hosted Windows runner (2026-10-26, twice, even with the lock held 2.5 s): a file
