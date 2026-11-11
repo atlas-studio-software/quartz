@@ -22,7 +22,8 @@ function ok(cond, name, got) {
   if (cond) pass++;
   else { fail++; fails.push(name + (got !== undefined ? '  got: ' + JSON.stringify(got) : '')); }
 }
-const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
+// CRLF -> LF: a Windows checkout (core.autocrlf) has CRLF files, and the checks below slice on '\n'.
+const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n');
 
 try {
   /* ---- 1. the rule --------------------------------------------------- */

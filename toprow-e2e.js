@@ -219,8 +219,16 @@ async function pixels(name, limit) {
   }
   const e = errOf(pred, act.cols);
   const sample = (p) => p.map((v) => Math.round(v)).join(',');
-  check(e.max <= limit, 'pixels ' + name + ': ' + top.kind + (top.alpha !== undefined ? ' ' + top.alpha : '') +
-    ' vs the real top row: max ' + e.max + ', mean ' + e.mean + ' levels (limit ' + limit + ')',
+  /* cols come from the small (0.3x) bitmap, whose first row averages the
+     picture's top ~3 rows; since 2026-11-11 the window paints the picture
+     full size and SHARP, so the real row 0 keeps detail that row averages
+     away (the blurred layer used to BE the bitmap). First CI run over a
+     built-in photo: max 8.6, mean 2.4 levels. So cols get max 10 and must
+     also hold mean <= 3; wash and flat keep the caller's limit. */
+  const meanLimit = top.kind === 'cols' ? 3 : Infinity;
+  if (top.kind === 'cols') limit = Math.max(limit, 10);
+  check(e.max <= limit && e.mean <= meanLimit, 'pixels ' + name + ': ' + top.kind + (top.alpha !== undefined ? ' ' + top.alpha : '') +
+    ' vs the real top row: max ' + e.max + ', mean ' + e.mean + ' levels (limit ' + limit + (meanLimit < Infinity ? ', mean ' + meanLimit : '') + ')',
     'col0 pred ' + sample(pred[0]) + ' real ' + sample(act.cols[0]) + '; mid pred ' + sample(pred[N >> 1]) + ' real ' + sample(act.cols[N >> 1]));
   return e;
 }
@@ -358,7 +366,10 @@ async function step(name, src, expectKind, settleMs) {
         name + ': top-row hint unchanged', page2.log.length + ' hints; now ' + JSON.stringify(page2.top));
       const row = await topRowActual(40);
       const e = errOf(row0.cols, row.cols);
-      check(e.max <= 1, name + ': the real top row reads the same pixels as with the new tab in front: max ' + e.max + ', mean ' + e.mean + ' levels (limit 1)');
+      /* The same layers, but a split adds guest layers to the compositor and
+         the SHARP full-size picture is resampled per tile: first CI run, max
+         2 / mean 0.3 levels (invisible). Max 2, mean 0.5. */
+      check(e.max <= 2 && e.mean <= 0.5, name + ': the real top row reads the same pixels as with the new tab in front: max ' + e.max + ', mean ' + e.mean + ' levels (limit 2, mean 0.5)');
     }
     await sameBand('new tab -> web page', 'createTab(' + JSON.stringify(page) + ')',
       "(() => { const t = getActiveTab(); return !!t && /^data:/.test(t.url) && !!t.viewEl && !t.viewEl.classList.contains('own-layer'); })()");
