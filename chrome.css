@@ -1258,9 +1258,12 @@ body.sidepane-dragging #sidepane-resize { background: var(--accent-soft); transi
    keep the white above. Light too, since the light look was un-held. */
 #views webview.own-layer { background: transparent; }
 
-/* ...and on that Home the strip's and toolbar's hairlines go, as Helm's
-   strip has none over its Home: tabs, toolbar and page are one picture.
-   A web page in front brings them back. */
+/* ...and while the picture shows unblurred (data-bg-home: whenever the
+   window has a still picture, whatever tab is in front) the strip's and
+   toolbar's hairlines go, as Helm's strip has none over its Home: tabs,
+   toolbar and a new tab are one picture, and the top band looks the same
+   over a web page. Plain, a clip's still, or a picture still being
+   prepared keep them. */
 body[data-bg-home] #titlebar { border-bottom-color: transparent; }
 body[data-bg-home] .navrow { border-bottom-color: transparent; }
 body[data-bg-home] #well { border-top-color: transparent; }

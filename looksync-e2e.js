@@ -399,16 +399,28 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     return 'home ' + a + ' ms; clear ' + JSON.stringify(clear) + '; guest ' + JSON.stringify((await evGuest(GUEST_BG)));
   });
 
-  await test('home: navigating the new tab to a data: page -> Home off, webview loses .own-layer', async () => {
+  await test('home: a web page in front keeps the same top band (Home stays on, same wash); only the guest loses .own-layer', async () => {
     must(await waitFor(ACTIVE_NT, 1000), 'a new tab in front');
+    const BAND = "(() => { const s = Backdrop.state(); const q = (x) => getComputedStyle(document.querySelector(x)); const i = document.querySelector('.bg-clear-img');" +
+      " return { on: s.home.on, attr: document.body.hasAttribute('data-bg-home'), clearOn: document.querySelector('.bg-clear').getAttribute('data-on'), img: i && i.style.backgroundImage.slice(0, 120)," +
+      " clearOp: q('.bg-clear').opacity, photoVis: q('.bg-photo').visibility, wash: q('.bg-wash').backgroundColor, washOp: q('.bg-wash').opacity, alpha: s.glass.alpha, raised: s.glass.raised }; })()";
+    await sleep(400);                                  // the first fade-in is done
+    const nt = await ev(BAND);
+    if (!nt.on || !nt.attr || nt.clearOn !== 'in' || nt.photoVis !== 'hidden') throw new Error('new tab: Home not on: ' + JSON.stringify(nt));
+    await ev("(() => { window.__homeFlips = 0; window.__homeMo = new MutationObserver(() => { if (!document.body.hasAttribute('data-bg-home') || document.querySelector('.bg-clear').getAttribute('data-on') !== 'in') __homeFlips++; });" +
+      " __homeMo.observe(document.body, { attributes: true, attributeFilter: ['data-bg-home'] }); __homeMo.observe(document.querySelector('.bg-clear'), { attributes: true, attributeFilter: ['data-on'] }); return 1; })()");
     await ev("navigateActiveTab('data:text/html,<title>x</title><p>plain page</p>'), 1");
-    const a = must(await waitFor("(() => { const h = Backdrop.state().home; const t = getActiveTab(); return !h.on && !document.body.hasAttribute('data-bg-home') && t.viewEl && !t.viewEl.classList.contains('own-layer') && /^data:/.test(t.url) ? h : null; })()", 4000), 'home off');
-    const clear = await waitFor("!document.querySelector('.bg-clear').hasAttribute('data-on')", 1500);
-    const h = await ev('Backdrop.state().home');
-    if (!clear.ok) throw new Error('.bg-clear data-on not removed after the fade');
+    const a = must(await waitFor("(() => { const t = getActiveTab(); return t.viewEl && !t.viewEl.classList.contains('own-layer') && /^data:/.test(t.url); })()", 4000), 'web page in front, guest opaque');
+    await sleep(700);                                  // a fade-out (300 ms) would have run by now
+    const pg = await ev(BAND);
+    const flips = await ev('(__homeMo.disconnect(), __homeFlips)');
+    if (JSON.stringify(pg) !== JSON.stringify(nt)) throw new Error('top band changed with a web page in front: new tab ' + JSON.stringify(nt) + ' vs page ' + JSON.stringify(pg));
+    if (flips) throw new Error('the Home layer flipped ' + flips + ' times on the switch');
     await ev('createTab(newTabUrl()), 1');
-    must(await waitFor(HOME_ON, 4000), 'a fresh new tab: Home on again');
-    return 'off ' + a + ' ms, reason="' + h.reason + '"; data-on removed in ' + clear.ms + ' ms';
+    must(await waitFor(HOME_ON, 4000), 'a fresh new tab: Home on, guest see-through');
+    const nt2 = await ev(BAND);
+    if (JSON.stringify(nt2) !== JSON.stringify(nt)) throw new Error('top band differs on the next new tab: ' + JSON.stringify(nt2));
+    return 'page in front after ' + a + ' ms; same band ' + JSON.stringify(pg);
   });
 
   await test('guard: Mantle\'s desktop.guard applies, a stale one falls back with a reason (Settings says so)', async () => {

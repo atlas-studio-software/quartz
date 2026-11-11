@@ -4288,7 +4288,7 @@ let bgState = {
 };
 
 /* Helm's Home (dark): a still picture is NOT drawn here. The chrome window
-   draws ONE picture behind the whole window, unblurred while this page is
+   draws ONE picture behind the whole window, unblurred whatever tab is
    in front (backdrop.js syncHome: .bg-clear, Helm's 96px scrim, and the
    one wash at the strip's alpha), and this page is see-through over it
    (html[data-bg-layer="chrome"], newtab.css), so the tab strip, the

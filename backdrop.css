@@ -3,7 +3,7 @@
 
    Quartz wears Helm's glass: the tab strip, the toolbar and the side
    panes are translucent tints (--surface-*) over ONE fixed picture
-   that was blurred once, ahead of time. This file styles the three
+   that was blurred once, ahead of time. This file styles the four
    layers inside index.html's .backdrop:
 
      .bg-base   the neutral ground (--bg). Always there; it is all
@@ -24,6 +24,11 @@
                 the panels stays legible over any picture. It only
                 shows when there IS a picture; over the plain --bg it
                 would just shift the neutral ground.
+     .bg-clear  the same picture UNBLURRED (Helm's Home look), between
+                .bg-photo and the wash. backdrop.js shows it whenever
+                the window has a still picture, whatever tab is in front,
+                so the strip and toolbar never change with the front tab;
+                .bg-photo is then covered and stops drawing.
 
    Positioning (absolute, inset 0, z-index) belongs to chrome.css
    (.backdrop and .backdrop > div). This file only paints.
@@ -93,10 +98,10 @@
    backdrop.js raises the wash (--chrome-glass-a, .50 to .88) only over a
    picture too bright for the strip's text at 50%, or sets it to Mantle's
    shared top-band value (CONTRACT "Shared top-band darkening") while
-   following the desktop. The new tab is Helm's Home in both themes: it is
-   see-through, and this layer shows the picture unblurred under the SAME
-   wash (.bg-clear below), so there is one picture and one wash from the
-   top of the window to the bottom. */
+   following the desktop. The picture shows unblurred under the SAME wash
+   (.bg-clear below) whatever tab is in front, and the new tab is
+   see-through over it, so there is one picture and one wash from the top
+   of the window to the bottom. */
 html:not([data-theme="light"]) .backdrop > .bg-wash {
   background: rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.5));
   opacity: 1;
@@ -114,13 +119,17 @@ html[data-theme="light"] .backdrop > .bg-wash {
   opacity: 1;
 }
 
-/* Helm's Home (helm ui/shell/home.css): while a new tab is in front (dark),
-   the picture shows UNBLURRED. .bg-clear sits between the blurred layer and
-   the wash, so the one wash still covers the whole window; it fades in
-   (280ms, from a 1.5% scale) and out (300ms) once per switch, and the
-   blurred layer stops drawing once it is covered. The new tab guest is
-   see-through over it (newtab.css data-bg-layer), so tab strip, toolbar and
-   page are one picture. backdrop.js syncHome() sets data-on and
+/* Helm's Home look (helm ui/shell/home.css): the picture UNBLURRED, the
+   window's look whenever it has a still picture (desktop, built-in, own
+   picture), in both themes and with ANY tab in front: a web page, a split,
+   Lumen, a Claude tab, History, Files. A tab switch changes nothing here.
+   .bg-clear sits between the blurred layer and the wash, so the one wash
+   still covers the whole window; it fades in (280ms, from a 1.5% scale)
+   when the picture first lands and out (300ms) when it goes (Plain, a
+   clip, a picture that will not decode), and the blurred layer stops
+   drawing once it is covered. The new tab guest is see-through over it
+   (newtab.css data-bg-layer), so tab strip, toolbar and new tab are one
+   picture. backdrop.js syncHome() sets data-on and
    <body data-bg-home>; the picture and, lined up, the monitor-sized box and
    its translate are inline on .bg-clear-img (cover on the monitor, the way
    the desktop draws it). No filter anywhere: nothing re-rasterises. */
@@ -168,7 +177,10 @@ html[data-theme="light"] .backdrop > .bg-wash {
 @keyframes bg-home-in { from { opacity: 0; transform: scale(1.015); } }
 @keyframes bg-home-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* Covered: stop drawing the blurred layer once the fade is done. */
+/* Covered: stop drawing the blurred layer once the fade is done. With a
+   still picture this is the normal state; the blurred bitmap is still made
+   (the guard reads its pixels, and it shows while the sharp copy is being
+   prepared or cannot be decoded). */
 body[data-bg-home] .backdrop > .bg-photo {
   visibility: hidden;
   transition: opacity var(--dur-slow) var(--ease), visibility 0s linear 320ms;

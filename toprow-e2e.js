@@ -216,12 +216,6 @@ async function pixels(name, limit) {
 }
 
 /** One scripted action: sent before the next frame, received by the fake Mantle. */
-/*
- * Windows' "Animation effects" off reaches the chrome as prefers-reduced-motion: reduce, and then
- * Home switches with no fade at all (backdrop.css): one hint, at the end value, is right. A GitHub
- * runner has animations off; a typical laptop has them on, where the fade is followed frame by frame.
- */
-const REDUCED = "matchMedia('(prefers-reduced-motion: reduce)').matches";
 async function step(name, src, expectKind, settleMs) {
   const mark = got.length;
   // The action runs inside this expression. A recorder rAF chain is registered FIRST, so in
@@ -321,31 +315,44 @@ async function step(name, src, expectKind, settleMs) {
     check(home1.top.kind === 'wash' && Math.abs(home1.top.alpha - 0.75) < 0.011, 'Home (new tab in front): wash .75', JSON.stringify(home1.top));
     await pixels('dark Home', 12);
 
-    // Home -> a web page: Home fades out (300 ms), followed per frame
+    // Home -> a web page -> a split -> back: the top band is the SAME the whole time (the user wants
+    // the new tab's look on every tab). No hint changes (nothing in the row's stack moved), the Home
+    // layer never fades out, and the real top row reads the same pixels in every state.
     const page = 'data:text/html,<title>grey</title><body style="margin:0;background:%23808080"></body>';
-    const s1 = await step('Home -> web page', 'createTab(' + JSON.stringify(page) + ')', 'wash', 700);
-    const alphas = (s1.log || []).map((x) => x.top.alpha).filter((a) => typeof a === 'number');
-    const endA = s1.final.top.alpha;
-    const reduced = await ev(REDUCED);
-    if (!reduced) {
-      check(alphas.length >= 3 && alphas.every((a, i) => i === 0 || a <= alphas[i - 1] + 1e-9) && Math.abs(alphas[alphas.length - 1] - endA) < 0.002 && alphas[0] > endA + 0.1,
-        'Home fade-out followed frame by frame, falling to the page wash ' + endA, alphas.length + ' hints: ' + alphas.map((a) => a.toFixed(3)).join(' '));
-    } else {
-      skip++; console.log('SKIP Home fade-out frame by frame: animations are off on this machine (prefers-reduced-motion: reduce), so Home switches without a fade; checked: one hint, at the end value');
-      check(alphas.length === 1 && Math.abs(alphas[alphas.length - 1] - endA) < 0.002 && Math.abs(endA - home1.top.alpha) > 0.1, 'Home fade-out, animations off: one hint, the page wash ' + endA, alphas.length + ' hints: ' + alphas.map((a) => a.toFixed(3)).join(' '));
+    const BAND = "(() => { const s = Backdrop.state(); const q = (x) => getComputedStyle(document.querySelector(x));" +
+      " return { on: s.home.on, attr: document.body.hasAttribute('data-bg-home'), clearOn: document.querySelector('.bg-clear').getAttribute('data-on')," +
+      " clearOp: q('.bg-clear').opacity, photoVis: q('.bg-photo').visibility, wash: q('.bg-wash').backgroundColor, washOp: q('.bg-wash').opacity," +
+      " alpha: s.glass.alpha, tb: q('#titlebar').borderBottomColor, nav: q('.navrow').borderBottomColor }; })()";
+    const band0 = await ev(BAND);
+    const row0 = await topRowActual(40);
+    check(band0.on && band0.attr && band0.photoVis === 'hidden', 'new tab in front: the unblurred picture, blurred layer covered', JSON.stringify(band0));
+    async function sameBand(name, src, ready) {
+      await ev("(() => { Toprow._log(true); window.__bandOut = 0; if (window.__bandMo) __bandMo.disconnect();" +
+        " window.__bandMo = new MutationObserver(() => { if (document.querySelector('.bg-clear').getAttribute('data-on') !== 'in' || !document.body.hasAttribute('data-bg-home')) __bandOut++; });" +
+        " __bandMo.observe(document.body, { attributes: true, attributeFilter: ['data-bg-home'] });" +
+        " __bandMo.observe(document.querySelector('.bg-clear'), { attributes: true, attributeFilter: ['data-on'] }); return 1; })()");
+      await ev(src + ', 1');
+      try { await waitFor(ready, 5000); } catch (e) { check(false, name + ': reached', e.message); return; }
+      await sleep(700);                                 // any fade would be done by now
+      const page2 = await ev('({ log: Toprow._log() || [], out: __bandOut, top: Toprow.status().top })');
+      await ev('(__bandMo.disconnect(), Toprow._log(false), 1)');
+      const band = await ev(BAND);
+      check(JSON.stringify(band) === JSON.stringify(band0), name + ': background stack identical (Home on, same wash and alpha, hairlines)', JSON.stringify(band));
+      check(page2.out === 0, name + ': the Home layer never faded out', page2.out + ' flips');
+      check(page2.log.every((h) => JSON.stringify(h.top) === JSON.stringify(home1.top)) && JSON.stringify(page2.top) === JSON.stringify(home1.top),
+        name + ': top-row hint unchanged', page2.log.length + ' hints; now ' + JSON.stringify(page2.top));
+      const row = await topRowActual(40);
+      const e = errOf(row0.cols, row.cols);
+      check(e.max <= 1, name + ': the real top row reads the same pixels as with the new tab in front: max ' + e.max + ', mean ' + e.mean + ' levels (limit 1)');
     }
-    await pixels('dark web page', 6);
-
-    // web page -> Home: fades in (280 ms)
-    const s2 = await step('web page -> Home', 'activateTab(' + JSON.stringify(ntId) + ')', 'wash', 700);
-    const alphas2 = (s2.log || []).map((x) => x.top.alpha).filter((a) => typeof a === 'number');
-    if (!reduced) {
-      check(alphas2.length >= 2 && alphas2.every((a, i) => i === 0 || a >= alphas2[i - 1] - 1e-9) && Math.abs(alphas2[alphas2.length - 1] - home1.top.alpha) < 0.002, 'Home fade-in followed frame by frame, rising to ' + home1.top.alpha, alphas2.length + ' hints: ' + alphas2.map((a) => a.toFixed(3)).join(' '));
-    } else {
-      skip++; console.log('SKIP Home fade-in frame by frame: animations are off on this machine (prefers-reduced-motion: reduce); checked: one hint, at the end value');
-      check(alphas2.length === 1 && Math.abs(alphas2[alphas2.length - 1] - home1.top.alpha) < 0.002, 'Home fade-in, animations off: one hint, the Home wash ' + home1.top.alpha, alphas2.length + ' hints: ' + alphas2.map((a) => a.toFixed(3)).join(' '));
-    }
-
+    await sameBand('new tab -> web page', 'createTab(' + JSON.stringify(page) + ')',
+      "(() => { const t = getActiveTab(); return !!t && /^data:/.test(t.url) && !!t.viewEl && !t.viewEl.classList.contains('own-layer'); })()");
+    await sameBand('web page split with the new tab', 'splitWithTab(' + JSON.stringify(ntId) + ')',
+      "(() => { const t = getActiveTab(); return !!t && !!splitPartner(t); })()");
+    await sameBand('split ends, web page alone', 'unsplit(getActiveTab())',
+      "(() => { const t = getActiveTab(); return !!t && !splitPartner(t); })()");
+    await sameBand('web page -> new tab', 'activateTab(' + JSON.stringify(ntId) + ')',
+      "(() => { const t = getActiveTab(); return !!t && t.id === " + JSON.stringify(ntId) + "; })()");
     // theme: light, then dark
     await step('dark -> light', "QuartzTheme.setMode('light')", 'wash', 700);
     await pixels('light (new tab in front)', 6);

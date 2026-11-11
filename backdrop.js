@@ -79,11 +79,14 @@
      window.Backdrop.state()  -> { kind, state, reason, source,
        glass: { theme, floor, alpha, raised, source, sourceReason, ownAlpha,
                 blurPx, panel, lined, offset:{x,y} },
-       home: { want, on, reason } }
+       home: { on, reason } }
      window.Backdrop.refresh() -> re-reads the source now
-     window.Backdrop.setHome(bool) -> app.js: a new tab is the page in front
-       (Helm's Home: the picture unblurred under a see-through new tab)
-     <body data-bg-home> while the Home picture is showing
+     <body data-bg-home> while the picture shows UNBLURRED (Helm's Home
+       look, below). That is the window's look whenever it shows a still
+       picture, whatever tab is in front: the top band never changes with
+       the front tab (the user, 2026-11-11). The blurred layer is then
+       covered and stops drawing; it stays the look while the sharp copy
+       is being prepared and for a clip's still.
      window.Backdrop.recopyWallpaper() -> { ok, reason, copiedAt }
      'backdropchange' on document, detail = state()
    ============================================================ */
@@ -143,6 +146,13 @@
   var LOOK_RENDER_MS = 150;
   var DESK_WAIT_MS = 5000;
   var CACHE_MAX = 2;
+
+  /* Plain node (backdrop-harness.js) loads this file for its pure rules
+     alone: no document, so nothing else runs. */
+  if (typeof document === 'undefined') {
+    if (typeof module === 'object' && module && module.exports) module.exports = { homeReason: homeReason };
+    return;
+  }
 
   var layer = document.querySelector('.backdrop');
   var photoEl = layer ? layer.querySelector('.bg-photo') : null;
@@ -397,7 +407,7 @@
       body.setAttribute('data-bg-state', next.state);
     }
     // The kind decides whether Mantle's shared value can apply (and whether
-    // the Home picture can show), so both are re-read before anyone hears.
+    // the unblurred picture can show), so both are re-read before anyone hears.
     if (booted) { refreshGuard(true); syncHome(); }
     dispatchChange();
   }
@@ -558,40 +568,57 @@
   /* --- Helm's Home: the picture unblurred ------------------------------ */
 
   /*
-   * Helm's Home (helm ui/shell/home.css, chrome.js Background): while Home
-   * is in front, an UNBLURRED copy of the picture (.bg-clear) fades in over
-   * the blurred layer, which is hidden once it is covered; a 96px scrim
-   * (rgb(9 10 11 / .5) -> 0) sits under the tab bar, and the ONE wash still
-   * covers the whole window. Quartz's Home is the new tab: app.js calls
-   * Backdrop.setHome(true) while a new tab is the page in front, and in dark
-   * the new tab guest is see-through (newtab.css data-bg-layer), so the
-   * strip, the toolbar and the page are one picture with no edge between
-   * them. Lined up, the copy is the MONITOR, cover-fitted the way the
-   * desktop draws it and moved like the blurred layer.
+   * Helm's Home look (helm ui/shell/home.css, chrome.js Background): an
+   * UNBLURRED copy of the picture (.bg-clear) over the blurred layer, which
+   * is hidden once it is covered; a 96px scrim (rgb(9 10 11 / .5) -> 0)
+   * under the tab bar, and the ONE wash still over the whole window.
    *
-   * Both themes (light un-held: the same one picture under the white
-   * wash, as Helm's light Home). A clip plays on the new tab itself, so 'video' has no Home here.
-   * Only opacity / transform animate, once per switch; nothing runs at rest.
+   * Quartz shows it WHENEVER the window has a still picture, whatever tab
+   * is in front: a new tab, a web page, Lumen, a Claude tab, History,
+   * Files, a split. The top band (strip + toolbar) used to switch to the
+   * blurred layer when a web page came to the front; the user wants it to
+   * look the same the whole time (2026-11-11), so nothing here follows the
+   * front tab any more and a tab switch does no backdrop work at all. The
+   * new tab guest is see-through over it (app.js .own-layer, newtab.css
+   * data-bg-layer), so strip, toolbar and new tab are one picture; a web
+   * page paints its own opaque ground below the toolbar. The side panes
+   * sit over the same picture they always had with a new tab in front
+   * (wash + their own --surface-*, ~.83 net in dark, ~.87 in light).
+   * Lined up, the copy is the MONITOR, cover-fitted the way the desktop
+   * draws it and moved like the blurred layer.
+   *
+   * Both themes. A clip ('video') has no sharp copy: the chrome keeps the
+   * clip's blurred still (with any tab in front) and the clip plays on the
+   * new tab itself. While the sharp copy is being prepared, or when it
+   * cannot be decoded, the blurred layer stays up and home.reason says why.
+   * Only opacity / transform animate, once when the picture first lands or
+   * goes; nothing runs at rest.
    */
   var clearEl = layer ? layer.querySelector('.bg-clear') : null;
   var clearImgEl = clearEl ? clearEl.querySelector('.bg-clear-img') : null;
-  var HOME_KINDS = { desktop: 1, builtin: 1, image: 1 };
   var HOME_OUT_MS = 320;         // Helm: home-bg-out 300ms, then the layer goes
-  var home = { want: false, on: false, url: null, reason: 'no new tab is in front' };
+  var home = { on: false, url: null, reason: 'the picture is still being prepared' };
   var homeSeq = 0;
   var homeOutTimer = 0;
 
-  /** Why the Home picture is not showing, or null when it should. */
-  function homeWhyNot() {
-    if (!home.want) return 'no new tab is in front';
-    if (!HOME_KINDS[current.kind]) {
-      return current.kind === 'video' ? 'the clip plays on the new tab itself' : 'no picture is chosen';
+  /**
+   * Pure: why the unblurred picture cannot show, or null when it should.
+   * kind/state/reason = the published state; hasShown = a blurred picture
+   * is on the layer; hasClear = that picture has an unblurred copy. Which
+   * tab is in front is deliberately NOT an input.
+   */
+  function homeReason(kind, state, reason, hasShown, hasClear) {
+    if (kind === 'video') return 'a clip: the chrome keeps its blurred still and the clip plays on the new tab itself';
+    if (kind !== 'desktop' && kind !== 'builtin' && kind !== 'image') return 'no picture is chosen';
+    if (!hasShown && state === 'fallback') {
+      return 'no picture could be shown' + (reason ? ' (' + reason + ')' : '');
     }
-    if (!shown && current.state === 'fallback') {
-      return 'no picture could be shown' + (current.reason ? ' (' + current.reason + ')' : '');
-    }
-    if (!shown || !shown.clearUrl) return 'the picture is still being prepared';
+    if (!hasShown || !hasClear) return 'the picture is still being prepared';
     return null;
+  }
+
+  function homeWhyNot() {
+    return homeReason(current.kind, current.state, current.reason, !!shown, !!(shown && shown.clearUrl));
   }
 
   /** The unblurred copy's box: the monitor at its offset, or the window. */
@@ -640,9 +667,10 @@
   }
 
   /**
-   * Show or hide the Home picture to match home.want, the theme, the kind
-   * and the picture on the layer. A new picture is decoded off screen first,
-   * so it never paints half-drawn; the blurred layer stays up meanwhile.
+   * Show or hide the unblurred picture to match the kind and the picture
+   * on the layer (never the front tab). A new picture is decoded off screen
+   * first, so it never paints half-drawn; the blurred layer stays up
+   * meanwhile. Called when the picture, the state or the look changes.
    */
   function syncHome() {
     var why = homeWhyNot();
@@ -663,21 +691,13 @@
     }, function (err) {
       if (my !== homeSeq) return;
       // The blurred layer stays; say why the sharp one is missing.
-      home.reason = 'the picture could not be decoded for the Home (' + reasonOf(err) + ')';
+      home.reason = 'the picture could not be decoded unblurred, so the chrome shows it blurred (' + reasonOf(err) + ')';
       homeOut();
     });
   }
 
-  /** app.js: a new tab is (true) or is not (false) the page in front. */
-  function setHome(want) {
-    want = !!want;
-    if (want === home.want) return;
-    home.want = want;
-    syncHome();
-  }
-
   function homeSnapshot() {
-    return { want: home.want, on: home.on, reason: home.on ? null : home.reason };
+    return { on: home.on, reason: home.on ? null : home.reason };
   }
 
   /* --- decoding --------------------------------------------------- */
@@ -1820,7 +1840,7 @@
   function onLook() {
     applyLookVars();
     refreshGuard();
-    syncHome();                  // a flip to light hands the Home back to the new tab
+    syncHome();                  // both themes show it; re-checked in case the picture moved
     var theme = themeNow();
     window.clearTimeout(lookTimer);
     lookTimer = 0;
@@ -1874,7 +1894,6 @@
   window.Backdrop = {
     state: snapshot,
     refresh: function () { return render(true); },
-    setHome: setHome,
     recopyWallpaper: recopyWallpaper,
     stillKey: stillKey,
     /* toprow.js (top bar hints for Mantle): which picture is on the layer

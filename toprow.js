@@ -20,9 +20,10 @@
      .bg-base     --bg, opaque
      .bg-photo    the blurred picture (backdrop.js), when it has landed;
                   lined up with the screen for "Same as desktop"
-     .bg-clear    Helm's Home: the picture UNBLURRED, while a new tab is
-                  in front (dark); its ::after is a 96px scrim, the wash
-                  colour at .5 at row 0
+     .bg-clear    Helm's Home look: the picture UNBLURRED, whenever the
+                  window has a still picture (any tab in front, both
+                  themes); its ::after is a 96px scrim, the wash colour
+                  at .5 at row 0
      .bg-wash     the wash: dark --chrome-glass-a (the guard), light
                   --bg-dim over a picture
      #titlebar    dark: no fill (a workspace's 7% tint, if any); light:
