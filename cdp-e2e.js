@@ -1,17 +1,20 @@
 require('./tools/lowcpu-optional');
-// cdp-e2e.js -- the always-on DevTools (CDP) port (cdp-main.js) in a REAL Quartz test copy.
+// cdp-e2e.js -- the opt-in DevTools (CDP) port (cdp-main.js) in a REAL Quartz test copy.
 //
 // Every boot is a --test-profile copy, off-screen, one at a time. QUARTZ_TEST_CDP_DEFAULT_PORT makes a
 // test copy plan exactly like a normal start, on PORT instead of 9219, so the real default port (and the
 // browser the user is running on it) is never touched. Boots, in order:
-//   A  no port on the command line: the default port opens on 127.0.0.1 ONLY (netstat, and a connect
+//   0  the switch never touched (no cdp-prefs.json): no port, and cdp.json says it was never turned
+//      on in Settings > Claude.
+//   A  turned on (cdp-prefs.json { enabled: true }, what the Settings switch writes), no port on the
+//      command line: the default port opens on 127.0.0.1 ONLY (netstat, and a connect
 //      to this machine's LAN address is refused), cdp.json and DevToolsActivePort agree,
 //      tools/cdp-endpoint.js finds it, Settings > Claude says so.
 //      A2 (while A runs) a second copy on the same profile with a link: it hands the link over and
 //      exits, the link opens as a tab in A, and cdp.json still belongs to A.
 //   B  PORT held by another process: a free port instead, and cdp.json says which pid held PORT.
-//   C  turned off (cdp-prefs.json, what the Settings switch writes): no port, cdp.json says why.
-//   D  an explicit --remote-debugging-port wins: that port, nothing on PORT.
+//   C  turned off (cdp-prefs.json { enabled: false }): no port, cdp.json says why.
+//   D  an explicit --remote-debugging-port wins with the switch never touched: that port, nothing on PORT.
 // Refuses to start under 2.5 GB free RAM (exit 3). Kills only the processes it started (matched by its
 // own --profile-name), deletes its temp profile, and ends with "cdp-e2e: N passed, M failed".
 'use strict';
@@ -123,9 +126,21 @@ async function main() {
   fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(path.join(DIR, 'watch.json'), '{}');
 
-  /* ---- A: the default port ---- */
+  /* ---- 0: never turned on ---- */
+  let z = await boot('0');
+  check(!z.state.ok && z.state.mode === 'off' && z.state.setting === 'never-set' && z.state.summary === 'off: not turned on in Settings > Claude',
+    '0: off by default, and cdp.json says it was never turned on', JSON.stringify(z.state));
+  await sleep(1500);
+  check(listenAddrs(PORT).length === 0, '0: nothing listening on the default port', listenAddrs(PORT).join('; '));
+  const zFound = await endpoint.find(DIR);
+  check(!zFound.ok && /not turned on in Settings > Claude/.test(zFound.error), '0: tools/cdp-endpoint.js says why it is off', zFound.error);
+  await stop(z, null);
+
+  /* ---- A: turned on, the default port ---- */
+  fs.writeFileSync(path.join(DIR, cdpMain.PREFS_FILE), JSON.stringify({ enabled: true }));
   let a = await boot('A');
   check(a.state.ok && a.state.port === PORT && a.state.mode === 'default', 'A: on at the default port', JSON.stringify(a.state));
+  check(a.state.setting === 'on' && /^on: turned on in Settings > Claude/.test(a.state.summary || ''), 'A: cdp.json says on, and that Settings turned it on', a.state.summary);
   const addrs = listenAddrs(PORT);
   check(addrs.length > 0 && addrs.every((x) => /^127\.0\.0\.1 /.test(x)), 'A: bound to 127.0.0.1 only', addrs.join('; '));
   const lan = lanAddress();
@@ -176,7 +191,7 @@ async function main() {
   /* ---- C: turned off ---- */
   fs.writeFileSync(path.join(DIR, cdpMain.PREFS_FILE), JSON.stringify({ enabled: false }));
   let c = await boot('C');
-  check(!c.state.ok && c.state.mode === 'off' && /Settings > Claude/.test(c.state.error || ''), 'C: off, and cdp.json says why', JSON.stringify(c.state));
+  check(!c.state.ok && c.state.mode === 'off' && c.state.setting === 'off' && c.state.summary === 'off: turned off in Settings > Claude', 'C: off, and cdp.json says the user turned it off', JSON.stringify(c.state));
   await sleep(1500);
   check(listenAddrs(PORT).length === 0, 'C: nothing listening on the default port', listenAddrs(PORT).join('; '));
   const cFound = await endpoint.find(DIR);
@@ -187,6 +202,7 @@ async function main() {
   /* ---- D: an explicit port wins ---- */
   let d = await boot('D', ['--remote-debugging-port=' + CLI_PORT]);
   check(d.state.ok && d.state.mode === 'command-line' && d.state.port === CLI_PORT, 'D: the command-line port wins', JSON.stringify(d.state));
+  check(d.state.setting === 'never-set' && d.state.summary === 'on: the command line asked for port ' + CLI_PORT, 'D: cdp.json says on because the command line asked', d.state.summary);
   check(listenAddrs(PORT).length === 0, 'D: nothing on the default port', listenAddrs(PORT).join('; '));
   const dChrome = await chromeOf(CLI_PORT).catch(() => null);
   if (dChrome) {

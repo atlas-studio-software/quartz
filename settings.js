@@ -3126,7 +3126,8 @@
     renderClaudeCdp();
   }
 
-  /* The always-on DevTools (CDP) port (cdp-main.js). The switch lives in main
+  /* The opt-in DevTools (CDP) port (cdp-main.js), off until the user turns it
+     on here. The switch lives in main
      (cdp-prefs.json), not in this page's store: main needs it before the
      window exists. It applies from the next start, and the lines under it say
      what THIS run actually has: on at which port and why, fell back to
@@ -3159,7 +3160,7 @@
     }
     var c = answer;
     field.textContent = '';
-    var on = c.enabledNext !== false;
+    var on = c.enabledNext === true;   // off unless the user turned it on
     field.appendChild(switchRow('Let local tools drive this browser (DevTools port)', on, function (next) {
       Promise.resolve().then(function () { return app.setCdpEnabled(next); }).then(function (r) {
         renderClaudeCdp(r || { ok: false, error: 'the main process did not answer.', saveError: 'the setting may not have been saved' });
@@ -3168,7 +3169,7 @@
       });
     }));
     field.appendChild(el('p', 'set-hint',
-      'Opens the Chrome DevTools Protocol on 127.0.0.1 (port 9219, or a free one if that is taken), so Claude Code '
+      'Off unless you turn it on. Opens the Chrome DevTools Protocol on 127.0.0.1 (port 9219, or a free one if that is taken), so Claude Code '
       + 'or a script on this computer can click, type and read pages in this browser while you stay signed in. '
       + 'It is never reachable from the network, and web pages cannot use it, but any program running as you can.'));
     field.appendChild(el('p', 'set-hint', cdpStateLine(c)));

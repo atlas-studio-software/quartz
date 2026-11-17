@@ -1,11 +1,21 @@
 'use strict';
 /*
- * cdp-main.js -- an always-on Chrome DevTools Protocol (CDP) endpoint, so a
+ * cdp-main.js -- an opt-in Chrome DevTools Protocol (CDP) endpoint, so a
  * local tool (an AI coding agent, a script) can drive the browser the user is
  * already running, without a restart with --remote-debugging-port.
  *
- * What a normal start does (main.js calls plan() at the top level, after the
- * single-instance lock, and confirm() once the app is ready):
+ * OFF unless the user turns it on in Settings > Claude. The repository is
+ * public and the port hands control of a signed-in browser to any local
+ * program, so nobody gets one they did not ask for. cdp-prefs.json is written
+ * only by that switch (setEnabled), so the file tells the cases apart:
+ *   - missing: never set, so off ("not turned on in Settings > Claude").
+ *   - { enabled: true }: the user turned it on; it stays on.
+ *   - { enabled: false }: the user turned it off ("turned off in Settings > Claude").
+ *   - unreadable, not JSON, or no boolean `enabled`: treated as never set
+ *     (off), and cdp.json and Settings say why.
+ *
+ * What a normal start does when the switch is on (main.js calls plan() at the
+ * top level, after the single-instance lock, and confirm() once the app is ready):
  *   - port DEFAULT_PORT (9219) on 127.0.0.1. Electron's DevTools server binds
  *     127.0.0.1 and nothing else (shell/browser/ui/devtools_manager_delegate.cc
  *     hard-codes the address), so the port is never reachable from the LAN.
@@ -13,11 +23,11 @@
  *   - port busy (another app, or the dead-but-still-LISTENING socket a killed
  *     Chromium can leave behind): an ephemeral port (0) instead, and the
  *     reason, with the pid that holds 9219, goes into cdp.json and the log.
- *   - turned off in Settings > Claude (cdp-prefs.json { enabled: false }): no
- *     port at all, and cdp.json says so.
+ *   - not turned on, or turned off, in Settings > Claude: no port at all, and
+ *     cdp.json says which of the two.
  *
- * A port the command line asks for (--remote-debugging-port=N) wins, as
- * before, with one exception: when N is already LISTENING (most often a dead
+ * A port the command line asks for (--remote-debugging-port=N) wins whatever
+ * the switch says, as before, with one exception: when N is already LISTENING (most often a dead
  * Quartz's socket still held open by a process that inherited it), the next
  * free port of N+1..N+8 is put on the command line instead, and cdp.json
  * ({ requested, port, reason, notice }), the log and a notice in the window
@@ -39,8 +49,11 @@
  *     exits at the lock in main.js, before plan() runs.
  *
  * The discovery file: <userData>\cdp.json, rewritten at every start:
- *   { ok, enabled, mode, port, requestedPort, http, ws, pid, startedAt,
- *     reason, error }
+ *   { ok, summary, enabled, setting, mode, port, requestedPort, http, ws, pid,
+ *     startedAt, reason, error }
+ * `summary` is the one-line answer, "on: <why>" or "off: <why>" ("starting:
+ * <why>" until confirm() knows). `setting` is what the Settings switch holds:
+ * 'never-set', 'on' or 'off'.
  * ok=false always comes with `error` in plain words. Chromium's own
  * <userData>\DevToolsActivePort ("<port>\n<browser ws path>") is the proof the
  * server is listening: confirm() waits for it, and a stale one from the last
@@ -53,7 +66,7 @@
  * connections that carry an Origin unless --remote-allow-origins lists it,
  * and that switch is deliberately NOT set (CDP clients like `ws` send no
  * Origin). /json requests must name localhost or an IP as Host, which stops
- * DNS rebinding. The Settings switch turns the whole thing off.
+ * DNS rebinding. That trade-off is why it is off until the user turns it on.
  */
 const fs = require('fs');
 const path = require('path');
@@ -106,20 +119,30 @@ function listenersOn(port, run) {
   }
 }
 
-/** { enabled, error? } from cdp-prefs.json. Missing = on (the default); unreadable = on, and says why. */
+/**
+ * { enabled, setting, error? } from cdp-prefs.json. setting: 'on' or 'off' (the
+ * user chose it in Settings) or 'never-set' (no choice on file, so off, the
+ * default). Unreadable, not JSON or no boolean counts as never set, and says why.
+ */
 function readPrefs(userData) {
   const file = path.join(userData, PREFS_FILE);
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); } catch (err) {
-    if (err && err.code === 'ENOENT') return { enabled: true };
-    return { enabled: true, error: 'could not read ' + PREFS_FILE + ' (' + err.code + '), so the default (on) applies' };
+    if (err && err.code === 'ENOENT') return { enabled: false, setting: 'never-set' };
+    return { enabled: false, setting: 'never-set', error: 'could not read ' + PREFS_FILE + ' (' + err.code + '), so the default (off) applies' };
   }
-  try {
-    const v = JSON.parse(raw);
-    return { enabled: !(v && v.enabled === false) };
-  } catch {
-    return { enabled: true, error: PREFS_FILE + ' is not valid JSON, so the default (on) applies' };
+  let v;
+  try { v = JSON.parse(raw); } catch {
+    return { enabled: false, setting: 'never-set', error: PREFS_FILE + ' is not valid JSON, so the default (off) applies' };
   }
+  if (v && v.enabled === true) return { enabled: true, setting: 'on' };
+  if (v && v.enabled === false) return { enabled: false, setting: 'off' };
+  return { enabled: false, setting: 'never-set', error: PREFS_FILE + ' has no on/off value, so the default (off) applies' };
+}
+
+/** Why a normal start has no port because of the switch (pure). */
+function offReason(prefs) {
+  return prefs && prefs.setting === 'off' ? 'turned off in Settings > Claude' : 'not turned on in Settings > Claude';
 }
 
 /**
@@ -145,22 +168,23 @@ function decide(input) {
     }
     defaultPort = testPort;
   }
-  const prefs = input.prefs || { enabled: true };
-  if (!prefs.enabled) {
-    return { mode: 'off', append: null, requestedPort: defaultPort, reason: 'turned off in Settings > Claude' };
+  const prefs = input.prefs || { enabled: false, setting: 'never-set' };
+  if (prefs.enabled !== true) {
+    return { mode: 'off', append: null, requestedPort: defaultPort, reason: offReason(prefs) };
   }
+  const on = 'turned on in Settings > Claude';
   const probe = input.probe ? input.probe(defaultPort) : { ok: true, pids: [] };
   if (!probe.ok) {
     // Cannot tell: try the port anyway. confirm() reports it if Chromium could not bind.
-    return { mode: 'default', append: defaultPort, requestedPort: defaultPort, reason: 'the default port (could not check it first: ' + probe.error + ')' };
+    return { mode: 'default', append: defaultPort, requestedPort: defaultPort, reason: on + ', on the default port (could not check it first: ' + probe.error + ')' };
   }
   if (probe.pids.length) {
     return {
       mode: 'fallback', append: 0, requestedPort: defaultPort, busyPids: probe.pids,
-      reason: 'port ' + defaultPort + ' was already in use (pid ' + probe.pids.join(', ') + '), so Windows picked a free port instead',
+      reason: on + ', but port ' + defaultPort + ' was already in use (pid ' + probe.pids.join(', ') + '), so Windows picked a free port instead',
     };
   }
-  return { mode: 'default', append: defaultPort, requestedPort: defaultPort, reason: 'the default port' };
+  return { mode: 'default', append: defaultPort, requestedPort: defaultPort, reason: on + ', on the default port' };
 }
 
 /**
@@ -282,7 +306,10 @@ function plan(deps) {
   if (decision.append != null) app.commandLine.appendSwitch('remote-debugging-port', String(decision.append));
 
   let state = {
-    ok: false, enabled: prefs.enabled, mode: decision.mode, port: null, requestedPort: decision.requestedPort,
+    ok: false,
+    // The one-line answer; confirm() rewrites it once the server is up (or is not).
+    summary: (expectsPort ? 'starting: ' : 'off: ') + decision.reason,
+    enabled: prefs.enabled, setting: prefs.setting, mode: decision.mode, port: null, requestedPort: decision.requestedPort,
     // requested / plannedPort: what the command line (or the default) asked for, and what
     // Quartz put on the command line after checking it. `port` is filled in by confirm().
     requested: decision.requestedPort,
@@ -327,6 +354,7 @@ function plan(deps) {
         });
         // Nothing listening and no sentence yet: the window says it all the same.
         if (!state.notice) state.notice = 'Remote debugging is not available: ' + state.error + '.';
+        state.summary = 'off: ' + state.error;
         say('DevTools (CDP) is NOT available: ' + state.error + '.');
       } else {
         state = Object.assign({}, state, {
@@ -339,6 +367,7 @@ function plan(deps) {
           delete state.notice;
           state.reason = 'the command line asked for port ' + decision.requestedPort + ', which was in use at the check but free by the time the server started';
         }
+        state.summary = 'on: ' + state.reason;
         say('DevTools (CDP) is on at 127.0.0.1:' + active.port + ': ' + state.reason + '.');
       }
       const e = save();
@@ -350,7 +379,7 @@ function plan(deps) {
       const now = readPrefs(userData);
       // The switch only governs a normal start; a command-line port or a test run ignores it.
       const governed = decision.mode === 'default' || decision.mode === 'fallback' || decision.mode === 'off';
-      return Object.assign({}, state, { enabledNext: now.enabled, governed, restartNeeded: governed && now.enabled !== prefs.enabled });
+      return Object.assign({}, state, { enabledNext: now.enabled, settingNext: now.setting, governed, restartNeeded: governed && now.enabled !== prefs.enabled });
     },
     /** Save the Settings switch. Takes effect at the next start. */
     setEnabled(enabled) {
@@ -364,4 +393,4 @@ function plan(deps) {
   };
 }
 
-module.exports = { DEFAULT_PORT, CLI_FALLBACK_SPAN, STATE_FILE, PREFS_FILE, ACTIVE_PORT_FILE, parseNetstat, listenersOn, snapshotProbe, readPrefs, decide, decideCommandLine, readActivePort, plan };
+module.exports = { DEFAULT_PORT, CLI_FALLBACK_SPAN, STATE_FILE, PREFS_FILE, ACTIVE_PORT_FILE, parseNetstat, listenersOn, snapshotProbe, readPrefs, offReason, decide, decideCommandLine, readActivePort, plan };

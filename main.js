@@ -332,7 +332,8 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 /*
- * The always-on DevTools (CDP) port, 127.0.0.1:9219 (cdp-main.js has the why,
+ * The opt-in DevTools (CDP) port, 127.0.0.1:9219 when Settings > Claude turns
+ * it on (cdp-main.js has the why,
  * the fallback and the security trade-off). Here, after the lock: a second
  * copy handing its URL to the running window has already exited above, so it
  * never probes or binds anything. Before 'ready': Electron reads the switch
@@ -1879,17 +1880,18 @@ ipcMain.handle('app:paths', () => ({
  */
 /*
  * Settings > Claude: the DevTools (CDP) port's state for this run, and the
- * switch that turns it off from the next start (cdp-main.js describe/setEnabled).
+ * switch (off until the user turns it on) that applies from the next start
+ * (cdp-main.js describe/setEnabled).
  * A plan that threw answers { ok: false, error } so the row still says why.
  */
 ipcMain.handle('cdp:describe', (event) => {
   if (!isChromeSender(event)) return null;
-  if (!cdp) return { ok: false, enabled: true, enabledNext: true, governed: false, mode: 'error', error: cdpPlanError || 'not set up' };
+  if (!cdp) return { ok: false, enabled: false, enabledNext: false, governed: false, mode: 'error', error: cdpPlanError || 'not set up' };
   return cdp.describe();
 });
 ipcMain.handle('cdp:set-enabled', (event, { enabled } = {}) => {
   if (!isChromeSender(event)) return null;
-  if (!cdp) return { ok: false, enabled: true, enabledNext: true, governed: false, mode: 'error', error: cdpPlanError || 'not set up', saveError: 'the setting cannot be saved: ' + (cdpPlanError || 'not set up') };
+  if (!cdp) return { ok: false, enabled: false, enabledNext: false, governed: false, mode: 'error', error: cdpPlanError || 'not set up', saveError: 'the setting cannot be saved: ' + (cdpPlanError || 'not set up') };
   return cdp.setEnabled(enabled === true);
 });
 

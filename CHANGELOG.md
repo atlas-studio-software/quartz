@@ -960,6 +960,11 @@ Found, and not ours to fix:
   A port on the command line and every test run are left exactly as before. The trade-off: any
   program running as the user can control the browser through it (web pages cannot), so Settings →
   Claude has a switch to turn it off from the next start, and says what the current run has.
+- That DevTools port is opt-in now: off unless the user turns it on in Settings → Claude, because
+  the repository is public and a control port nobody asked for is the wrong default. A switch the
+  user already turned on stays on; a never-touched one is off, and `cdp.json` says which
+  (`summary`: "off: not turned on in Settings > Claude", "on: the command line asked for port N").
+  A `--remote-debugging-port` on the command line, and its move to N+1..N+8 when taken, are unchanged.
 - The project is a git repo now, with the whole night's work committed locally.
 - `node smoketest.js` launches its own instance on `--test-profile`, waits for `body.booted`,
   asserts, and tears down. `--keep` leaves it running. `cdp-eval.js` and `cdp-profile.js` drive it.

@@ -124,6 +124,8 @@ async function main() {
   check(s.requested === N && s.requestedPort === N && s.plannedPort === N + 1 && s.mode === 'command-line-fallback',
     'A: cdp.json records requested ' + N + ' and the planned port', JSON.stringify({ requested: s.requested, plannedPort: s.plannedPort, mode: s.mode }));
   check(/already in use \(pid \d+/.test(String(s.reason)) && new RegExp('next free port, ' + (N + 1)).test(String(s.reason)), 'A: reason names the holder pid and the port taken', s.reason);
+  // The Settings switch is never touched in this profile (off by default); the command line wins anyway.
+  check(s.setting === 'never-set' && /^on: the command line asked for port /.test(String(s.summary)), 'A: on with the switch never set, and the summary says the command line asked', s.setting + ' / ' + s.summary);
   const sentence = 'Remote debugging port ' + N + ' was in use by another process, so Quartz is on ' + (N + 1) + '.';
   check(s.notice === sentence, 'A: cdp.json carries the notice sentence', s.notice);
   const active = cdpMain.readActivePort(DIR);
@@ -148,6 +150,7 @@ async function main() {
   const b = await boot('B');
   const sb = b.state;
   check(sb.ok === false && sb.mode === 'command-line-busy' && sb.port === null, 'B: no port this run', JSON.stringify(sb));
+  check(/^off: the command line asked for port /.test(String(sb.summary)), 'B: the summary says off and why', sb.summary);
   check(new RegExp('port ' + N + ' was in use by another process, and so were ports ' + (N + 1) + '-' + (N + SPAN) + ', so remote debugging is off').test(String(sb.notice)),
     'B: the notice says off and why', sb.notice);
   check(/off for this run/.test(String(sb.error)), 'B: cdp.json error says why', sb.error);

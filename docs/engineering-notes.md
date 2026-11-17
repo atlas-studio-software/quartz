@@ -1462,13 +1462,21 @@ selection, the four Claude hand-offs, editing and inspect.
 
 The chrome is trusted and every guest is not. These are the places that line is actually held.
 
-- **The always-on DevTools port.** A normal start opens CDP on 127.0.0.1:9219 (cdp-main.js), so a
-  local agent can drive the running browser. Electron binds the DevTools server to 127.0.0.1 only,
+- **The opt-in DevTools port.** Off unless the user turns it on in Settings → Claude. Once on, a
+  normal start opens CDP on 127.0.0.1:9219 (cdp-main.js), so a local agent can drive the running
+  browser. It used to be on by default; because the repository is public, that gave every user a
+  control port they never asked for, so the default is now off. The switch is the only writer of
+  `cdp-prefs.json` (read before `ready`, from the next start), so the file tells the states apart:
+  missing means never set (off, "not turned on in Settings → Claude"), `{ "enabled": true }` means
+  the user turned it on and it stays on, `{ "enabled": false }` means the user turned it off.
+  Unreadable or malformed counts as never set and says why. `cdp.json` carries `summary`
+  ("on: …" / "off: …") and `setting` (`never-set` / `on` / `off`). A `--remote-debugging-port` on
+  the command line ignores the switch exactly as before. Electron binds the DevTools server to 127.0.0.1 only,
   so the LAN never sees it (cdp-e2e.js checks netstat and a connect to the LAN address). Web pages
   cannot use it: `--remote-allow-origins` is deliberately never set, so a WebSocket carrying an
   Origin is refused, and `/json` insists on a localhost or IP Host header (no DNS rebinding). What
   remains is the accepted trade-off: any process running as the user can control the logged-in
-  browser. Settings → Claude turns it off (cdp-prefs.json, read before `ready`, from the next start).
+  browser, which is why nobody gets it without turning it on.
 
 - **A taken `--remote-debugging-port`.** Electron's main process spawns children (child_process,
   libuv) with handle inheritance on, and Chromium's DevTools listen socket is inheritable, so every
@@ -1809,7 +1817,7 @@ one run before and one after.
 | `ambient.js` | The built-in idle-music engine: a generative Web Audio pad — detuned voices under a slow low-pass filter, a chord crossfading every 16-24s along a modal progression, a sparse arpeggio through a feedback delay, a four-delay-line room instead of a convolver, compressor and master gain — with one timer, twelve mood titles, and a `stop()` that suspends the context. |
 | `music.js` | The idle-music player: `shouldPlay()` and every signal behind it (the setting, a manual pause, window focus, an audible tab, the machine's own media session, the "where" setting, a ready source), the 300ms settle, the 800/400ms fades, the resume hold and the flip counter that sits the player out for 30s, and the two sinks behind one contract — the ambient engine and one `<audio>` element on `file://` with shuffle and skip-missing. Also the parsers for the new tab's `music` and `media` console lines and the now-playing change detector (position out of the hash, art re-sent only when its own hash moves). `debug()` and a `resumeHoldMs` option exist for harnesses. |
 | `drm-sites.js`, `drm-preload.js`, `drm-main.js`, `drm.js`, `drm.css` | Protected video: which pages need DRM and the bar's words (pure, shared), the session-preload page watcher (EME requests + encrypted media), main's half (preload registration, signal forwarding, the Edge launch, `drm.json` rules, Widevine status), and the chrome's info bar with Open in Edge / Always use Edge. |
-| `cdp-main.js` | The always-on DevTools (CDP) port: 127.0.0.1:9219 on a normal start, a free port (and the pid that held 9219) when it is taken, none when Settings → Claude turns it off; a command-line port kept unless it is taken (then the next free one of N+1..N+8, with a notice in the window), and test runs get none of their own. Planned after the single-instance lock and before `ready`; writes `<userData>\cdp.json` and confirms against Chromium's `DevToolsActivePort`. `tools/cdp-endpoint.js` prints the live endpoint. `cdp-harness.js`, `cdp-e2e.js`, `debugport-e2e.js` |
+| `cdp-main.js` | The opt-in DevTools (CDP) port: none on a normal start unless Settings → Claude turns it on (cdp-prefs.json; missing = never set = off), then 127.0.0.1:9219, or a free port (and the pid that held 9219) when it is taken; a command-line port kept unless it is taken (then the next free one of N+1..N+8, with a notice in the window), and test runs get none of their own. Planned after the single-instance lock and before `ready`; writes `<userData>\cdp.json` and confirms against Chromium's `DevToolsActivePort`. `tools/cdp-endpoint.js` prints the live endpoint. `cdp-harness.js`, `cdp-e2e.js`, `debugport-e2e.js` |
 | `closetabs.js` | Closing tabs by address from a command line (`--close-tabs=<prefix>`, any number of `--keep=<prefix>`), handed to the running copy through `second-instance` (pure, shared: main reads the line, the chrome plans and closes). Only http(s) prefixes with a host; plain web pages only, never pinned, never a workspace's last tab; a close on its own opens and raises nothing. The words for the toast and the `quartz.log` line. `closetabs-harness.js`, `closetabs-e2e.js` |
 | `webapps.js` | The web-app catalogue: 30 entries with `web:<slug>` ids, URL, host, the desktop exe they pair with and a `drm` mark, plus `findWebApp`, `webAppForHost` (exact, then longest subdomain match), `webAppForExe`, `isWebAppId`, `isTerminalId`, `terminalProgram` and `DRM_NOTE`. Loads as a module or a script tag (`window.WEBAPPS` / `window.WebApps`), and is a first-paint seed on the new tab as well as the chrome's own table. |
 | `freezewatch.js` | The window that stops drawing until it is moved: Chromium's occlusion tracker can leave it marked covered after a wake (display-on's recompute is cancelled by resume) or after a cover hides. Three invisible nudges after every resume, unlock and display-on (`NotifyWinEvent(EVENT_SYSTEM_CAPTUREEND)` + `InvalidateRect`); while the page reports hidden, a 1 Hz check by the tracker's own occluder rules (`canOcclude`), then nudge, force (display on + unlock to Chromium's own hidden window) and give up, each in `freeze.log` (userData) and said on screen. `freezewatch-harness.js`; `freezewatch-e2e.js` (on screen, CI only) reproduces the wake bug. |

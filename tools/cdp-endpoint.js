@@ -10,8 +10,9 @@
 // Reads <userData>\cdp.json (cdp-main.js writes it at every start) and Chromium's own
 // DevToolsActivePort, then asks http://127.0.0.1:<port>/json/version, so what it prints is what is
 // listening NOW, not what a file once said. Prints, on success (exit 0):
-//   ok   http://127.0.0.1:9219  ws://127.0.0.1:9219/devtools/browser/<id>  (pid 1234, the default port)
-// and on failure (exit 1) one line that says why: CDP turned off, Quartz not running, a stale file,
+//   ok   http://127.0.0.1:9219  ws://127.0.0.1:9219/devtools/browser/<id>  (pid 1234, turned on in Settings > Claude, on the default port)
+// and on failure (exit 1) one line that says why: CDP off (not turned on in Settings > Claude, the
+// default), Quartz not running, a stale file,
 // the port answering for something else, ... A copy started before cdp.json existed (a build
 // without cdp-main.js, launched with --remote-debugging-port) is still found through
 // DevToolsActivePort alone.
