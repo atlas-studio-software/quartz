@@ -73,13 +73,13 @@ async function rollback(o) {
   if (!L.parseVersion(bad)) return refuse('"' + bad + '" is not a release tag (vX.Y.Z)');
 
   // The studio's autonomy mode (release-lib.js modeState): --send is refused while PAUSED, and
-  // while ON when Owen holds quartz-release or quartz-rollback. --prepare and the dry run are local.
+  // while ON when the owner holds quartz-release or quartz-rollback. --prepare and the dry run are local.
   if (o.send) {
     const dir = L.autonomyDir(o.autonomyDir);
     const state = L.modeState(dir, o.now ? o.now() : Date.now());
     if (state === 'PAUSED') return refuse('paused: autonomy mode is PAUSED, which refuses every outward action; nothing was sent');
     const held = state === 'ON' ? ['quartz-release', 'quartz-rollback'].filter((c) => L.modeHolds(dir, c)) : [];
-    if (held.length) return refuse('held: autonomy mode is ON and Owen holds ' + held.join(' and ') + '; nothing was sent');
+    if (held.length) return refuse('held: autonomy mode is ON and the owner holds ' + held.join(' and ') + '; nothing was sent');
   }
 
   await git(['fetch', '--quiet', 'origin', '+refs/heads/master:refs/remotes/origin/master', 'refs/tags/v*:refs/tags/v*']);

@@ -71,7 +71,7 @@ function patchOnly(next, latest) {
   const a = parseVersion(next), b = parseVersion(latest);
   if (!a) return { ok: false, why: 'the version "' + next + '" is not a plain X.Y.Z' };
   if (!b) return { ok: false, why: 'the latest release "' + latest + '" has no plain X.Y.Z version' };
-  if (a.major !== b.major || a.minor !== b.minor) return { ok: false, why: a.text + ' is not a patch release after ' + b.text + ' (major or minor changed; that needs Owen)' };
+  if (a.major !== b.major || a.minor !== b.minor) return { ok: false, why: a.text + ' is not a patch release after ' + b.text + ' (major or minor changed; that needs the owner)' };
   if (a.patch <= b.patch) return { ok: false, why: a.text + ' is not newer than the latest release ' + b.text };
   return { ok: true, why: a.text + ' is a patch release after ' + b.text };
 }

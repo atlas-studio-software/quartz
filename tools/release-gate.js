@@ -305,7 +305,7 @@ async function gate(o) {
   }
 
   // cloudtest.
-  say('release-gate: the full suite for this commit (needs Owen\'s OK: cloudtest pushes a branch):');
+  say('release-gate: the full suite for this commit (needs the owner\'s OK: cloudtest pushes a branch):');
   for (const l of cloudtestCommand(sha)) say('  ' + l);
   let verdict = null;
   if (o.result) {
