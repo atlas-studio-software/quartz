@@ -52,6 +52,27 @@ Rules that keep updates safe:
 - Never move or delete a published tag. If a release is wrong, publish a newer one.
 - To try a release without offering it to anyone, create it with `--draft` or `--prerelease`.
 - Every release tag is signed (step 3). An unsigned one is not offered to anyone who has a key.
+- The updater reads the releases feed again before it installs anything, so a release put back to
+  draft stops being installed at once, even from a card that is already showing.
+
+## Patch releases through the gate
+
+`tools/release-gate.js <commit>` decides whether a commit may go out as a patch release. It checks
+that the commit is on `origin/master`, that its version is a patch after the latest release, that
+the tag is unused, that nothing was published in the last 48 hours, and that release notes exist
+in `docs/releases/v<version>.md`. It prints the notes for review and the full-suite cloudtest
+command for that exact commit. `--result=<cloudtest run folder>` gives go or no-go from the run's
+summary line. Only `--send --clone=<dir>` publishes: from a separate clone on master at the commit,
+and only once the installer workflow's draft for that commit carries `Quartz-Setup.exe`. Every
+outward step prints one `AUTONOMY: {...}` line; read its `result`, not the exit code.
+
+## Rolling back a release
+
+`tools/release-rollback.js <bad tag>` prints the plan. `--send` puts the release back to draft
+straight away and then prepares the fix in the current checkout. The fix is a commit with the last
+good release's tree, the next patch version and its notes. It never touches the tag. Ship the fix
+through the gate with `--rollback-of=<bad tag>`, which waives the 48-hour cap only for a tree that
+equals the last good release apart from its version and notes.
 
 ## Installer
 

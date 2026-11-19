@@ -190,6 +190,11 @@ const TESTS = [
   // swapped by the release, tag/commit mismatch, rotation, bootstrap, old git, no ssh-keygen.
   // Spawns git and ssh-keygen a few hundred times, like the updater harness: same 300 s.
   { name: 'release-signing', file: 'tests/release-signing-test.js', timeout: 300 },
+  // The release gate and the rollback (tools/release-gate.js, tools/release-rollback.js): throwaway
+  // repos, a fake feed and a fake runner; gh and release-tag.js are never run. Patch-only, on master,
+  // tag unused, 48 h cap, notes, the cloudtest verdict from the summary line, --send's order and
+  // refusals, (a) withdraw and (b) the rollback commit, and the gate's rollback waiver.
+  { name: 'release-gate', file: 'tests/release-gate-test.js', timeout: 300 },
   // The same in a real Quartz: the card, the Update button, a real update and the relaunch.
   { name: 'updater-e2e', file: 'tests/updater-e2e.js', e2e: true },
   // uvquiet's default mode (every activateUvLoop skipped) in a real Electron: work still runs on time.
