@@ -28,6 +28,10 @@
  *     commit the update merges (see "signed release tags" below). A copy with no key yet says so.
  *
  * WHAT UPDATE DOES.
+ *   0. Re-check the release: read releases/latest again (the card can be hours old). A release
+ *      that is no longer the latest (pulled back to draft or pre-release, or replaced) is refused
+ *      and its offer cleared; a feed that cannot be read refuses too and is tried again later.
+ *      After a staged npm ci (minutes) the same re-check runs once more, before the restart.
  *   1. Downloading: fetch the tag again and re-check every condition above.
  *   2. Installing: only when the dependencies changed (see depsChanged), `npm ci` runs in a
  *      STAGING copy of the release (<app>\.quartz-update\tree, exported from git without touching
@@ -738,8 +742,40 @@ function createUpdater(opts) {
   }
 
   /**
+   * Is `rel` still GitHub's latest release? The card can be up to 6 h old, and a release that was
+   * pulled since (put back to draft or pre-release, or replaced by a newer one) must never be
+   * installed from it. Resolves { ok } or { ok: false, gone, why }:
+   *   gone true   the feed answered and names another release, or none: the cached offer is void;
+   *   gone false  the feed could not be read (offline, rate-limited, a 5xx): nothing proves the
+   *               release is still wanted, so the update is refused too, and tried again later.
+   * Refusing on an unreadable feed costs little: the update itself needs GitHub (git fetches the
+   * tag), and the only alternative is installing a release we could not re-confirm.
+   */
+  async function stillLatest(rel) {
+    const got = await fetchRelease();
+    persist();
+    if (got.kind === 'release' && got.release.tag === rel.tag) return { ok: true };
+    if (got.kind === 'release') return { ok: false, gone: true, latest: got.release.tag, why: rel.tag + ' is no longer the latest release (GitHub now offers ' + got.release.tag + '), so Quartz did not install it' };
+    if (got.kind === 'none') return { ok: false, gone: true, latest: '', why: rel.tag + ' is no longer published (GitHub lists no latest release now), so Quartz did not install it' };
+    return { ok: false, gone: false, rateLimited: !!got.rateLimited, retryAt: got.retryAt, why: 'Quartz could not confirm that ' + rel.tag + ' is still the latest release (' + got.why + '), so it did not install it; it checks again later' };
+  }
+
+  /** stillLatest, or throw the refusal (marked so update()'s catch can clear a void offer). */
+  async function confirmLatest(rel) {
+    const v = await stillLatest(rel);
+    if (v.ok) return;
+    log('Release re-check: ' + v.why);
+    if (o.record) { try { o.record('Update refused: ' + v.why); } catch { /* best effort */ } }
+    const e = new Error(v.why);
+    e.recheck = v;
+    throw e;
+  }
+
+  /**
    * Update to the release. Resolves { ok, relaunch: 'plain'|'swap' } or { ok: false, reason }.
    * On ok the caller restarts Quartz (relaunch()/swapPlan()); nothing else is left to do.
+   * Before anything is downloaded, and again after a staged npm ci (which can take minutes),
+   * the releases feed is read again: a release that is no longer the latest is refused.
    */
   async function update() {
     if (st.off) return { ok: false, reason: 'updates are off: ' + st.off };
@@ -753,6 +789,8 @@ function createUpdater(opts) {
     let mergeTried = false;
     let staged = false;
     try {
+      progress('downloading', 'Checking that ' + rel.tag + ' is still the latest release…');
+      await confirmLatest(rel);
       progress('downloading', 'Downloading ' + rel.tag + '…');
       const r = await inspect(rel);
       st.current.sha = short(r.head);
@@ -767,6 +805,8 @@ function createUpdater(opts) {
         progress('installing', NPM_TEXT);
         staged = true;
         await stageDependencies(r.sha);
+        // npm ci can take minutes: the release may have been pulled meanwhile.
+        await confirmLatest(rel);
         // The folder itself moves only once Quartz has quit: the swap helper merges, then swaps
         // node_modules. Until then nothing in the app folder has changed.
         relaunchMode = 'swap';
@@ -796,7 +836,21 @@ function createUpdater(opts) {
       const full = reason + (notes ? '. ' + notes : '');
       log('Update failed: ' + full);
       if (o.record) { try { o.record('Update to ' + rel.tag + ' failed: ' + full); } catch { /* best effort */ } }
-      set({ status: 'failed', progress: null, failure: { reason: full, log: logPath, at: now() } });
+      const rc = e && e.recheck;
+      if (rc && rc.gone) {
+        // The offer is void: no release, no button, no "Try again". The next check (soon) shows
+        // whatever GitHub offers now, a replacement included.
+        relaunchMode = '';
+        saved.pending = null;
+        persist();
+        set({ status: 'failed', progress: null, release: null, canUpdate: false, blocked: '', manual: [], needsNpm: false,
+          signature: null, download: '', failure: { reason: full, log: logPath, at: now(), withdrawn: true, latest: rc.latest } });
+        schedule(firstMs);
+      } else {
+        if (rc) { relaunchMode = ''; saved.pending = null; persist(); }
+        set({ status: 'failed', progress: null, failure: { reason: full, log: logPath, at: now() } });
+        if (rc) schedule(rc.rateLimited && rc.retryAt ? Math.max(60000, rc.retryAt - now() + 60000) : RETRY_MS);
+      }
       return { ok: false, reason: full };
     } finally {
       busy = false;
@@ -1020,7 +1074,7 @@ async function runSwap(plan, deps) {
 module.exports = {
   createUpdater, runSwap, offReason, normaliseRepoUrl, compareVersions, netWhy, removeTree, depsChanged,
   verifyReleaseTag, readInstalledSigners, parseSigners, parseGitVersion, signatureWhy,
-  OPT_OUT_FILE, STAGING_DIR, NPM_TEXT, INSTALLER_URL, EVERY_MS, FIRST_CHECK_MS, SIGNERS_FILE, MIN_GIT_SSH,
+  OPT_OUT_FILE, STAGING_DIR, NPM_TEXT, INSTALLER_URL, EVERY_MS, FIRST_CHECK_MS, RETRY_MS, SIGNERS_FILE, MIN_GIT_SSH,
 };
 
 if (require.main === module && process.argv[2]) {

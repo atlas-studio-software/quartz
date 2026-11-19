@@ -244,6 +244,88 @@ async function main() {
     check(s.status === 'current', 'next start: the check finds it current');
   }
 
+  // ---- update: the release is re-checked before anything is installed ------------------------------
+  {
+    // Still latest (an unchanged feed answers 304): installs, and the feed was asked once more.
+    const w = world(); const api = fakeApi(); const sha = w.release('v0.2.0'); api.releaseOf('v0.2.0');
+    const u = make(w, api);
+    await u.check();
+    const before = api.calls.length;
+    const r = await u.update();
+    check(r.ok && git(w.app, 'rev-parse', 'HEAD') === sha && api.calls.length === before + 1
+      && /releases\/latest$/.test(api.calls[before].url) && api.calls[before].headers['If-None-Match'] === '"e-v0.2.0"',
+    're-check: still the latest (304) -> installs; the feed is read again first, with the ETag', { r, calls: api.calls.length - before });
+    check(u.states.some((s) => s.progress && /still the latest release/.test(s.progress.text)), 're-check: the progress says it is checking the release is still the latest');
+  }
+  for (const how of ['pulled', 'replaced', 'none']) {
+    // The card says v0.2.0; before Update is pressed the release is pulled (latest falls back to
+    // v0.1.0), replaced by v0.2.1, or there is no release at all.
+    const w = world(); const api = fakeApi(); w.release('v0.2.0'); api.releaseOf('v0.2.0');
+    const old = git(w.app, 'rev-parse', 'HEAD');
+    const u = make(w, api);
+    let s = await u.check();
+    check(s.status === 'available' && s.canUpdate, '[' + how + '] the card offers v0.2.0 first');
+    if (how === 'pulled') api.releaseOf('v0.1.0');
+    else if (how === 'replaced') { w.release('v0.2.1'); api.releaseOf('v0.2.1'); }
+    else { api.status = 404; api.body = null; api.headers = {}; }
+    u.timers.scheduled.length = 0;
+    const r = await u.update();
+    s = u.state();
+    const want = how === 'none' ? /v0\.2\.0 is no longer published/ : new RegExp('v0\\.2\\.0 is no longer the latest release \\(GitHub now offers ' + (how === 'pulled' ? 'v0\\.1\\.0' : 'v0\\.2\\.1') + '\\)');
+    check(!r.ok && want.test(r.reason) && /Quartz stayed on the version it had/.test(r.reason), '[' + how + '] refused, says why in plain words', r.reason);
+    check(git(w.app, 'rev-parse', 'HEAD') === old && git(w.app, 'status', '--porcelain') === '', '[' + how + '] nothing installed: HEAD and tree unchanged');
+    check(s.status === 'failed' && s.release === null && !s.canUpdate && s.failure && s.failure.withdrawn === true,
+      '[' + how + '] the cached offer is cleared: no release, no button, no Try again', { status: s.status, release: s.release, canUpdate: s.canUpdate });
+    check(u.timers.scheduled[u.timers.scheduled.length - 1] === 1000, '[' + how + '] the next check comes soon (first-check delay)', u.timers.scheduled);
+    check(fs.readFileSync(path.join(w.data, 'updater.log'), 'utf8').includes('Release re-check: v0.2.0'), '[' + how + '] the log says so');
+    const again = await u.update();
+    check(!again.ok && /no update to install/.test(again.reason), '[' + how + '] pressing Update again installs nothing', again.reason);
+    s = await u.check();
+    if (how === 'replaced') {
+      check(s.status === 'available' && s.release.tag === 'v0.2.1' && s.canUpdate, '[replaced] the next check offers v0.2.1', s.status);
+      const r2 = await u.update();
+      check(r2.ok && git(w.app, 'rev-parse', 'HEAD') === git(w.app, 'rev-parse', 'v0.2.1^{commit}'), '[replaced] and v0.2.1 installs', r2);
+    } else {
+      check(s.status === (how === 'none' ? 'none' : 'current') && !s.canUpdate, '[' + how + '] the next check shows no update', s.status);
+    }
+  }
+  for (const how of ['offline', 'ratelimited', '500']) {
+    // The feed cannot be read when Update is pressed: refused, the offer kept (Try again), retried later.
+    const w = world(); const api = fakeApi(); const sha = w.release('v0.2.0'); api.releaseOf('v0.2.0');
+    const old = git(w.app, 'rev-parse', 'HEAD');
+    let t = 1e12;
+    const u = make(w, api, { now: () => t });
+    await u.check();
+    if (how === 'offline') api.throws = Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } });
+    else if (how === 'ratelimited') { api.status = 403; api.body = null; api.headers = { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String((t + 20 * 60000) / 1000) }; }
+    else { api.status = 500; api.body = null; api.headers = {}; }
+    u.timers.scheduled.length = 0;
+    const r = await u.update();
+    const s = u.state();
+    check(!r.ok && /could not confirm that v0\.2\.0 is still the latest release/.test(r.reason), '[' + how + '] feed unreadable: refused, says it could not confirm', r.reason);
+    check(git(w.app, 'rev-parse', 'HEAD') === old, '[' + how + '] nothing installed');
+    check(s.status === 'failed' && s.release && s.release.tag === 'v0.2.0' && s.canUpdate && !s.failure.withdrawn, '[' + how + '] the offer stays (Try again), it was not proven void', { st: s.status, canUpdate: s.canUpdate });
+    const wantNext = how === 'ratelimited' ? 21 * 60000 : U.RETRY_MS;
+    check(u.timers.scheduled[u.timers.scheduled.length - 1] === wantNext, '[' + how + '] retried later (' + wantNext / 60000 + ' min)', u.timers.scheduled);
+    api.throws = null; api.releaseOf('v0.2.0');
+    const r2 = await u.update();
+    check(r2.ok && git(w.app, 'rev-parse', 'HEAD') === sha, '[' + how + '] once the feed answers again, Try again installs', r2);
+  }
+  {
+    // New dependencies: npm ci runs for minutes, and the release is pulled meanwhile.
+    const w = world(); const api = fakeApi(); w.release('v0.2.0', { 'package.json': PKG('0.2.0', '1.0.0') }); api.releaseOf('v0.2.0');
+    const old = git(w.app, 'rev-parse', 'HEAD');
+    const u = make(w, api, { npm: async (args, o) => { write(o.cwd, 'node_modules/new.txt', 'new\n'); api.releaseOf('v0.1.0'); return { code: 0, stdout: '', stderr: '' }; } });
+    await u.check();
+    const r = await u.update();
+    const s = u.state();
+    check(!r.ok && /no longer the latest release/.test(r.reason), '[swap] pulled during npm ci: refused after staging', r.reason);
+    check(git(w.app, 'rev-parse', 'HEAD') === old && !fs.existsSync(path.join(w.app, U.STAGING_DIR)) && u.relaunchMode() === '',
+      '[swap] staging thrown away, no swap restart, HEAD unchanged');
+    const saved = JSON.parse(fs.readFileSync(path.join(w.data, 'updates.json'), 'utf8'));
+    check(!saved.pending && s.release === null, '[swap] no pending update is left for the next start', saved.pending);
+  }
+
   // ---- update failures: rollback --------------------------------------------------------------------
   {
     const w = world(); const api = fakeApi(); w.release('v0.2.0'); api.releaseOf('v0.2.0');

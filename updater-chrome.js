@@ -188,7 +188,7 @@
       c.appendChild(steps(p.stage));
       c.appendChild(el('div', 'lumen-alert-body qup-progress', p.text || ''));
     } else if (kind === 'failed') {
-      c.appendChild(el('div', 'lumen-alert-title', 'The update didn\'t finish'));
+      c.appendChild(el('div', 'lumen-alert-title', s.failure.withdrawn ? 'This update is no longer offered' : 'The update didn\'t finish'));
       c.appendChild(el('div', 'lumen-alert-body', s.failure.reason + '.'));
       c.appendChild(el('div', 'lumen-alert-note', 'Log: ' + s.failure.log));
       acts.appendChild(button('Show the log', 'lumen-alert-btn', 'log', doOpenLog));
@@ -230,7 +230,7 @@
       case 'error': return 'Couldn\'t check for updates: ' + s.error + '.' + at + next;
       case 'available': return 'Quartz ' + s.release.tag + ' is out. You have ' + youHave(s) + '.' + at;
       case 'updating': return (s.progress && s.progress.text) || 'Updating…';
-      case 'failed': return 'The last update didn\'t finish: ' + (s.failure ? s.failure.reason : 'no reason was given') + '.';
+      case 'failed': return (s.failure && s.failure.withdrawn ? 'The update was not installed: ' : 'The last update didn\'t finish: ') + (s.failure ? s.failure.reason : 'no reason was given') + '.';
       case 'updated': return 'Quartz is now on ' + s.updated.tag + ' (updated from ' + s.updated.from + ').';
       default: return 'Updates: ' + s.status;
     }
