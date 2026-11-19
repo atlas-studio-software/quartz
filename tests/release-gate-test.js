@@ -31,6 +31,10 @@ function write(dir, rel, text) { fs.mkdirSync(path.dirname(path.join(dir, rel)),
 const PKG = (v) => JSON.stringify({ name: 'browser', productName: 'Quartz', version: v, dependencies: { x: '1.0.0' } }, null, 2) + '\n';
 const LOCK = (v) => JSON.stringify({ name: 'browser', version: v, lockfileVersion: 3, packages: { '': { name: 'browser', version: v }, 'node_modules/x': { version: v } } }, null, 2) + '\n';
 const DAY = 24 * 3600000;
+// The real autonomy switch must never steer a test: point the gate at an empty folder (= OFF).
+const NO_AUTONOMY = path.join(ROOT, 'autonomy-none');
+fs.mkdirSync(NO_AUTONOMY, { recursive: true });
+process.env.QUARTZ_GATE_AUTONOMY_DIR = NO_AUTONOMY;
 const NOW = Date.parse('2026-11-20T12:00:00Z');
 
 let n = 0;
@@ -94,20 +98,59 @@ function fakeSh(o) {
   return sh;
 }
 
-/** A cloudtest run folder, as cloudtest downloads it. */
+const FULL = 'node tools/run-suite.js --out=suite-out';
+
+/**
+ * A cloudtest snapshot commit on top of `sha`, made with plumbing (no checkout): the job folder,
+ * cloudtest's own workflow, and o.snapFiles (null removes a path). Returns its sha.
+ */
+function snapshotCommit(repo, sha, o) {
+  const idx = path.join(ROOT, 'idx-' + (++n));
+  const env = Object.assign({}, process.env, { GIT_INDEX_FILE: idx });
+  const g = (args, input) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', input: input === undefined ? '' : input, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+  g(['read-tree', sha]);
+  const files = Object.assign({
+    '.cloudtest-job/command.sh': o.command === undefined ? FULL + '\n' : o.command,
+    '.cloudtest-job/test.sh': '#!/usr/bin/env bash\nset +e\necho "@@cloudtest-begin@@"\nbash .cloudtest-job/command.sh\ncode=$?\necho "@@cloudtest-exit=${code}@@"\nexit $code\n',
+    '.cloudtest-job/.gitattributes': '* text eol=lf\n',
+    '.github/workflows/cloudtest.yml': 'name: cloudtest\n',
+  }, o.snapFiles || {});
+  for (const [k, v] of Object.entries(files)) {
+    if (v === null) { g(['update-index', '--force-remove', k]); continue; }
+    const h = g(['hash-object', '-w', '--stdin'], v);
+    g(['update-index', '--add', '--cacheinfo', '100644,' + h + ',' + k]);
+  }
+  const tree = g(['write-tree']);
+  try { fs.unlinkSync(idx); } catch { /* fine */ }
+  return g(['commit-tree', tree, '-p', sha, '-m', 'cloudtest snapshot'], '');
+}
+
+/** A cloudtest run folder, as cloudtest downloads it: run.json, log.txt (the job log), artifacts. */
 function runDir(w, sha, o) {
-  const x = Object.assign({ recipe: 'quartz-core-public', mode: 'committed', files: 101, pass: 97, failN: 0, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e'], checksFailed: 0, summary: true, skipWhy: {} }, o || {});
+  const x = Object.assign({ recipe: 'quartz-core-public', mode: 'committed', files: 101, pass: 97, failN: 0, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e'], checksFailed: 0, summary: true, skipWhy: {}, log: 'ok', exit: 0, conclusion: 'failure', exitCode: 1 }, o || {});
   const d = path.join(w.dir, 'run-' + (++n));
+  const id = '20261119-000000-' + String(n).padStart(6, '0');
   const why = { 'askclaude-e2e': 'askclaude-e2e: cannot run: needs node-pty built for Electron (conpty.node is missing)', 'mcp-e2e': 'mcp-e2e: cannot run: needs node-pty built for Electron (conpty.node is missing)', smoke: 'opens a Claude Code pane: needs node-pty built for Electron (conpty.node)', 'updater-e2e': 'updater-e2e: cannot run: this checkout is a shallow clone, so ...' };
   const skipped = x.skips.length;
   const line = 'quartz-suite: ' + x.files + ' files: ' + x.pass + ' pass, ' + x.failN + ' FAIL, ' + skipped + ' skipped | checks 7752 passed, ' + x.checksFailed + ' failed';
-  write(d, 'run.json', JSON.stringify({ recipe: x.recipe, mode: x.mode, base: sha, conclusion: 'failure', exitCode: 1 }));
+  const snapshot = x.snapshot !== undefined ? x.snapshot : snapshotCommit(w.work, sha, x);
+  const command = x.runCommand !== undefined ? x.runCommand : (typeof x.command === 'string' ? x.command.replace(/\r?\n$/, '') : FULL);
+  write(d, 'run.json', JSON.stringify({ id, recipe: x.recipe, mode: x.mode, base: x.base || sha, snapshot, branch: 'cloudtest/' + id, command, conclusion: x.conclusion, exitCode: x.exitCode }));
   const results = [];
   for (let i = 0; i < x.pass; i++) results.push({ name: 't' + i, status: 'PASS', why: '' });
   for (let i = 0; i < x.failN; i++) results.push({ name: 'f' + i, status: 'FAIL', why: 'broke' });
   for (const s of x.skips) results.push({ name: s, status: 'SKIP', why: x.skipWhy[s] || why[s] || 'cannot run' });
   write(d, 'artifacts/suite.json', JSON.stringify({ verdict: line, results }));
-  write(d, 'artifacts/suite.txt', 'PASS a 1 s a: 1 passed, 0 failed\n' + (x.summary ? line + '\n' : ''));
+  write(d, 'artifacts/suite.txt', x.suiteTxt !== undefined ? x.suiteTxt : 'PASS a 1 s a: 1 passed, 0 failed\n' + (x.summary ? line + '\n' : ''));
+  const T = (l) => '2026-11-19T08:10:22.9338477Z ' + l;
+  const body = ['PASS a 1 s a: 1 passed, 0 failed'].concat(x.summary ? [line] : []);
+  let lines;
+  if (x.log === 'nomarkers') lines = body;
+  else if (x.log === 'twobegins') lines = ['@@cloudtest-begin@@'].concat(['@@cloudtest-begin@@'], body, ['@@cloudtest-exit=' + x.exit + '@@']);
+  else if (x.log === 'twosummaries') lines = ['@@cloudtest-begin@@'].concat(body, [line], ['@@cloudtest-exit=' + x.exit + '@@']);
+  else if (x.log === 'outside') lines = ['@@cloudtest-begin@@', 'PASS a 1 s a: 1 passed, 0 failed', '@@cloudtest-exit=0@@', line];
+  else lines = ['##[group]Run bash .cloudtest-job/test.sh', '@@cloudtest-begin@@'].concat(body, ['@@cloudtest-exit=' + x.exit + '@@', '##[group]Run actions/upload-artifact@v7']);
+  if (x.log !== 'missing') write(d, 'log.txt', lines.map(T).join('\r\n') + '\r\n');
   return d;
 }
 
@@ -152,11 +195,30 @@ async function main() {
 
     // The cloudtest result, every way it can be wrong.
     const bads = [
-      ['another commit', runDir(w, 'f'.repeat(40)), /tested ffffffffffff, not/],
+      ['another commit', runDir(w, sha, { base: 'f'.repeat(40) }), /tested ffffffffffff, not/],
       ['a working-tree snapshot', runDir(w, sha, { mode: 'snapshot', recipe: 'quartz-core' }), /recipe "quartz-core"/],
       ['1 FAIL', runDir(w, sha, { pass: 96, failN: 1 }), /1 file\(s\) FAIL/],
       ['a failed check', runDir(w, sha, { checksFailed: 2 }), /2 check\(s\) failed/],
-      ['no summary line', runDir(w, sha, { summary: false }), /no quartz-suite summary line/],
+      ['no summary line', runDir(w, sha, { summary: false }), /0 quartz-suite summary lines between the job markers/],
+      // 1. The summary line inside the job markers.
+      ['a log without job markers', runDir(w, sha, { log: 'nomarkers' }), /0 @@cloudtest-begin@@ markers/],
+      ['two begin markers', runDir(w, sha, { log: 'twobegins' }), /2 @@cloudtest-begin@@ markers/],
+      ['two summary lines inside the markers', runDir(w, sha, { log: 'twosummaries' }), /2 quartz-suite summary lines between the job markers/],
+      ['the summary only after the exit marker', runDir(w, sha, { log: 'outside' }), /0 quartz-suite summary lines between the job markers/],
+      ['exit marker 0 and run.json success, but 1 FAIL inside', runDir(w, sha, { pass: 96, failN: 1, exit: 0, conclusion: 'success', exitCode: 0 }), /1 file\(s\) FAIL/],
+      ['suite.txt disagreeing with the job log', runDir(w, sha, { suiteTxt: 'quartz-suite: 101 files: 97 pass, 0 FAIL, 4 skipped | checks 9999 passed, 0 failed\n' }), /suite\.txt's summary differs/],
+      ['no job log', runDir(w, sha, { log: 'missing' }), /log\.txt \(the job log\) is missing/],
+      // 2. The snapshot tree.
+      ['a snapshot that is not in this repository', runDir(w, sha, { snapshot: 'e'.repeat(40) }), /snapshot commit eeeeeeeeeeee is not in this repository \(fetch it: git fetch origin cloudtest\//],
+      ['a snapshot with an uncommitted change in it', runDir(w, sha, { snapFiles: { 'main.js': '// edited, not committed\n' } }), /differs from the commit outside .*: main\.js .*working tree/],
+      ['a snapshot with a new file outside the job folders', runDir(w, sha, { snapFiles: { 'docs/scratch.md': 'x\n' } }), /outside .*: docs\/scratch\.md/],
+      ['run.json naming no snapshot', runDir(w, sha, { snapshot: '' }), /names no snapshot commit/],
+      // 3. command.sh.
+      ['command.sh with "; echo X=$?" appended', runDir(w, sha, { command: 'node tools/run-suite.js --out=suite-out; echo X=$?\n' }), /command\.sh is .*echo X=\$\?.*not exactly the recipe's/],
+      ['command.sh with CRLF', runDir(w, sha, { command: 'node tools/run-suite.js --out=suite-out\r\n' }), /command\.sh is .*\\r\\n.*not exactly/],
+      ['command.sh with a second line', runDir(w, sha, { command: 'node tools/run-suite.js --out=suite-out\nexit 0\n' }), /not exactly the recipe's/],
+      ['command.sh running part of the suite', runDir(w, sha, { command: 'node tools/run-suite.js --only=argvurl --out=suite-out\n', runCommand: 'node tools/run-suite.js --only=argvurl --out=suite-out' }), /not the full suite/],
+      ['a snapshot without command.sh', runDir(w, sha, { command: null }), /has no \.cloudtest-job\/command\.sh/],
       ['a RAM skip', runDir(w, sha, { pass: 96, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e', 'watch-e2e'], skipWhy: { 'watch-e2e': 'watch-e2e: not launched: 1.9 GB free RAM' } }), /SKIP watch-e2e is not a known runner limit/],
       ['a known name with another reason', runDir(w, sha, { skipWhy: { smoke: 'not launched: 1.2 GB free RAM' } }), /SKIP smoke is not a known runner limit/],
       ['a plain file, not a run folder', path.join(runDir(w, sha), 'artifacts', 'suite.txt'), /must be a cloudtest run folder/],
@@ -166,6 +228,14 @@ async function main() {
       const r3 = await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: f.fetch, sh: fakeSh(), say: say3, now: () => NOW });
       const t = r3.checks.find((c) => c.name === 'cloudtest').text;
       check(!r3.go && autonomy(say3.lines).result === 'refused' && re.test(t), 'cloudtest result from ' + label + ': NO-GO, says why', t);
+    }
+    for (const [label, o] of [
+      ['command.sh without a final newline', { command: 'node tools/run-suite.js --out=suite-out' }],
+      ['an exit marker of 1 (never read) with a clean summary', { exit: 1 }],
+      ['a snapshot that also changes .github/workflows/ and .cloudtest/', { snapFiles: { '.github/workflows/cloudtest.yml': 'on: push\n', '.cloudtest/note.txt': 'x\n' } }],
+    ]) {
+      const r4 = await G.gate({ cwd: w.work, commit: sha, result: runDir(w, sha, o), fetch: f.fetch, sh: fakeSh(), say: quiet(), now: () => NOW });
+      check(r4.go && r4.result === 'would', 'cloudtest result with ' + label + ': still GO', r4.checks.filter((c) => !c.ok));
     }
     const okDir = runDir(w, sha);
     check(JSON.parse(fs.readFileSync(path.join(okDir, 'run.json'), 'utf8')).exitCode === 1 && r.go, 'the run\'s exit code and conclusion are never read (a "failure" conclusion with a clean summary is GO)');
@@ -264,6 +334,62 @@ async function main() {
     const edit = x.sh.outward()[2];
     check(edit.includes('--draft=false') && edit.includes('--latest') && edit.includes(L.SLUG) && edit.includes('v0.1.2'), 'the publish names the repo, the tag, --draft=false --latest', edit);
     check(x.sh.calls.find((c) => c[0] === 'node') && true, 'release-tag.js ran (faked) in the release clone');
+  }
+
+  // ---- autonomy mode: --send refused while it is ON (a human signs Quartz tags in v1) ----------------
+  {
+    const crypto = require('crypto');
+    const POLICY = '{"quartz":{"release":"prepare"}}\n';
+    const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
+    /** An autonomy folder: mode fields over an ON default, policy text, STOP or not. */
+    const modeDir = (mode, o) => {
+      const d = path.join(ROOT, 'autonomy-' + (++n));
+      fs.mkdirSync(d, { recursive: true });
+      const opt = o || {};
+      if (mode !== null) fs.writeFileSync(path.join(d, 'mode.json'), typeof mode === 'string' ? mode : JSON.stringify(Object.assign({ on: true, paused: false, length: { kind: 'open' }, policySha: sha256(POLICY) }, mode)));
+      if (opt.policy !== null) fs.writeFileSync(path.join(d, 'policy.json'), opt.policy === undefined ? POLICY : opt.policy);
+      if (opt.stop) fs.writeFileSync(path.join(d, 'STOP'), '');
+      return d;
+    };
+    const on = (d) => G.autonomyOn(d, () => NOW).on;
+    check(!on(path.join(ROOT, 'nonesuch')), 'autonomy: no folder -> OFF');
+    check(!on(modeDir(null)), 'autonomy: no mode.json -> OFF');
+    check(!on(modeDir('{not json')), 'autonomy: unreadable mode.json -> OFF');
+    check(on(modeDir({})), 'autonomy: on, not paused, open, policy matches, no STOP -> ON');
+    check(!on(modeDir({ on: false })), 'autonomy: on false -> OFF');
+    check(!on(modeDir({ paused: true })), 'autonomy: paused -> OFF');
+    check(on(modeDir({ length: { kind: 'fixed' }, endsAt: new Date(NOW + 3600000).toISOString() })), 'autonomy: a fixed length before endsAt -> ON');
+    check(!on(modeDir({ length: { kind: 'fixed' }, endsAt: new Date(NOW - 1000).toISOString() })), 'autonomy: past endsAt -> OFF');
+    check(!on(modeDir({ length: { kind: 'fixed' } })), 'autonomy: a fixed length with no endsAt -> OFF');
+    check(!on(modeDir({}, { policy: POLICY + ' ' })), 'autonomy: policy.json changed (sha256 differs) -> OFF');
+    check(!on(modeDir({}, { policy: null })), 'autonomy: no policy.json -> OFF');
+    check(!on(modeDir({}, { stop: true })), 'autonomy: STOP exists -> OFF');
+
+    const w = world();
+    const sha = w.commit({ 'package.json': PKG('0.1.2'), 'package-lock.json': LOCK('0.1.2'), 'docs/releases/v0.1.2.md': NOTES }, 'Quartz 0.1.2', true);
+    const dir = runDir(w, sha);
+    const clone = w.releaseClone();
+    for (const [label, how] of [['the option', 'opt'], ['QUARTZ_GATE_AUTONOMY_DIR', 'env']]) {
+      const d = modeDir({});
+      const sh = fakeSh(); const say = quiet();
+      if (how === 'env') process.env.QUARTZ_GATE_AUTONOMY_DIR = d;
+      try {
+        const r = await G.gate(Object.assign({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh, say, now: () => NOW, send: true, clone, sleep: async () => {} }, how === 'opt' ? { autonomyDir: d } : {}));
+        const a = autonomy(say.lines);
+        check(a.result === 'refused' && /a human signs Quartz tags/.test(a.why) && sh.outward().length === 0,
+          'autonomy ON (' + label + '): --send refused, says a human signs Quartz tags, nothing outward', { a, outward: sh.outward() });
+      } finally { process.env.QUARTZ_GATE_AUTONOMY_DIR = NO_AUTONOMY; }
+    }
+    {
+      const say = quiet();
+      const r = await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh: fakeSh(), say, now: () => NOW, autonomyDir: modeDir({}) });
+      check(r.go && autonomy(say.lines).result === 'would', 'autonomy ON without --send: the gate still prepares and judges (would)');
+    }
+    {
+      const say = quiet(); const sh = fakeSh();
+      await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh, say, now: () => NOW, send: true, clone: '', autonomyDir: modeDir({ paused: true }) });
+      check(/needs --clone/.test(autonomy(say.lines).why), 'autonomy paused: --send is not blocked by the mode (it goes on to its own checks)');
+    }
   }
 
   // ---- rollback -----------------------------------------------------------------------------------

@@ -24,10 +24,23 @@
  *   - release notes exist at that commit in docs/releases/v<version>.md: non-empty, at most 2000
  *     characters (what the update card shows), no local paths. They are printed for review: the
  *     same text becomes the GitHub release and the public posts;
- *   - with --result: the cloudtest run tested exactly this commit (run.json: recipe
- *     quartz-core-public, mode committed, base = the commit), and its summary line says
- *     0 FAIL and 0 failed checks. The exit code and the run's "conclusion" are never read. A SKIP
- *     is allowed only when it is one of KNOWN_SKIPS, by name AND reason; a RAM skip never is.
+ *   - with --result: the cloudtest run tested exactly this commit and ran exactly the full suite:
+ *       run.json: recipe quartz-core-public, mode committed, base = the commit;
+ *       the job log (log.txt): exactly one summary line between @@cloudtest-begin@@ and
+ *         @@cloudtest-exit=...@@, with 0 FAIL and 0 failed checks (cloudtest snapshots the working
+ *         tree, and a command ending "; echo X=$?" makes run.json say success: so neither the
+ *         run's "conclusion", its exit code, nor the exit marker's code is ever read);
+ *       the snapshot commit (run.json "snapshot") is in this repository and differs from the
+ *         commit only under .cloudtest-job/, .cloudtest/ or .github/workflows/;
+ *       its .cloudtest-job/command.sh is exactly the recipe's command (one final LF allowed,
+ *         nothing else: an appended "; echo ..." or a CRLF is refused).
+ *     A SKIP is allowed only when it is one of KNOWN_SKIPS, by name AND reason; a RAM skip never is.
+ *
+ * AUTONOMOUS MODE. While autonomy mode is ON, a human signs Quartz tags: --send is refused before
+ * anything is checked or sent (the gate still prepares and judges the release). ON means
+ * <autonomy dir>/mode.json is readable, on, not paused, open-ended or before endsAt, its policySha
+ * is the sha256 of <autonomy dir>/policy.json, and <autonomy dir>/STOP does not exist; anything
+ * else (a missing file included) is OFF. QUARTZ_GATE_AUTONOMY_DIR points tests at a temp folder.
  *
  * WHAT --send DOES, in order, stopping at the first failure:
  *   1. <dir> must be a separate clone (release-tag.js needs the default branch checked out, which a
@@ -49,6 +62,8 @@ const path = require('path');
 const L = require('./release-lib');
 
 const NOTES_DIR = 'docs/releases';
+// The studio's autonomy switch (outside the repository; absent on any other machine = OFF).
+const AUTONOMY_DIR = path.join(require('os').homedir(), 'helm-team', 'atlas-studio', 'autonomy');
 const NOTES_MAX = 2000;
 const SUMMARY_RE = /^quartz-suite: (\d+) files: (\d+) pass, (\d+) FAIL, (\d+) skipped \| checks (\d+) passed, (\d+) failed\s*$/;
 // Skips that mean "this runner cannot run it", seen on every cloudtest run, never "it failed".
@@ -72,12 +87,40 @@ function parseSummary(text) {
   return null;
 }
 
+// The full suite as the recipe runs it, and where a cloudtest snapshot may differ from the commit.
+const RECIPE = 'quartz-core-public';
+const RECIPE_COMMAND = 'node tools/run-suite.js --out=suite-out';
+const SNAPSHOT_ONLY = ['.cloudtest-job/', '.cloudtest/', '.github/workflows/'];
+const BEGIN = '@@cloudtest-begin@@';
+const EXIT_RE = /^@@cloudtest-exit=(-?\d+)@@$/;
+
 /**
- * Go / no-go from a cloudtest run folder ({ run.json, artifacts/suite.txt, artifacts/suite.json }).
+ * The summary line inside the job markers of a cloudtest job log. { s, why } where s is the parsed
+ * summary (or null) and why says what is wrong. Exactly one begin marker, exactly one exit marker
+ * after it, exactly one summary line between them. The exit marker's code is never read.
+ */
+function markedSummary(logText) {
+  const lines = String(logText || '').split(/\r?\n/).map((l) => l.replace(/^\S+Z /, '').trim());
+  const begins = [], exits = [];
+  lines.forEach((l, i) => { if (l === BEGIN) begins.push(i); else if (EXIT_RE.test(l)) exits.push(i); });
+  if (begins.length !== 1) return { s: null, why: 'the job log has ' + begins.length + ' ' + BEGIN + ' markers, not one' };
+  if (exits.length !== 1) return { s: null, why: 'the job log has ' + exits.length + ' @@cloudtest-exit=@@ markers, not one' };
+  if (exits[0] < begins[0]) return { s: null, why: 'the exit marker comes before the begin marker' };
+  const inside = lines.slice(begins[0] + 1, exits[0]).filter((l) => SUMMARY_RE.test(l));
+  if (inside.length !== 1) return { s: null, why: inside.length + ' quartz-suite summary lines between the job markers, not one' + (inside.length ? '' : ': that is a FAIL') };
+  return { s: parseSummary(inside[0]), why: '' };
+}
+
+/**
+ * Go / no-go from a cloudtest run folder ({ run.json, log.txt, artifacts/suite.json,
+ * artifacts/suite.txt }) for commit `sha`. o.git(args) -> { code, stdout, stderr } runs git in the
+ * repository that holds the commit (and, locally, the run's snapshot commit). o.readFile is for tests.
  * Resolves { go, why: [..], summary, skips: [..] }.
  */
-function judgeResult(dir, sha, readFile) {
-  const rd = readFile || ((p) => fs.readFileSync(p, 'utf8'));
+async function judgeResult(dir, sha, o) {
+  const opt = o || {};
+  const rd = opt.readFile || ((p) => fs.readFileSync(p, 'utf8'));
+  const git = opt.git;
   const why = [];
   const out = { go: false, why, summary: null, skips: [] };
   let st = null;
@@ -86,20 +129,35 @@ function judgeResult(dir, sha, readFile) {
   let runJson = null;
   try { runJson = JSON.parse(rd(path.join(dir, 'run.json'))); } catch (e) { why.push('run.json could not be read: ' + e.message); }
   if (runJson) {
-    if (runJson.recipe !== 'quartz-core-public') why.push('the run used the recipe "' + runJson.recipe + '", not quartz-core-public');
+    if (runJson.recipe !== RECIPE) why.push('the run used the recipe "' + runJson.recipe + '", not ' + RECIPE);
     if (runJson.mode !== 'committed') why.push('the run tested "' + runJson.mode + '" files, not a pushed commit');
     if (runJson.base !== sha) why.push('the run tested ' + String(runJson.base || 'an unknown commit').slice(0, 12) + ', not ' + sha.slice(0, 12));
+    if (runJson.command !== RECIPE_COMMAND) why.push('run.json\'s command is "' + String(runJson.command).slice(0, 120) + '", not the full suite "' + RECIPE_COMMAND + '"');
   }
-  let text = '';
-  try { text = rd(path.join(dir, 'artifacts', 'suite.txt')); } catch { try { text = rd(path.join(dir, 'log.txt')); } catch { /* none */ } }
-  const s = parseSummary(text);
+
+  // 1. The summary line inside the job markers.
+  let log = null;
+  try { log = rd(path.join(dir, 'log.txt')); } catch { /* checked below */ }
+  const m = log === null ? { s: null, why: 'log.txt (the job log) is missing' } : markedSummary(log);
+  const s = m.s;
   out.summary = s;
-  if (!s) { why.push('no quartz-suite summary line in the run\'s log: that is a FAIL'); return out; }
+  if (!s) why.push(m.why);
+  else {
+    if (s.fail !== 0) why.push(s.fail + ' file(s) FAIL');
+    if (s.checksFailed !== 0) why.push(s.checksFailed + ' check(s) failed');
+    if (s.pass === 0) why.push('nothing passed');
+    if (s.pass + s.fail + s.skipped !== s.files) why.push('the summary does not add up (' + s.line + ')');
+    let txt = null;
+    try { txt = rd(path.join(dir, 'artifacts', 'suite.txt')); } catch { /* optional */ }
+    if (txt !== null) { const t = parseSummary(txt); if (!t || t.line !== s.line) why.push('artifacts/suite.txt\'s summary differs from the job log\'s'); }
+  }
+
+  // The skips, from suite.json.
   let suite = null;
   try { suite = JSON.parse(rd(path.join(dir, 'artifacts', 'suite.json'))); } catch { /* checked below */ }
   if (!suite || !Array.isArray(suite.results)) why.push('artifacts/suite.json is missing, so the skips cannot be judged');
   else {
-    if (String(suite.verdict || '').trim() !== s.line) why.push('suite.json\'s verdict differs from the log\'s summary line');
+    if (s && String(suite.verdict || '').trim() !== s.line) why.push('suite.json\'s verdict differs from the job log\'s summary line');
     for (const r of suite.results.filter((x) => x.status === 'SKIP')) {
       const known = KNOWN_SKIPS.find((k) => k.name === r.name && k.why.test(String(r.why || '')));
       out.skips.push({ name: r.name, why: String(r.why || ''), known: !!known });
@@ -107,14 +165,51 @@ function judgeResult(dir, sha, readFile) {
     }
     const fails = suite.results.filter((x) => x.status !== 'PASS' && x.status !== 'SKIP').map((x) => x.name);
     if (fails.length) why.push('not passing: ' + fails.join(', '));
+    if (s && s.skipped !== out.skips.length) why.push('the summary counts ' + s.skipped + ' skipped, suite.json ' + out.skips.length);
   }
-  if (s.fail !== 0) why.push(s.fail + ' file(s) FAIL');
-  if (s.checksFailed !== 0) why.push(s.checksFailed + ' check(s) failed');
-  if (s.pass === 0) why.push('nothing passed');
-  if (s.pass + s.fail + s.skipped !== s.files) why.push('the summary does not add up (' + s.line + ')');
-  if (s.skipped !== out.skips.length && suite) why.push('the summary counts ' + s.skipped + ' skipped, suite.json ' + out.skips.length);
+
+  // 2. The snapshot tree, and 3. command.sh.
+  const snap = runJson ? String(runJson.snapshot || '') : '';
+  if (!git) why.push('no git to check the run\'s snapshot commit with');
+  else if (!/^[0-9a-f]{40}$/.test(snap)) why.push('run.json names no snapshot commit');
+  else {
+    const t = await git(['cat-file', '-t', snap]);
+    if (t.code !== 0 || t.stdout.trim() !== 'commit') {
+      why.push('the run\'s snapshot commit ' + snap.slice(0, 12) + ' is not in this repository' + (runJson.branch ? ' (fetch it: git fetch origin ' + runJson.branch + ')' : ''));
+    } else {
+      const d = await git(['diff', '--name-only', '--no-renames', sha, snap]);
+      if (d.code !== 0) why.push('the snapshot could not be compared with the commit: ' + String(d.stderr).trim().split(/\r?\n/).pop());
+      else {
+        const extra = d.stdout.split(/\r?\n/).filter(Boolean).filter((f) => !SNAPSHOT_ONLY.some((p) => f.startsWith(p)));
+        if (extra.length) why.push('the snapshot differs from the commit outside ' + SNAPSHOT_ONLY.join(', ') + ': ' + extra.slice(0, 6).join(', ') + (extra.length > 6 ? ' and ' + (extra.length - 6) + ' more' : '') + ' (cloudtest tested the working tree, not the commit)');
+      }
+      const c = await git(['show', snap + ':.cloudtest-job/command.sh']);
+      if (c.code !== 0) why.push('the snapshot has no .cloudtest-job/command.sh');
+      else if (c.stdout !== RECIPE_COMMAND && c.stdout !== RECIPE_COMMAND + '\n') {
+        why.push('the snapshot\'s command.sh is ' + JSON.stringify(c.stdout.slice(0, 160)) + ', not exactly the recipe\'s ' + JSON.stringify(RECIPE_COMMAND));
+      }
+    }
+  }
   out.go = why.length === 0;
   return out;
+}
+
+/** autonomy/mode.json says ON? { on, why }. Missing or unreadable is OFF. */
+function autonomyOn(dir, now) {
+  const crypto = require('crypto');
+  const t = typeof now === 'function' ? now() : Date.now();
+  let mode;
+  try { mode = JSON.parse(fs.readFileSync(path.join(dir, 'mode.json'), 'utf8')); } catch { return { on: false, why: 'mode.json missing or unreadable' }; }
+  if (!mode || mode.on !== true) return { on: false, why: 'mode is off' };
+  if (mode.paused) return { on: false, why: 'mode is paused' };
+  const open = mode.length && mode.length.kind === 'open';
+  const ends = typeof mode.endsAt === 'number' ? mode.endsAt : Date.parse(String(mode.endsAt || ''));
+  if (!open && !(t < ends)) return { on: false, why: 'mode has ended' };
+  let policy;
+  try { policy = fs.readFileSync(path.join(dir, 'policy.json')); } catch { return { on: false, why: 'policy.json missing' }; }
+  if (crypto.createHash('sha256').update(policy).digest('hex') !== String(mode.policySha || '').toLowerCase()) return { on: false, why: 'policy.json does not match policySha' };
+  if (fs.existsSync(path.join(dir, 'STOP'))) return { on: false, why: 'STOP is set' };
+  return { on: true, why: 'autonomy mode is on' };
 }
 
 function cloudtestCommand(sha) {
@@ -237,7 +332,7 @@ async function gate(o) {
   for (const l of cloudtestCommand(sha)) say('  ' + l);
   let verdict = null;
   if (o.result) {
-    verdict = judgeResult(o.result, sha, o.readFile);
+    verdict = await judgeResult(o.result, sha, { readFile: o.readFile, git: (args) => git(args) });
     for (const s of verdict.skips) say('release-gate: SKIP ' + s.name + (s.known ? ' (known runner limit)' : ' (NOT allowed)') + ': ' + s.why.slice(0, 160));
     add('cloudtest', verdict.go, (verdict.summary ? verdict.summary.line : 'no summary line') + (verdict.why.length ? ' -- ' + verdict.why.join('; ') : ''));
   } else {
@@ -266,6 +361,8 @@ async function send(o, base, k) {
   const { tag, sha } = base;
   const dir = o.clone ? path.resolve(o.clone) : '';
   const refuse = (why) => { say('release-gate: --send refused: ' + why); return finish('refused', why, base); };
+  const mode = autonomyOn(o.autonomyDir || process.env.QUARTZ_GATE_AUTONOMY_DIR || AUTONOMY_DIR, o.now);
+  if (mode.on) return refuse('autonomy mode is on, and in v1 a human signs Quartz tags: the gate prepares the release, a person runs release-tag.js and publishes');
   if (!dir) return refuse('--send needs --clone=<dir>: a separate clone of the public repository on master at ' + sha.slice(0, 7));
   const g = (args) => sh('git', args, { cwd: dir });
   if (fs.existsSync(path.join(dir, '.git')) && fs.statSync(path.join(dir, '.git')).isFile()) return refuse(dir + ' is a linked worktree; release-tag.js needs a separate clone with master checked out');
@@ -305,7 +402,7 @@ async function send(o, base, k) {
   return finish('done', 'published ' + tag + ' at ' + sha.slice(0, 7), base);
 }
 
-module.exports = { gate, judgeResult, parseSummary, cloudtestCommand, KNOWN_SKIPS, NOTES_DIR };
+module.exports = { gate, judgeResult, markedSummary, autonomyOn, parseSummary, cloudtestCommand, KNOWN_SKIPS, NOTES_DIR, RECIPE_COMMAND, SNAPSHOT_ONLY };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);

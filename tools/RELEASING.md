@@ -61,8 +61,12 @@ Rules that keep updates safe:
 that the commit is on `origin/master`, that its version is a patch after the latest release, that
 the tag is unused, that nothing was published in the last 48 hours, and that release notes exist
 in `docs/releases/v<version>.md`. It prints the notes for review and the full-suite cloudtest
-command for that exact commit. `--result=<cloudtest run folder>` gives go or no-go from the run's
-summary line. Only `--send --clone=<dir>` publishes: from a separate clone on master at the commit,
+command for that exact commit. `--result=<cloudtest run folder>` gives go or no-go. The run must
+show exactly one summary line, with 0 FAIL, between `@@cloudtest-begin@@` and
+`@@cloudtest-exit=` in its job log. Its snapshot commit must differ from the release commit only
+under `.cloudtest-job/`, `.cloudtest/` or `.github/workflows/`, and its `command.sh` must be
+exactly the recipe's full-suite command. The run's exit code and conclusion are never read.
+While the studio's autonomy mode is on, `--send` is refused: a person signs Quartz tags. Only `--send --clone=<dir>` publishes: from a separate clone on master at the commit,
 and only once the installer workflow's draft for that commit carries `Quartz-Setup.exe`. Every
 outward step prints one `AUTONOMY: {...}` line; read its `result`, not the exit code.
 
