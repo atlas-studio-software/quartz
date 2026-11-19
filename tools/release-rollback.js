@@ -25,6 +25,10 @@
  * Then it prints the remaining steps: merge to master, the installer workflow, cloudtest, and
  * tools/release-gate.js <commit> --rollback-of=<bad> (which waives the 48 h cap for this tree only).
  *
+ * Autonomy mode (the contract's one formula, release-lib.js modeState): --send is refused while
+ * PAUSED, and while ON when mode.json's holds name quartz-release or quartz-rollback. While ON
+ * without such a hold it goes ahead: withdrawing a bad release signs nothing.
+ *
  * The line callers read, for (a):
  *   AUTONOMY: {"class":"quartz-rollback","target":"<bad>","result":"done|failed|refused|would","why":...}
  */
@@ -67,6 +71,16 @@ async function rollback(o) {
   };
   const refuse = (why) => { say('release-rollback: refused: ' + why); return finish('refused', why); };
   if (!L.parseVersion(bad)) return refuse('"' + bad + '" is not a release tag (vX.Y.Z)');
+
+  // The studio's autonomy mode (release-lib.js modeState): --send is refused while PAUSED, and
+  // while ON when Owen holds quartz-release or quartz-rollback. --prepare and the dry run are local.
+  if (o.send) {
+    const dir = L.autonomyDir(o.autonomyDir);
+    const state = L.modeState(dir, o.now ? o.now() : Date.now());
+    if (state === 'PAUSED') return refuse('paused: autonomy mode is PAUSED, which refuses every outward action; nothing was sent');
+    const held = state === 'ON' ? ['quartz-release', 'quartz-rollback'].filter((c) => L.modeHolds(dir, c)) : [];
+    if (held.length) return refuse('held: autonomy mode is ON and Owen holds ' + held.join(' and ') + '; nothing was sent');
+  }
 
   await git(['fetch', '--quiet', 'origin', '+refs/heads/master:refs/remotes/origin/master', 'refs/tags/v*:refs/tags/v*']);
   const badSha = (await git(['rev-parse', '--verify', '--quiet', 'refs/tags/' + bad + '^{commit}'])).stdout.trim();

@@ -83,4 +83,53 @@ function autonomyLine(cls, target, result, why) {
   return 'AUTONOMY: ' + JSON.stringify(o);
 }
 
-module.exports = { SLUG, API, INSTALLER_ASSET, CAP_MS, run, fetchJson, readFeed, parseVersion, patchOnly, autonomyLine };
+/* ---- the studio's autonomy mode (one formula for every reader) ------------------------------------ */
+
+// Outside the repository; on any other machine it is absent, which is OFF. Tests point
+// QUARTZ_GATE_AUTONOMY_DIR at a temp folder (honoured by autonomyDir() only).
+const AUTONOMY_DIR = require('path').join(require('os').homedir(), 'helm-team', 'atlas-studio', 'autonomy');
+function autonomyDir(opt) { return opt || process.env.QUARTZ_GATE_AUTONOMY_DIR || AUTONOMY_DIR; }
+
+/** mode.json as an object, or null (missing, unreadable, not JSON, not an object, an array). */
+function readMode(dir) {
+  try {
+    const m = JSON.parse(require('fs').readFileSync(require('path').join(dir, 'mode.json'), 'utf8'));
+    return m && typeof m === 'object' && !Array.isArray(m) ? m : null;
+  } catch { return null; }
+}
+
+/**
+ * 'ON' | 'PAUSED' | 'OFF' at time `now` (ms, a Date or a date string), exactly as the autonomy
+ * contract's section 1 formula:
+ *   ACTIVE = mode.json parses to an object (not an array) && mode.on === true && live(mode.length)
+ *            && policy.json exists && mode.policySha === sha256hex(policy.json bytes) (exact)
+ *            && STOP does not exist
+ *   live(l) = l is an object && (l.kind === "open"
+ *             || (l.kind === "fixed" && Number.isFinite(Date.parse(l.endsAt)) && now < Date.parse(l.endsAt)))
+ *   ON = ACTIVE && !mode.paused;  PAUSED = ACTIVE && !!mode.paused;  OFF = everything else
+ * Any error reading any of the files is OFF.
+ */
+function modeState(dir, now) {
+  const fs = require('fs');
+  const path = require('path');
+  const t = now instanceof Date ? now.getTime() : typeof now === 'string' ? Date.parse(now) : typeof now === 'number' ? now : Date.now();
+  try {
+    const mode = readMode(dir);
+    if (!mode || mode.on !== true) return 'OFF';
+    const l = mode.length;
+    const live = !!l && typeof l === 'object' && (l.kind === 'open' || (l.kind === 'fixed' && Number.isFinite(Date.parse(l.endsAt)) && t < Date.parse(l.endsAt)));
+    if (!live) return 'OFF';
+    const policy = fs.readFileSync(path.join(dir, 'policy.json'));
+    if (mode.policySha !== require('crypto').createHash('sha256').update(policy).digest('hex')) return 'OFF';
+    try { fs.statSync(path.join(dir, 'STOP')); return 'OFF'; } catch (e) { if (!e || e.code !== 'ENOENT') return 'OFF'; }
+    return mode.paused ? 'PAUSED' : 'ON';
+  } catch { return 'OFF'; }
+}
+
+/** Is `cls` held in mode.json's holds? A missing or non-array holds is none. */
+function modeHolds(dir, cls) {
+  const mode = readMode(dir);
+  return !!mode && Array.isArray(mode.holds) && mode.holds.includes(cls);
+}
+
+module.exports = { SLUG, API, INSTALLER_ASSET, CAP_MS, run, fetchJson, readFeed, parseVersion, patchOnly, autonomyLine, AUTONOMY_DIR, autonomyDir, readMode, modeState, modeHolds };

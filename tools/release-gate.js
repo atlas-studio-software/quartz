@@ -36,11 +36,10 @@
  *         nothing else: an appended "; echo ..." or a CRLF is refused).
  *     A SKIP is allowed only when it is one of KNOWN_SKIPS, by name AND reason; a RAM skip never is.
  *
- * AUTONOMOUS MODE. While autonomy mode is ON, a human signs Quartz tags: --send is refused before
- * anything is checked or sent (the gate still prepares and judges the release). ON means
- * <autonomy dir>/mode.json is readable, on, not paused, open-ended or before endsAt, its policySha
- * is the sha256 of <autonomy dir>/policy.json, and <autonomy dir>/STOP does not exist; anything
- * else (a missing file included) is OFF. QUARTZ_GATE_AUTONOMY_DIR points tests at a temp folder.
+ * AUTONOMOUS MODE. In v1 a human signs Quartz tags: while the studio's autonomy mode is ON or
+ * PAUSED, --send is refused before anything is checked or sent (the gate still prepares and judges
+ * the release). The state is release-lib.js modeState(), the autonomy contract's one formula; only
+ * OFF lets --send go on. QUARTZ_GATE_AUTONOMY_DIR points tests at a temp folder.
  *
  * WHAT --send DOES, in order, stopping at the first failure:
  *   1. <dir> must be a separate clone (release-tag.js needs the default branch checked out, which a
@@ -62,8 +61,6 @@ const path = require('path');
 const L = require('./release-lib');
 
 const NOTES_DIR = 'docs/releases';
-// The studio's autonomy switch (outside the repository; absent on any other machine = OFF).
-const AUTONOMY_DIR = path.join(require('os').homedir(), 'helm-team', 'atlas-studio', 'autonomy');
 const NOTES_MAX = 2000;
 const SUMMARY_RE = /^quartz-suite: (\d+) files: (\d+) pass, (\d+) FAIL, (\d+) skipped \| checks (\d+) passed, (\d+) failed\s*$/;
 // Skips that mean "this runner cannot run it", seen on every cloudtest run, never "it failed".
@@ -71,9 +68,7 @@ const KNOWN_SKIPS = [
   { name: 'askclaude-e2e', why: /node-pty|conpty\.node/ },
   { name: 'mcp-e2e', why: /node-pty|conpty\.node/ },
   { name: 'smoke', why: /node-pty|conpty\.node/ },
-  // The updater's own e2e refuses a shallow checkout by design; tests/updater-test.js covers the
-  // update path in pure node on every run. Fix the recipe (full history) to drop this entry.
-  { name: 'updater-e2e', why: /shallow clone/ },
+  // updater-e2e is NOT here: the recipe fetches the full history now, so it runs; a skip is NO-GO.
 ];
 const PERSONAL = /[A-Za-z]:\\+Users\\+|\/Users\/|\/home\/|%USERPROFILE%/i;
 
@@ -192,24 +187,6 @@ async function judgeResult(dir, sha, o) {
   }
   out.go = why.length === 0;
   return out;
-}
-
-/** autonomy/mode.json says ON? { on, why }. Missing or unreadable is OFF. */
-function autonomyOn(dir, now) {
-  const crypto = require('crypto');
-  const t = typeof now === 'function' ? now() : Date.now();
-  let mode;
-  try { mode = JSON.parse(fs.readFileSync(path.join(dir, 'mode.json'), 'utf8')); } catch { return { on: false, why: 'mode.json missing or unreadable' }; }
-  if (!mode || mode.on !== true) return { on: false, why: 'mode is off' };
-  if (mode.paused) return { on: false, why: 'mode is paused' };
-  const open = mode.length && mode.length.kind === 'open';
-  const ends = typeof mode.endsAt === 'number' ? mode.endsAt : Date.parse(String(mode.endsAt || ''));
-  if (!open && !(t < ends)) return { on: false, why: 'mode has ended' };
-  let policy;
-  try { policy = fs.readFileSync(path.join(dir, 'policy.json')); } catch { return { on: false, why: 'policy.json missing' }; }
-  if (crypto.createHash('sha256').update(policy).digest('hex') !== String(mode.policySha || '').toLowerCase()) return { on: false, why: 'policy.json does not match policySha' };
-  if (fs.existsSync(path.join(dir, 'STOP'))) return { on: false, why: 'STOP is set' };
-  return { on: true, why: 'autonomy mode is on' };
 }
 
 function cloudtestCommand(sha) {
@@ -361,8 +338,9 @@ async function send(o, base, k) {
   const { tag, sha } = base;
   const dir = o.clone ? path.resolve(o.clone) : '';
   const refuse = (why) => { say('release-gate: --send refused: ' + why); return finish('refused', why, base); };
-  const mode = autonomyOn(o.autonomyDir || process.env.QUARTZ_GATE_AUTONOMY_DIR || AUTONOMY_DIR, o.now);
-  if (mode.on) return refuse('autonomy mode is on, and in v1 a human signs Quartz tags: the gate prepares the release, a person runs release-tag.js and publishes');
+  const state = L.modeState(L.autonomyDir(o.autonomyDir), o.now ? o.now() : Date.now());
+  if (state === 'ON') return refuse('autonomy mode is ON, and in v1 a human signs Quartz tags: the gate prepares the release, a person runs release-tag.js and publishes');
+  if (state === 'PAUSED') return refuse('paused: autonomy mode is PAUSED, which refuses every outward action, and in v1 a human signs Quartz tags anyway');
   if (!dir) return refuse('--send needs --clone=<dir>: a separate clone of the public repository on master at ' + sha.slice(0, 7));
   const g = (args) => sh('git', args, { cwd: dir });
   if (fs.existsSync(path.join(dir, '.git')) && fs.statSync(path.join(dir, '.git')).isFile()) return refuse(dir + ' is a linked worktree; release-tag.js needs a separate clone with master checked out');
@@ -402,7 +380,7 @@ async function send(o, base, k) {
   return finish('done', 'published ' + tag + ' at ' + sha.slice(0, 7), base);
 }
 
-module.exports = { gate, judgeResult, markedSummary, autonomyOn, parseSummary, cloudtestCommand, KNOWN_SKIPS, NOTES_DIR, RECIPE_COMMAND, SNAPSHOT_ONLY };
+module.exports = { gate, judgeResult, markedSummary, parseSummary, cloudtestCommand, KNOWN_SKIPS, NOTES_DIR, RECIPE_COMMAND, SNAPSHOT_ONLY };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);

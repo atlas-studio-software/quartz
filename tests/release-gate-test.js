@@ -127,7 +127,7 @@ function snapshotCommit(repo, sha, o) {
 
 /** A cloudtest run folder, as cloudtest downloads it: run.json, log.txt (the job log), artifacts. */
 function runDir(w, sha, o) {
-  const x = Object.assign({ recipe: 'quartz-core-public', mode: 'committed', files: 101, pass: 97, failN: 0, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e'], checksFailed: 0, summary: true, skipWhy: {}, log: 'ok', exit: 0, conclusion: 'failure', exitCode: 1 }, o || {});
+  const x = Object.assign({ recipe: 'quartz-core-public', mode: 'committed', files: 101, pass: 98, failN: 0, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke'], checksFailed: 0, summary: true, skipWhy: {}, log: 'ok', exit: 0, conclusion: 'failure', exitCode: 1 }, o || {});
   const d = path.join(w.dir, 'run-' + (++n));
   const id = '20261119-000000-' + String(n).padStart(6, '0');
   const why = { 'askclaude-e2e': 'askclaude-e2e: cannot run: needs node-pty built for Electron (conpty.node is missing)', 'mcp-e2e': 'mcp-e2e: cannot run: needs node-pty built for Electron (conpty.node is missing)', smoke: 'opens a Claude Code pane: needs node-pty built for Electron (conpty.node)', 'updater-e2e': 'updater-e2e: cannot run: this checkout is a shallow clone, so ...' };
@@ -184,7 +184,7 @@ async function main() {
     check(sh.outward().length === 0, 'GO without --send: no gh, no node, nothing outward', sh.outward());
     check(say.lines.includes('  - A fix the user will notice.') && say.lines.some((l) => /----- docs\/releases\/v0\.1\.2\.md -----/.test(l)), 'the release notes are printed for review');
     check(say.lines.includes('  cloudtest --recipe quartz-core-public') && say.lines.some((l) => l.includes('git worktree add --detach') && l.includes(sha)), 'the cloudtest command for exactly this commit is printed');
-    check(say.lines.filter((l) => /^release-gate: SKIP .*known runner limit/.test(l)).length === 4, 'each allowed SKIP is printed with its reason');
+    check(say.lines.filter((l) => /^release-gate: SKIP .*known runner limit/.test(l)).length === 3, 'each allowed SKIP is printed with its reason');
     check(say.lines.some((l) => /^release-gate: GO v0\.1\.2/.test(l)), 'a GO line');
     check(r.checks.find((c) => c.name === 'cloudtest').text.indexOf('0 FAIL') > 0, 'the summary line is quoted in the cloudtest check');
 
@@ -205,7 +205,7 @@ async function main() {
       ['two begin markers', runDir(w, sha, { log: 'twobegins' }), /2 @@cloudtest-begin@@ markers/],
       ['two summary lines inside the markers', runDir(w, sha, { log: 'twosummaries' }), /2 quartz-suite summary lines between the job markers/],
       ['the summary only after the exit marker', runDir(w, sha, { log: 'outside' }), /0 quartz-suite summary lines between the job markers/],
-      ['exit marker 0 and run.json success, but 1 FAIL inside', runDir(w, sha, { pass: 96, failN: 1, exit: 0, conclusion: 'success', exitCode: 0 }), /1 file\(s\) FAIL/],
+      ['exit marker 0 and run.json success, but 1 FAIL inside', runDir(w, sha, { pass: 97, failN: 1, exit: 0, conclusion: 'success', exitCode: 0 }), /1 file\(s\) FAIL/],
       ['suite.txt disagreeing with the job log', runDir(w, sha, { suiteTxt: 'quartz-suite: 101 files: 97 pass, 0 FAIL, 4 skipped | checks 9999 passed, 0 failed\n' }), /suite\.txt's summary differs/],
       ['no job log', runDir(w, sha, { log: 'missing' }), /log\.txt \(the job log\) is missing/],
       // 2. The snapshot tree.
@@ -219,7 +219,8 @@ async function main() {
       ['command.sh with a second line', runDir(w, sha, { command: 'node tools/run-suite.js --out=suite-out\nexit 0\n' }), /not exactly the recipe's/],
       ['command.sh running part of the suite', runDir(w, sha, { command: 'node tools/run-suite.js --only=argvurl --out=suite-out\n', runCommand: 'node tools/run-suite.js --only=argvurl --out=suite-out' }), /not the full suite/],
       ['a snapshot without command.sh', runDir(w, sha, { command: null }), /has no \.cloudtest-job\/command\.sh/],
-      ['a RAM skip', runDir(w, sha, { pass: 96, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e', 'watch-e2e'], skipWhy: { 'watch-e2e': 'watch-e2e: not launched: 1.9 GB free RAM' } }), /SKIP watch-e2e is not a known runner limit/],
+      ['a RAM skip', runDir(w, sha, { pass: 97, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'watch-e2e'], skipWhy: { 'watch-e2e': 'watch-e2e: not launched: 1.9 GB free RAM' } }), /SKIP watch-e2e is not a known runner limit/],
+      ['an updater-e2e shallow-clone skip (the recipe has full history now)', runDir(w, sha, { pass: 97, skips: ['askclaude-e2e', 'mcp-e2e', 'smoke', 'updater-e2e'] }), /SKIP updater-e2e is not a known runner limit/],
       ['a known name with another reason', runDir(w, sha, { skipWhy: { smoke: 'not launched: 1.2 GB free RAM' } }), /SKIP smoke is not a known runner limit/],
       ['a plain file, not a run folder', path.join(runDir(w, sha), 'artifacts', 'suite.txt'), /must be a cloudtest run folder/],
     ];
@@ -336,59 +337,66 @@ async function main() {
     check(x.sh.calls.find((c) => c[0] === 'node') && true, 'release-tag.js ran (faked) in the release clone');
   }
 
-  // ---- autonomy mode: --send refused while it is ON (a human signs Quartz tags in v1) ----------------
+  // ---- autonomy mode: the contract's 21 vectors, then --send refused while ON or PAUSED --------------
   {
-    const crypto = require('crypto');
-    const POLICY = '{"quartz":{"release":"prepare"}}\n';
-    const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
-    /** An autonomy folder: mode fields over an ON default, policy text, STOP or not. */
-    const modeDir = (mode, o) => {
-      const d = path.join(ROOT, 'autonomy-' + (++n));
+    const V = JSON.parse(fs.readFileSync(path.join(__dirname, 'autonomy-mode-vectors.json'), 'utf8'));
+    check(V.v === 1 && Array.isArray(V.cases) && V.cases.length === 21, 'the autonomy vectors file has the contract\'s 21 cases', V.cases && V.cases.length);
+    let k = 0;
+    for (const c of V.cases) {
+      const d = path.join(ROOT, 'vector-' + (++k));
       fs.mkdirSync(d, { recursive: true });
-      const opt = o || {};
-      if (mode !== null) fs.writeFileSync(path.join(d, 'mode.json'), typeof mode === 'string' ? mode : JSON.stringify(Object.assign({ on: true, paused: false, length: { kind: 'open' }, policySha: sha256(POLICY) }, mode)));
-      if (opt.policy !== null) fs.writeFileSync(path.join(d, 'policy.json'), opt.policy === undefined ? POLICY : opt.policy);
-      if (opt.stop) fs.writeFileSync(path.join(d, 'STOP'), '');
+      if (c.modeJson !== null) fs.writeFileSync(path.join(d, 'mode.json'), c.modeJson);
+      if (c.policyJson !== null) fs.writeFileSync(path.join(d, 'policy.json'), c.policyJson);
+      if (c.stop) fs.writeFileSync(path.join(d, 'STOP'), '');
+      const got = L.modeState(d, V.now);
+      check(got === c.expect, 'autonomy vector "' + c.name + '": ' + c.expect, got);
+    }
+    check(L.modeState(path.join(ROOT, 'nonesuch'), V.now) === 'OFF', 'autonomy: no folder at all -> OFF');
+
+    // Folders in each state, from the vectors' own files.
+    const byName = (n) => V.cases.find((c) => c.name === n);
+    const stateDir = (name, patch) => {
+      const c = byName(name);
+      const d = path.join(ROOT, 'state-' + (++n));
+      fs.mkdirSync(d, { recursive: true });
+      const m = JSON.parse(c.modeJson);
+      fs.writeFileSync(path.join(d, 'mode.json'), JSON.stringify(Object.assign(m, patch || {})));
+      fs.writeFileSync(path.join(d, 'policy.json'), c.policyJson);
       return d;
     };
-    const on = (d) => G.autonomyOn(d, () => NOW).on;
-    check(!on(path.join(ROOT, 'nonesuch')), 'autonomy: no folder -> OFF');
-    check(!on(modeDir(null)), 'autonomy: no mode.json -> OFF');
-    check(!on(modeDir('{not json')), 'autonomy: unreadable mode.json -> OFF');
-    check(on(modeDir({})), 'autonomy: on, not paused, open, policy matches, no STOP -> ON');
-    check(!on(modeDir({ on: false })), 'autonomy: on false -> OFF');
-    check(!on(modeDir({ paused: true })), 'autonomy: paused -> OFF');
-    check(on(modeDir({ length: { kind: 'fixed' }, endsAt: new Date(NOW + 3600000).toISOString() })), 'autonomy: a fixed length before endsAt -> ON');
-    check(!on(modeDir({ length: { kind: 'fixed' }, endsAt: new Date(NOW - 1000).toISOString() })), 'autonomy: past endsAt -> OFF');
-    check(!on(modeDir({ length: { kind: 'fixed' } })), 'autonomy: a fixed length with no endsAt -> OFF');
-    check(!on(modeDir({}, { policy: POLICY + ' ' })), 'autonomy: policy.json changed (sha256 differs) -> OFF');
-    check(!on(modeDir({}, { policy: null })), 'autonomy: no policy.json -> OFF');
-    check(!on(modeDir({}, { stop: true })), 'autonomy: STOP exists -> OFF');
+    const ON = stateDir('on, open, sha ok');
+    const PAUSED = stateDir('paused reason string');
+    const OFF = stateDir('on false');
+    const vnow = Date.parse(V.now);
+    check(L.modeState(ON, vnow) === 'ON' && L.modeState(PAUSED, vnow) === 'PAUSED' && L.modeState(OFF, vnow) === 'OFF', 'the state folders read ON, PAUSED and OFF');
 
+    // The gate: --send refused while ON or PAUSED (option and env override), never while OFF.
     const w = world();
     const sha = w.commit({ 'package.json': PKG('0.1.2'), 'package-lock.json': LOCK('0.1.2'), 'docs/releases/v0.1.2.md': NOTES }, 'Quartz 0.1.2', true);
     const dir = runDir(w, sha);
     const clone = w.releaseClone();
-    for (const [label, how] of [['the option', 'opt'], ['QUARTZ_GATE_AUTONOMY_DIR', 'env']]) {
-      const d = modeDir({});
+    for (const [label, d, how, re] of [
+      ['ON', ON, 'opt', /autonomy mode is ON, and in v1 a human signs Quartz tags/],
+      ['PAUSED', PAUSED, 'opt', /^paused: .*a human signs Quartz tags/],
+      ['ON', ON, 'env', /autonomy mode is ON, and in v1 a human signs Quartz tags/],
+      ['PAUSED', PAUSED, 'env', /^paused: /],
+    ]) {
       const sh = fakeSh(); const say = quiet();
       if (how === 'env') process.env.QUARTZ_GATE_AUTONOMY_DIR = d;
       try {
-        const r = await G.gate(Object.assign({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh, say, now: () => NOW, send: true, clone, sleep: async () => {} }, how === 'opt' ? { autonomyDir: d } : {}));
+        await G.gate(Object.assign({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh, say, now: () => vnow, send: true, clone, sleep: async () => {} }, how === 'opt' ? { autonomyDir: d } : {}));
         const a = autonomy(say.lines);
-        check(a.result === 'refused' && /a human signs Quartz tags/.test(a.why) && sh.outward().length === 0,
-          'autonomy ON (' + label + '): --send refused, says a human signs Quartz tags, nothing outward', { a, outward: sh.outward() });
+        check(a.result === 'refused' && re.test(a.why) && sh.outward().length === 0,
+          'gate --send while ' + label + ' (' + (how === 'opt' ? 'option' : 'QUARTZ_GATE_AUTONOMY_DIR') + '): refused, nothing outward', { a, outward: sh.outward() });
       } finally { process.env.QUARTZ_GATE_AUTONOMY_DIR = NO_AUTONOMY; }
     }
     {
       const say = quiet();
-      const r = await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh: fakeSh(), say, now: () => NOW, autonomyDir: modeDir({}) });
-      check(r.go && autonomy(say.lines).result === 'would', 'autonomy ON without --send: the gate still prepares and judges (would)');
-    }
-    {
-      const say = quiet(); const sh = fakeSh();
-      await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh, say, now: () => NOW, send: true, clone: '', autonomyDir: modeDir({ paused: true }) });
-      check(/needs --clone/.test(autonomy(say.lines).why), 'autonomy paused: --send is not blocked by the mode (it goes on to its own checks)');
+      const r = await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh: fakeSh(), say, now: () => vnow, autonomyDir: PAUSED });
+      check(r.go && autonomy(say.lines).result === 'would', 'gate without --send while PAUSED: still prepares and judges (would)');
+      const say2 = quiet();
+      await G.gate({ cwd: w.work, commit: sha, result: dir, fetch: fakeFeed().fetch, sh: fakeSh(), say: say2, now: () => vnow, send: true, clone: '', autonomyDir: OFF });
+      check(/needs --clone/.test(autonomy(say2.lines).why), 'gate --send while OFF: not blocked by the mode (goes on to its own checks)');
     }
   }
 
@@ -492,6 +500,45 @@ async function main() {
     check(r4.result === 'refused' && /no tag v9\.9\.9/.test(r4.why), 'an unknown tag: refused');
     const r5 = await R.rollback({ cwd: w.work, bad: 'latest', fetch: f.fetch, sh: fakeSh(), say: quiet() });
     check(r5.result === 'refused' && /not a release tag/.test(r5.why), 'not a version tag: refused');
+  }
+  {
+    // Rollback --send and autonomy mode: refused while PAUSED; while ON only when quartz-release or
+    // quartz-rollback is held; --prepare and the dry run are local and never blocked.
+    const V = JSON.parse(fs.readFileSync(path.join(__dirname, 'autonomy-mode-vectors.json'), 'utf8'));
+    const vnow = Date.parse(V.now);
+    const c = V.cases.find((x) => x.name === 'on, open, sha ok');
+    const modeAt = (patch) => {
+      const d = path.join(ROOT, 'rbmode-' + (++n));
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'mode.json'), JSON.stringify(Object.assign(JSON.parse(c.modeJson), patch || {})));
+      fs.writeFileSync(path.join(d, 'policy.json'), c.policyJson);
+      return d;
+    };
+    const cases = [
+      ['PAUSED', { paused: { reason: 'usage' } }, 'refused', /^paused: /],
+      ['ON, quartz-rollback held', { holds: ['x-post', 'quartz-rollback'] }, 'refused', /^held: .*quartz-rollback/],
+      ['ON, quartz-release held', { holds: ['quartz-release'] }, 'refused', /^held: .*quartz-release/],
+      ['ON, other holds only', { holds: ['x-post', 'site'] }, 'done', null],
+      ['ON, holds not an array', { holds: 'quartz-rollback' }, 'done', null],
+      ['ON, no holds', {}, 'done', null],
+      ['OFF with a hold (holds only count while ON)', { on: false, holds: ['quartz-rollback'] }, 'done', null],
+    ];
+    for (const [label, patch, want, re] of cases) {
+      const { w, f, bad } = badWorld();
+      const sh = fakeSh({ gh: ghEdit(f) }); const say = quiet();
+      const r = await R.rollback({ cwd: w.work, bad: 'v0.1.2', fetch: f.fetch, sh, say, send: true, sleep: async () => {}, autonomyDir: modeAt(patch), now: () => vnow });
+      const a = autonomy(say.lines);
+      if (want === 'refused') {
+        check(a.result === 'refused' && re.test(a.why) && sh.outward().length === 0 && git(w.work, 'rev-parse', 'HEAD') === bad,
+          'rollback --send while ' + label + ': refused, nothing sent or prepared', a);
+      } else {
+        check(a.result === 'done' && sh.outward().length === 1 && r.prepared, 'rollback --send while ' + label + ': goes ahead', a);
+      }
+    }
+    const { w, f } = badWorld();
+    const sh = fakeSh(); const say = quiet();
+    const r = await R.rollback({ cwd: w.work, bad: 'v0.1.2', fetch: f.fetch, sh, say, prepare: true, sleep: async () => {}, autonomyDir: modeAt({ paused: 'mail' }), now: () => vnow });
+    check(r.prepared && sh.outward().length === 0, 'rollback --prepare while PAUSED: local only, never blocked', r.why);
   }
 }
 

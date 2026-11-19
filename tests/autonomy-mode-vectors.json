@@ -1,0 +1,154 @@
+{
+ "v": 1,
+ "about": "contracts/autonomy.md section 1 (canonical states). Each implementation writes modeJson/policyJson (null = file absent) and STOP (an empty file) into a temp folder, evaluates at now, and must return expect. Copy this file byte for byte into your tests; the Engineering Manager checks the copies by sha256.",
+ "now": "2026-11-20T12:00:00.000Z",
+ "cases": [
+  {
+   "name": "missing mode.json",
+   "modeJson": null,
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "garbage mode.json",
+   "modeJson": "{not json",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "mode.json is an array",
+   "modeJson": "[]",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "on, open, sha ok",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "ON"
+  },
+  {
+   "name": "on is the string true",
+   "modeJson": "{\"v\":1,\"on\":\"true\",\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "on false",
+   "modeJson": "{\"v\":1,\"on\":false,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "paused object",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":{\"reason\":\"usage\",\"until\":\"2026-11-20T17:00:00Z\",\"since\":\"2026-11-20T12:00:00.000Z\"}}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "PAUSED"
+  },
+  {
+   "name": "paused reason string",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":\"mail\"}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "PAUSED"
+  },
+  {
+   "name": "paused false",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":false}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "ON"
+  },
+  {
+   "name": "fixed, before endsAt",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"fixed\",\"endsAt\":\"2026-11-21T00:00:00.000Z\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "ON"
+  },
+  {
+   "name": "fixed, exactly at endsAt",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"fixed\",\"endsAt\":\"2026-11-20T12:00:00.000Z\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "fixed, after endsAt, paused",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"fixed\",\"endsAt\":\"2026-11-19T00:00:00.000Z\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":{\"reason\":\"usage\"}}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "fixed, endsAt unparsable",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"fixed\",\"endsAt\":\"soon\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "length kind unknown",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"days\",\"n\":3},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "length missing",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":null,\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "policySha uppercase",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2B4248702881DE2F5638EFE96B233DE1C0DD9BE5DD24EC35AD030D6B06AEDE9A\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "policySha mismatch",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "policy.json missing",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": null,
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "policy.json CRLF bytes differ",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\r\n",
+   "stop": false,
+   "expect": "OFF"
+  },
+  {
+   "name": "STOP exists",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":null}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": true,
+   "expect": "OFF"
+  },
+  {
+   "name": "STOP exists while paused",
+   "modeJson": "{\"v\":1,\"on\":true,\"stage\":\"supervised\",\"length\":{\"kind\":\"open\"},\"policySha\":\"2b4248702881de2f5638efe96b233de1c0dd9be5dd24ec35ad030d6b06aede9a\",\"paused\":{\"reason\":\"mail\"}}",
+   "policyJson": "{\"v\":1}\n",
+   "stop": true,
+   "expect": "OFF"
+  }
+ ]
+}

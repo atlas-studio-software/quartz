@@ -66,7 +66,9 @@ show exactly one summary line, with 0 FAIL, between `@@cloudtest-begin@@` and
 `@@cloudtest-exit=` in its job log. Its snapshot commit must differ from the release commit only
 under `.cloudtest-job/`, `.cloudtest/` or `.github/workflows/`, and its `command.sh` must be
 exactly the recipe's full-suite command. The run's exit code and conclusion are never read.
-While the studio's autonomy mode is on, `--send` is refused: a person signs Quartz tags. Only `--send --clone=<dir>` publishes: from a separate clone on master at the commit,
+While the studio's autonomy mode is ON or PAUSED, `--send` is refused: a person signs Quartz tags.
+`release-rollback.js --send` is refused while PAUSED, and while ON when `quartz-release` or
+`quartz-rollback` is held. Only `--send --clone=<dir>` publishes: from a separate clone on master at the commit,
 and only once the installer workflow's draft for that commit carries `Quartz-Setup.exe`. Every
 outward step prints one `AUTONOMY: {...}` line; read its `result`, not the exit code.
 
