@@ -160,7 +160,7 @@ function install(deps) {
   }
 
   /* CONTRACT "Shared top-band darkening": Mantle's one dark alpha for the
-     top 144 DIP of the monitor. { guard: { alpha, dim, blurPx, contrast },
+     top 100 DIP of the monitor. { guard: { alpha, dim, blurPx, contrast },
      reason: null } when it is usable, else { guard: null, reason } in words.
      Freshness (dim/blurPx against the synced glass) is the renderer's check:
      it knows the glass in effect, a live preview included. */
