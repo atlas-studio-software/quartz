@@ -340,4 +340,4 @@ Not everything in the repo is under the GPL: the background photos (Unsplash Lic
 Brave logo (a Brave Software trademark) are carved out, and third-party notices are collected in
 [CREDITS.md](CREDITS.md).
 
-Copyright (C) 2026 Owen Silva. Issues welcome; pull requests are not accepted right now.
+Copyright (C) 2026 Atlas Studio. Issues welcome; pull requests are not accepted right now.
