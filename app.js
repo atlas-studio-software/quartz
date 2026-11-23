@@ -13494,7 +13494,13 @@ function wireWindowControls() {
       const search = payload && typeof payload.search === 'string' ? payload.search.trim() : '';
       const url = search ? searchUrlFor(search) : payload && payload.url;
       if (!url) return;
-      const open = () => createTab(url, { background: !!(payload && payload.background) });
+      // `notice`: main's words for links dropped while Quartz started (openurlqueue.js),
+      // said once this, the last of them, is the tab in front.
+      const notice = payload && typeof payload.notice === 'string' ? payload.notice.slice(0, 300) : '';
+      const open = () => {
+        createTab(url, { background: !!(payload && payload.background) });
+        if (notice) closeTabsToast(notice, CLOSE_TABS_REFUSED_MS);
+      };
       // A close command waiting for the strip goes first (runCloseTabsCommand).
       if (stripWaiting.length) { stripWaiting.push(open); return; }
       open();

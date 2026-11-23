@@ -52,6 +52,8 @@ const TESTS = [
   { name: 'a11y-switch', file: 'a11y-switch-harness.js' },
   { name: 'argvurl', file: 'argvurl-harness.js' },
   { name: 'closetabs', file: 'closetabs-harness.js' },
+  // Links that arrive while the chrome loads (openurlqueue.js): kept in order, at most 10, the oldest dropped and said.
+  { name: 'openurlqueue', file: 'openurlqueue-harness.js' },
   // The tab strip past full (tabfit.js): the fit plan, what counts as out of view, reveal and paging.
   { name: 'tabfit', file: 'tabfit-harness.js' },
   // The DevTools port (cdp-main.js): every decide() branch (a taken command-line port included), the netstat parse,

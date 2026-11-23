@@ -59,6 +59,7 @@ const profileMove = require('./profilemove');
 // cannot tell them apart). Every installed-only path below keys off this one value.
 const INSTALLED = require('./install-mode').detect(app);
 const { urlFromArgv } = require('./argvurl');
+const { createLinkOpener } = require('./openurlqueue');
 // --close-tabs=<prefix> [--keep=<prefix>...]: close tabs by address from a command line.
 const closeTabs = require('./closetabs');
 const spellModule = require('./spell');
@@ -1393,8 +1394,18 @@ function createWindow() {
  * 'open-url' message the context menu's "Open link in new tab" uses.
  */
 
-/** A URL that beat the chrome to it. Flushed on the first 'did-finish-load'. */
-let pendingOpenUrl = null;
+/**
+ * Links that beat the chrome to it, oldest first (openurlqueue.js: at most 10,
+ * the oldest dropped past that, said in the log and on screen). Flushed on
+ * 'did-finish-load'. The log is looked up per line: qlog starts after this runs.
+ */
+const linkOpener = createLinkOpener({
+  // Nothing listens for 'open-url' until index.html has finished loading, so a
+  // URL that arrives during startup waits rather than being dropped.
+  isReady: () => canSend() && !win.webContents.isLoadingMainFrame(),
+  send: (payload) => send('open-url', payload),
+  log: (line) => { console.log('[open-url] ' + line); if (qlog) qlog.log.line(line); },
+});
 
 // urlFromArgv(argv) -- the URL on a command line, or null: an http(s) URL, a
 // file: URL, or an .htm(l) PATH (the file association's "%1"). It lives in
@@ -1402,22 +1413,12 @@ let pendingOpenUrl = null;
 
 /** Give the chrome a foreground tab for `url`, or park it until it can take one. */
 function openUrlTab(url) {
-  if (!url) return;
-  // Nothing listens for 'open-url' until index.html has finished loading, so a
-  // URL that arrives during startup waits rather than being dropped.
-  if (!canSend() || win.webContents.isLoadingMainFrame()) {
-    pendingOpenUrl = url;
-    return;
-  }
-  send('open-url', { url, background: false });
+  linkOpener.open(url);
 }
 
-/** The parked URL, now that the chrome is listening. */
+/** The parked URLs, now that the chrome is listening: one foreground tab each, the last on top. */
 function flushPendingOpenUrl() {
-  if (!pendingOpenUrl) return;
-  const url = pendingOpenUrl;
-  pendingOpenUrl = null;
-  send('open-url', { url, background: false });
+  linkOpener.flush();
 }
 
 /*
