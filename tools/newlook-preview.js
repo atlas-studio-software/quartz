@@ -4,6 +4,7 @@
 //
 //   node tools/newlook-preview.js              seed the test profile's picture, then launch
 //   node tools/newlook-preview.js --dry-run    say what it would do; copy and launch nothing
+//   node tools/newlook-preview.js --seed-only  copy the picture into the test profile; launch nothing
 //   node tools/newlook-preview.js --pids       list the preview's processes (and nothing else)
 //   node tools/newlook-preview.js --watch [--seconds=60]   its CPU every 2 s, as Task Manager counts it
 //   node tools/newlook-preview.js --stop       end the preview's processes, only those
@@ -239,6 +240,7 @@ async function main(argv) {
     if (!w.ok) { console.log('newlook-preview: FAILED to seed the test look.json: ' + w.reason); return 1; }
     console.log('newlook-preview: seeded    ' + s.copyTo + ' and ' + path.join(p.syncDir, 'look.json'));
   }
+  if (argv.includes('--seed-only')) { console.log('newlook-preview: seed only: nothing launched'); return 0; }
   const child = spawn(p.exe, p.args, { cwd: p.repoDir, env: p.env, detached: true, stdio: 'ignore', windowsHide: false });
   child.on('error', (e) => { console.log('newlook-preview: FAILED to start: ' + e.message); process.exitCode = 1; });
   child.unref();
