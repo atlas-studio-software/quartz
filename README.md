@@ -19,7 +19,7 @@ Or run it from source, which needs Node.js 22.12 or newer but below 27, and git
 ([Requirements](#requirements)):
 
 ```
-git clone https://github.com/Owen-Silva/quartz.git
+git clone https://github.com/atlas-studio-software/quartz.git
 cd quartz
 npm ci
 npm start
@@ -99,7 +99,7 @@ uninstalling to get the clone's back.
 ### From source
 
 ```
-git clone https://github.com/Owen-Silva/quartz.git
+git clone https://github.com/atlas-studio-software/quartz.git
 cd quartz
 npm ci
 npm start

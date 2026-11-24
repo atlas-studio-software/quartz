@@ -63,8 +63,12 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const OWNER = 'Owen-Silva';
+const OWNER = 'atlas-studio-software';
 const REPO = 'quartz';
+// Where the repo lived before it moved to the organisation. GitHub redirects that URL (API and
+// git), and every clone made before the move still has it as origin, so it stays the public repo
+// too: a check that took only the new URL would quietly drop the Update button from those clones.
+const MOVED_FROM_OWNERS = ['Owen-Silva'];
 const API_BASE = 'https://api.github.com';
 // An installed copy's way to update: the installer on the latest release, under a name that never
 // changes. Kept here, not required from install-mode.js (which says the same): this file also runs
@@ -92,7 +96,7 @@ const NPM_TEXT = 'Installing dependencies with npm ci. This can take several min
 
 /* ---- small pure helpers (exported for the tests) -------------------------------------------- */
 
-/** A clone URL or a path, reduced to one comparable form: "github.com/owen-silva/quartz". */
+/** A clone URL or a path, reduced to one comparable form: "github.com/atlas-studio-software/quartz". */
 function normaliseRepoUrl(u) {
   let s = String(u || '').trim();
   if (!s) return '';
@@ -101,6 +105,15 @@ function normaliseRepoUrl(u) {
   else if ((m = /^(?:https?|ssh|git):\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(s))) s = m[1] + '/' + m[2];
   else s = path.resolve(s.replace(/^file:\/\/\/(?=[A-Za-z]:)/i, '').replace(/^file:\/\//i, ''));
   return s.replace(/\\/g, '/').replace(/\/+$/, '').replace(/\.git$/i, '').toLowerCase();
+}
+
+/** Every clone URL that counts as the public repo: where it lives now first, then where it lived. */
+const PUBLIC_REPO_URLS = [OWNER].concat(MOVED_FROM_OWNERS).map((owner) => 'https://github.com/' + owner + '/' + REPO + '.git');
+
+/** True when `url` (an origin, in any of git's forms) is one of `urls` (default: PUBLIC_REPO_URLS). */
+function isPublicRepo(url, urls) {
+  const key = normaliseRepoUrl(url);
+  return !!key && (urls || PUBLIC_REPO_URLS).some((u) => normaliseRepoUrl(u) === key);
 }
 
 /** "v1.2.10" vs "1.2.9": 1, -1 or 0. Anything that is not a version compares as 0. */
@@ -401,7 +414,10 @@ function createUpdater(opts) {
   const repo = o.repo || REPO;
   const apiBase = String(o.apiBase || API_BASE).replace(/\/+$/, '');
   const publicUrl = o.repoUrl || ('https://github.com/' + owner + '/' + repo + '.git');
-  const publicKey = normaliseRepoUrl(publicUrl);
+  // The origins that count as the public repo. A caller naming its own repo (repoUrl, owner, repo:
+  // the tests) gets just that one unless it lists more in repoUrls.
+  const publicUrls = Array.isArray(o.repoUrls) && o.repoUrls.length ? o.repoUrls.slice()
+    : (o.repoUrl || o.owner || o.repo ? [publicUrl] : PUBLIC_REPO_URLS);
   const git = o.git || defaultGit;
   const npm = o.npm || defaultNpm;
   const tools = o.tools || defaultTools;
@@ -520,7 +536,7 @@ function createUpdater(opts) {
 
   async function originInfo() {
     const url = await gitOut(['remote', 'get-url', 'origin']);
-    return { url: url || '', isPublic: !!url && normaliseRepoUrl(url) === publicKey };
+    return { url: url || '', isPublic: !!url && isPublicRepo(url, publicUrls) };
   }
 
   async function defaultBranch(origin) {
@@ -1072,7 +1088,7 @@ async function runSwap(plan, deps) {
 }
 
 module.exports = {
-  createUpdater, runSwap, offReason, normaliseRepoUrl, compareVersions, netWhy, removeTree, depsChanged,
+  createUpdater, runSwap, offReason, normaliseRepoUrl, isPublicRepo, PUBLIC_REPO_URLS, compareVersions, netWhy, removeTree, depsChanged,
   verifyReleaseTag, readInstalledSigners, parseSigners, parseGitVersion, signatureWhy,
   OPT_OUT_FILE, STAGING_DIR, NPM_TEXT, INSTALLER_URL, EVERY_MS, FIRST_CHECK_MS, RETRY_MS, SIGNERS_FILE, MIN_GIT_SSH,
 };

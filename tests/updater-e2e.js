@@ -10,7 +10,7 @@
  *   - app: a normal clone of origin.git, with node_modules as a junction to this repo's own
  *     node_modules (so no install; the release changes no package file, so npm ci never runs, and
  *     a test profile refuses npm ci anyway);
- *   - a fake GitHub releases API on 127.0.0.1 answering /repos/Owen-Silva/quartz/releases/latest.
+ *   - a fake GitHub releases API on 127.0.0.1 answering /repos/atlas-studio-software/quartz/releases/latest.
  * Then Quartz starts from app (--test-profile, its own temp profile, off-screen, watched by
  * testwatch.js) with QUARTZ_TEST_UPDATER_API / _REPO pointing at the fakes, and the test checks:
  *   1. the card renders ("Quartz v99.0.0 is out", an Update button);
@@ -120,7 +120,7 @@ async function main() {
   const hits = [];
   const server = http.createServer((req, res) => {
     hits.push(req.url);
-    if (req.url === '/repos/Owen-Silva/quartz/releases/latest') {
+    if (req.url === '/repos/atlas-studio-software/quartz/releases/latest') {
       res.writeHead(200, { 'content-type': 'application/json', etag: '"fake-' + TAG + '"' });
       res.end(JSON.stringify({ tag_name: TAG, name: 'Quartz ' + TAG, html_url: 'http://127.0.0.1/' + TAG, body: 'A fake release.', target_commitish: branch }));
     } else { res.writeHead(404); res.end('{}'); }
@@ -152,7 +152,7 @@ async function main() {
       'the release tag\'s signature is verified against the installed release-signers', sig);
     const btn = await c.ev("(() => { const b = document.querySelector('.qup-card [data-act=update]'); return b ? b.textContent : ''; })()");
     check(btn === 'Update', 'the card offers the Update button', btn);
-    check(hits.includes('/repos/Owen-Silva/quartz/releases/latest'), 'Quartz asked the (fake) releases API');
+    check(hits.includes('/repos/atlas-studio-software/quartz/releases/latest'), 'Quartz asked the (fake) releases API');
     const st = await c.ev('window.api.updates.state()');
     check(st && st.status === 'available' && st.canUpdate && !st.needsNpm, 'state: available, button offered, no npm ci', st && { status: st.status, blocked: st.blocked });
 

@@ -52,6 +52,6 @@ function detect(app) {
 }
 
 /** The installer behind every "download the new version" link: a stable asset name. */
-const INSTALLER_URL = 'https://github.com/Owen-Silva/quartz/releases/latest/download/Quartz-Setup.exe';
+const INSTALLER_URL = 'https://github.com/atlas-studio-software/quartz/releases/latest/download/Quartz-Setup.exe';
 
 module.exports = { installedCopy, detect, INSTALLER_URL };

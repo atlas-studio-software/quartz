@@ -89,10 +89,22 @@ function make(w, api, extra) {
 async function main() {
   // ---- pure helpers -----------------------------------------------------------------------------
   const nr = U.normaliseRepoUrl;
-  check(['https://github.com/Owen-Silva/quartz.git', 'https://github.com/owen-silva/quartz', 'git@github.com:Owen-Silva/quartz.git',
-    'ssh://git@github.com/Owen-Silva/quartz.git', 'https://github.com/Owen-Silva/quartz/'].every((u) => nr(u) === 'github.com/owen-silva/quartz'),
+  check(['https://github.com/atlas-studio-software/quartz.git', 'https://github.com/Atlas-Studio-Software/quartz', 'git@github.com:atlas-studio-software/quartz.git',
+    'ssh://git@github.com/atlas-studio-software/quartz.git', 'https://github.com/atlas-studio-software/quartz/'].every((u) => nr(u) === 'github.com/atlas-studio-software/quartz'),
   'normaliseRepoUrl: https, ssh and scp forms of the public repo are one repo');
-  check(nr('https://github.com/someone/quartz.git') !== nr('https://github.com/Owen-Silva/quartz.git'), 'normaliseRepoUrl: a fork is not the public repo');
+  check(nr('https://github.com/someone/quartz.git') !== nr('https://github.com/atlas-studio-software/quartz.git'), 'normaliseRepoUrl: a fork is not the public repo');
+
+  // The repo moved to the organisation. Clones made before the move keep their old origin, which
+  // GitHub redirects, so BOTH count as the public repo; nobody else's does.
+  const pub = U.isPublicRepo;
+  check(U.PUBLIC_REPO_URLS[0] === 'https://github.com/atlas-studio-software/quartz.git', 'public repo: the organisation\'s URL comes first (the fetch and the hand commands use it)', U.PUBLIC_REPO_URLS);
+  check(U.PUBLIC_REPO_URLS.length === 2, 'public repo: exactly the organisation and the pre-move URL', U.PUBLIC_REPO_URLS);
+  check(['https://github.com/atlas-studio-software/quartz.git', 'git@github.com:atlas-studio-software/quartz.git', 'https://github.com/atlas-studio-software/quartz'].every((u) => pub(u)),
+    'public repo: an organisation-origin clone counts');
+  check(['https://github.com/Owen-Silva/quartz.git', 'https://github.com/owen-silva/quartz', 'git@github.com:Owen-Silva/quartz.git', 'ssh://git@github.com/Owen-Silva/quartz.git'].every((u) => pub(u)),
+    'public repo: a clone made before the move (old origin) still counts');
+  check(!pub('https://github.com/someone/quartz.git') && !pub('https://github.com/atlas-studio-software/quartz-fork.git') && !pub('https://github.com/owen-silva/quartz-evil')
+    && !pub('https://gitlab.com/atlas-studio-software/quartz.git') && !pub('') && !pub(null), 'public repo: a third owner, a lookalike name, another host or no origin does not');
   check(U.compareVersions('v0.2.0', '0.1.9') === 1 && U.compareVersions('v0.1.0', '0.1.0') === 0 && U.compareVersions('0.1.10', '0.1.9') === 1, 'compareVersions');
   check(/no internet/.test(U.netWhy(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } }))), 'netWhy: ENOTFOUND reads as no internet');
 
@@ -102,7 +114,7 @@ async function main() {
     const u = make(w, api);
     const s = await u.check();
     check(s.status === 'none' && !s.canUpdate, 'no release published: status none, no button', s.status);
-    check(api.calls[0] && /\/repos\/Owen-Silva\/quartz\/releases\/latest$/.test(api.calls[0].url), 'asks /repos/{owner}/{repo}/releases/latest', api.calls[0] && api.calls[0].url);
+    check(api.calls[0] && /\/repos\/atlas-studio-software\/quartz\/releases\/latest$/.test(api.calls[0].url), 'asks /repos/{owner}/{repo}/releases/latest, the organisation by default', api.calls[0] && api.calls[0].url);
     check(u.timers.scheduled.pop() === U.EVERY_MS, 'next check in 6 h');
   }
 
@@ -162,6 +174,22 @@ async function main() {
     const s = await make(w, api).check();
     check(s.status === 'available' && !s.canUpdate && /origin is https:\/\/example\.invalid\/someone\/quartz\.git, not the public repo/.test(s.blocked),
       'origin is not the public repo: still sees the release (fetched from the public URL), no button', s.blocked);
+  }
+  {
+    // Two URLs for one public repo (the move): a clone whose origin is the OTHER one is offered the
+    // button and fetches from its own origin; a third repo is still refused.
+    const w = world(); const api = fakeApi(); w.release('v0.2.0'); api.releaseOf('v0.2.0');
+    const moved = path.join(w.dir, 'moved.git');
+    git(w.dir, 'clone', '-q', '--bare', w.origin, moved);
+    git(w.app, 'remote', 'set-url', 'origin', moved);
+    const s = await make(w, api, { repoUrls: [w.origin, moved] }).check();
+    check(s.status === 'available' && s.canUpdate && !/not the public repo/.test(s.blocked), 'two public URLs: a clone on the second one gets the button', s.blocked || s.status);
+    const w2 = world(); const api2 = fakeApi(); w2.release('v0.2.0'); api2.releaseOf('v0.2.0');
+    const other = path.join(w2.dir, 'other.git');
+    git(w2.dir, 'clone', '-q', '--bare', w2.origin, other);
+    git(w2.app, 'remote', 'set-url', 'origin', other);
+    const s2 = await make(w2, api2, { repoUrls: [w2.origin, path.join(w2.dir, 'moved.git')] }).check();
+    check(s2.status === 'available' && !s2.canUpdate && /not the public repo/.test(s2.blocked), 'two public URLs: a third repo still gets no button', s2.blocked);
   }
   {
     const w = world(); const api = fakeApi(); w.release('v0.2.0'); api.releaseOf('v0.2.0');
