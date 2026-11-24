@@ -412,6 +412,11 @@
       saturate: 100,                 // sharp: no saturate in either theme
       blurPx: g.blurPx,              // the SYNCED blur (Mantle's); the picture is painted sharp
       dimAuto: g.dimAuto !== false,
+      // The Dim Quartz paints, when it is not the shared one (frost.js
+      // effectiveDim): 'default' = Look Sync's starting value, painted as 20%.
+      dimSource: g.dimSource || null,
+      dimReason: g.dimReason || null,
+      dimShared: typeof g.dimShared === 'number' ? g.dimShared : g.dim,
       panel: g.panel,
       lined: lined,
       offset: { x: off.x, y: off.y }

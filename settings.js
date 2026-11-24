@@ -3049,7 +3049,12 @@
     var st = null;
     try { st = (layer && typeof layer.state === 'function') ? layer.state() : null; } catch (err) { st = null; }
     var theme = isLight() ? 'light' : 'dark';
-    note.textContent = glassGuardText(st && st.glass, theme, glass()[theme]);
+    var text = glassGuardText(st && st.glass, theme, glass()[theme]);
+    // Quartz paints its own 20% default while Look Sync still has its
+    // starting Dim; the slider shows the shared value, so say which is on screen.
+    var gl = st && st.glass;
+    if (gl && gl.dimSource === 'default' && gl.dimReason) text = (text ? text + ' ' : '') + gl.dimReason + '.';
+    note.textContent = text;
     note.hidden = false;
   }
 

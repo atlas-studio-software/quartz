@@ -116,5 +116,13 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(has(njs, 'function frostHome()') && has(njs, '.module[data-kind="card"], #search'), 'newtab.js marks every card and the search box');
 }
 
+/* ---- no silent default: Settings says when Quartz paints 20% over the shared seed ---- */
+{
+  const bjs = fs.readFileSync(path.join(__dirname, 'backdrop.js'), 'utf8');
+  check(bjs.indexOf('dimSource: g.dimSource || null,') >= 0 && bjs.indexOf('dimReason: g.dimReason || null,') >= 0, 'Backdrop.state().glass carries the painted Dim\'s source and reason');
+  const sjs = fs.readFileSync(path.join(__dirname, 'settings.js'), 'utf8');
+  check(sjs.indexOf("gl.dimSource === 'default' && gl.dimReason") >= 0, 'Settings adds the reason under the Dim when Quartz paints its default');
+}
+
 console.log('frost: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
