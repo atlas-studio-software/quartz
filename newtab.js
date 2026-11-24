@@ -6181,6 +6181,9 @@ if (document.readyState === 'loading') {
     var h = box.height || 66;
     var ctx = fitCanvas(canvasEl, w, h);
     if (!ctx) return false;
+    // The look (2026-11-24): one drawing for the box chart and the big one,
+    // the price labels in their own gutter (stockchart.js).
+    if (window.StockChart) return window.StockChart.draw(ctx, series, colours, w, h, { ticks: 2 }).ok;
 
     var points = (series && series.points) || [];
     if (points.length < 2) return false;
@@ -6316,6 +6319,7 @@ if (document.readyState === 'loading') {
 
     var drew = drawChart(data.series, colours);
     emptyEl.hidden = drew;
+    if (big.open) paintBig(colours);
 
     var when = data.lastTickAt ? clockOf(data.lastTickAt) : '';
     var asOf = '';
@@ -6323,6 +6327,122 @@ if (document.readyState === 'loading') {
     else if (when) asOf = 'As of ' + when;
     else if (data.socket === 'live') asOf = 'Waiting for a trade';
     if (asOfEl.textContent !== asOf) asOfEl.textContent = asOf;
+  }
+
+  /* --- the big chart ------------------------------------------- */
+
+  var big = { open: false, cross: -1, el: null, canvas: null, sym: null, last: null, chg: null,
+              ranges: null, read: null, note: null, close: null, box: null, geo: null };
+  var reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+  /* The box chart grows into the big one and back: a same-document view
+     transition between two elements that carry one name in turn. */
+  function morph(change) {
+    if (typeof document.startViewTransition !== 'function' || reduceMotion.matches) { change(); return; }
+    try { document.startViewTransition(change); } catch (err) { change(); }
+  }
+
+  function paintBig(colours) {
+    if (!big.open || !big.canvas || !window.StockChart) return;
+    var SC = window.StockChart;
+    var series = data && data.series;
+    var list = data && Array.isArray(data.rows) ? data.rows : [];
+    var row = null;
+    for (var i = 0; i < list.length; i += 1) if (series && list[i].symbol === series.symbol) row = list[i];
+    big.sym.textContent = (series && series.symbol) || (data && data.selected) || '';
+    big.last.textContent = row ? money(row.last) : '';
+    big.chg.textContent = row ? percent(row.changePct) : '';
+    big.chg.setAttribute('data-dir', row && row.changePct > 0 ? 'up' : (row && row.changePct < 0 ? 'down' : 'flat'));
+
+    // Only the ranges Markets has data for are offered; the note says why not the rest.
+    var av = SC.availableRanges(series);
+    var want = av.ranges.join(',');
+    if (big.ranges.getAttribute('data-ranges') !== want) {
+      big.ranges.setAttribute('data-ranges', want);
+      big.ranges.textContent = '';
+      for (var r = 0; r < av.ranges.length; r += 1) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'stk-big-range';
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', r === 0 ? 'true' : 'false');
+        b.textContent = av.ranges[r];
+        big.ranges.appendChild(b);
+      }
+    }
+    var longer = av.missing.filter(function (m) { return m.range !== '1D'; });
+    big.note.hidden = !longer.length;
+    if (longer.length) {
+      big.note.textContent = longer.map(function (m) { return m.range; }).join(', ') + ' not shown: ' + longer[0].reason + '.';
+    }
+
+    var box = big.canvas.getBoundingClientRect();
+    var w = box.width || 640;
+    var h = box.height || 320;
+    var ctx = fitCanvas(big.canvas, w, h);
+    if (!ctx) return;
+    var drawn = SC.draw(ctx, series, colours || tokens(), w, h,
+      { gutter: 56, ticks: 5, cross: big.cross, lineWidth: 1.5, font: '11px "Segoe UI Variable Text", "Segoe UI", sans-serif' });
+    big.geo = drawn.ok ? drawn.geo : null;
+    var pts = (series && series.points) || [];
+    big.read.textContent = big.cross >= 0 && pts[big.cross] ? SC.labelOf(pts[big.cross]) : (drawn.ok ? '' : 'No history yet');
+  }
+
+  function openBig() {
+    if (big.open || !big.el || !data || !data.series) return;
+    var panel = big.el.querySelector('.stk-big-panel');
+    big.cross = -1;
+    big.box.style.viewTransitionName = 'stk-chart';
+    morph(function () {
+      big.box.style.viewTransitionName = '';
+      big.el.hidden = false;
+      panel.style.viewTransitionName = 'stk-chart';
+      big.open = true;
+      paintBig();
+    });
+    setTimeout(function () { big.close.focus(); }, 0);
+  }
+
+  function closeBig() {
+    if (!big.open) return;
+    var panel = big.el.querySelector('.stk-big-panel');
+    morph(function () {
+      panel.style.viewTransitionName = '';
+      big.el.hidden = true;
+      big.open = false;
+      big.box.style.viewTransitionName = 'stk-chart';
+    });
+    setTimeout(function () { big.box.style.viewTransitionName = ''; big.box.focus(); }, 400);
+  }
+
+  function startBig() {
+    big.el = document.getElementById('stk-big');
+    big.canvas = document.getElementById('stk-big-canvas');
+    big.sym = document.getElementById('stk-big-sym');
+    big.last = document.getElementById('stk-big-last');
+    big.chg = document.getElementById('stk-big-chg');
+    big.ranges = document.getElementById('stk-big-ranges');
+    big.read = document.getElementById('stk-big-read');
+    big.note = document.getElementById('stk-big-note');
+    big.close = document.getElementById('stk-big-close');
+    big.box = document.getElementById('stk-box');
+    if (!big.el || !big.canvas || !big.box || !big.close || !big.ranges || !big.read || !big.note || !big.sym) { big.el = null; return; }
+    big.box.addEventListener('click', openBig);
+    big.box.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openBig(); }
+    });
+    big.close.addEventListener('click', closeBig);
+    big.el.addEventListener('click', function (ev) { if (ev.target === big.el) closeBig(); });
+    document.addEventListener('keydown', function (ev) { if (big.open && ev.key === 'Escape') { ev.preventDefault(); closeBig(); } });
+    // The crosshair follows the pointer over the plot only: one repaint per new point.
+    big.canvas.addEventListener('pointermove', function (ev) {
+      if (!big.geo || !data || !data.series) return;
+      var rect = big.canvas.getBoundingClientRect();
+      var n = (data.series.points || []).length;
+      var i = window.StockChart.nearestIndex(n, ev.clientX - rect.left - big.geo.left, big.geo.innerW);
+      if (i !== big.cross) { big.cross = i; paintBig(); }
+    });
+    big.canvas.addEventListener('pointerleave', function () { if (big.cross !== -1) { big.cross = -1; paintBig(); } });
   }
 
   /* --- the + field --------------------------------------------- */
@@ -6363,6 +6483,7 @@ if (document.readyState === 'loading') {
       return;
     }
 
+    startBig();
     addBtn.addEventListener('click', openAdd);
     addField.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); commitAdd(); }

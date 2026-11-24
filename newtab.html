@@ -395,8 +395,9 @@
   <!-- The selected symbol's day. The dashed line is the previous close, the
        tint under the line is the day's sign, and the whole thing is one
        canvas sized in CSS pixels times devicePixelRatio. -->
-  <div class="stk-chart">
-    <canvas id="stk-canvas" class="stk-canvas" width="352" height="132"
+  <div id="stk-box" class="stk-chart" role="button" tabindex="0"
+       aria-label="Open the big chart" title="Open the big chart">
+    <canvas id="stk-canvas" class="stk-canvas" width="352" height="92"
             role="img" aria-label="Intraday chart"></canvas>
     <p id="stk-chart-empty" class="stk-chart-empty" hidden>No history yet</p>
   </div>
@@ -425,6 +426,27 @@
      first piece really is :first-child), still in the document (so every
      handle newtab.js holds on them stays good), and never drawn. -->
 <div id="home-shelf" class="home-shelf" hidden></div>
+
+<!-- Markets' big chart: the box chart opened up (a view-transition morph),
+     the same day, with a crosshair and a readout of the time and price under
+     it. Only the ranges Markets has data for are offered; #stk-big-note says
+     why the others are not (stockchart.js availableRanges). -->
+<div id="stk-big" class="stk-big" role="dialog" aria-modal="true" aria-labelledby="stk-big-sym" hidden>
+  <div class="stk-big-panel">
+    <div class="stk-big-head">
+      <p id="stk-big-sym" class="stk-big-sym"></p>
+      <span id="stk-big-last" class="stk-big-last"></span>
+      <span id="stk-big-chg" class="stk-big-chg"></span>
+      <div id="stk-big-ranges" class="stk-big-ranges" role="tablist" aria-label="Range"></div>
+      <button id="stk-big-close" class="stk-big-close" type="button" aria-label="Close the chart" title="Close (Esc)">&#xE8BB;</button>
+    </div>
+    <div class="stk-big-plot">
+      <canvas id="stk-big-canvas" class="stk-big-canvas" role="img" aria-label="Intraday chart, large"></canvas>
+      <p id="stk-big-read" class="stk-big-read" aria-live="polite"></p>
+    </div>
+    <p id="stk-big-note" class="stk-big-note" hidden></p>
+  </div>
+</div>
 
 <!-- Customising the Home. A quiet pencil in the bottom-left corner (the
      one corner no piece uses by default); pressed, it turns into Done and
@@ -467,6 +489,8 @@
 <!-- Site logos from the tab strip's own store, via the chrome (no third-party service). -->
 <script src="tabicons.js"></script>
 <script src="pagefavicons.js"></script>
+<!-- Markets' charts (the box chart and the big one): one drawing, pure, tested by stockchart-harness.js. -->
+<script src="stockchart.js"></script>
 <script src="newtab.js"></script>
 </body>
 </html>

@@ -3163,3 +3163,104 @@ body.home-unfold { --home-fold: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ==============================================================
+   Markets, the look (2026-11-24): compact 32 px rows, the day in a
+   box inside the card (92 px, the price labels in their own gutter,
+   stockchart.js), and the box opening into the big chart with a
+   view-transition morph. The data and the key handling are exactly
+   as before (stocks.js in main).
+   ============================================================== */
+.module-stocks .stk-chart {
+  height: 92px;
+  margin: 10px 0 8px;
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background-color var(--dur, 160ms) ease;
+}
+.module-stocks .stk-chart:hover { background: rgba(255, 255, 255, 0.08); }
+.module-stocks .stk-chart:focus-visible { outline: 2px solid var(--ion); outline-offset: 2px; }
+.module-stocks .stk-canvas { height: 92px; }
+
+.module-stocks .stk-row {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-s);
+}
+.module-stocks .stk-row + .stk-row { margin-top: 0; }
+.module-stocks .stk-row.is-on { background: rgba(255, 255, 255, 0.10); border-color: transparent; }
+.module-stocks .stk-row:hover { background: rgba(255, 255, 255, 0.07); }
+
+/* --- the big chart ---------------------------------------------- */
+.stk-big {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  background: rgba(0, 0, 0, 0.32);
+}
+.stk-big[hidden] { display: none; }
+.stk-big-panel {
+  width: min(920px, 100%);
+  height: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 14px;
+  border-radius: var(--radius-l);
+  background: var(--overlay);
+  box-shadow: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+}
+.stk-big-head { display: flex; align-items: baseline; gap: 12px; }
+.stk-big-sym { margin: 0; color: var(--text); font-size: var(--fs-l); font-weight: 600; letter-spacing: .02em; }
+.stk-big-last { color: var(--text); font-size: var(--fs-m); font-variant-numeric: tabular-nums; }
+.stk-big-chg { color: var(--text-2); font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
+.stk-big-chg[data-dir="up"] { color: var(--stk-up); }
+.stk-big-chg[data-dir="down"] { color: var(--stk-down); }
+.stk-big-ranges { display: flex; gap: 2px; margin-left: auto; }
+.stk-big-range {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+}
+.stk-big-range[aria-selected="true"] { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+.stk-big-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-2);
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+  font-size: var(--fs-2xs);
+}
+.stk-big-close:hover { background: rgba(255, 255, 255, 0.10); color: var(--text); }
+.stk-big-plot { position: relative; flex: 1 1 auto; min-height: 0; }
+.stk-big-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.stk-big-read {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.stk-big-note { margin: 0; color: var(--text-2); font-size: var(--fs-2xs); }
+.stk-big-note[hidden] { display: none; }
+
+/* the morph: the box chart and the big panel share one name in turn */
+::view-transition-group(stk-chart) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.22, 1.12, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(stk-chart) { animation: none; }
+}

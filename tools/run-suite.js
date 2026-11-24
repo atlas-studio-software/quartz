@@ -142,6 +142,8 @@ const TESTS = [
   { name: 'frost', file: 'frost-harness.js' },
   // The islands (islands.js / islands.css): plates, the underline under the title's words, the look's rules.
   { name: 'islands', file: 'islands-harness.js' },
+  // Markets' charts (stockchart.js): scale, labels in their own gutter, the crosshair, which ranges the data can show.
+  { name: 'stockchart', file: 'stockchart-harness.js' },
   // tools/css-lint.js: raw radii and type sizes off tokens.css's scale, the old --fg names, unused
   // --space-N steps, the allow comment; then the repository, nothing over tools/css-lint-baseline.json.
   { name: 'css-lint', file: 'css-lint-harness.js' },
