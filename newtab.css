@@ -2738,7 +2738,14 @@ html.home-measure .home { grid-template-rows: 100vh; }
    width, same rules, same order as the media query had; with no class
    the two are the same thing. Unfolded below 1296px the rails give way
    to a 480px column, as the grid's own minimums cannot fit. */
+/* The look (2026-11-24): three columns down to 1024px. Between 1024 and
+   1295px the rails narrow to 272px and the centre takes the rest; only
+   below 1024px does the Home fold into one column. */
 @media (max-width: 1295px) {
+  body { --rail-w: 272px; }
+  .home { grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-w); }
+}
+@media (max-width: 1023px) {
   body { --home-fold: 1; }
   body.home-unfold .home {
     grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);

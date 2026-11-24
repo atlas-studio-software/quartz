@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>Quartz</title>
+  <!-- Quartz's own mark (assets/quartz-logo.svg), the same geometry drawn in one light ink for
+       the glass look: the shaded face at 55%, the lit face and the tail near-white. -->
+  <defs>
+    <mask id="tail-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="#fff"/>
+      <path d="M120.5 156.3L131.7 191.2L182.3 233.6L218.6 238.6L207.4 203.7L156.8 161.3Z" fill="#000" stroke="#000" stroke-width="11" stroke-linejoin="miter"/>
+    </mask>
+  </defs>
+  <g mask="url(#tail-cut)">
+    <path fill="#eef6f7" fill-opacity="0.55" fill-rule="evenodd" d="M128 17.3L218.7 78.5L218.7 174.5L128 235.7L37.3 174.5L37.3 78.5Z M128 58.5L176 90.9L176 162.1L128 194.5L80 162.1L80 90.9Z"/>
+    <path fill="#f4fafb" fill-opacity="0.95" d="M128 235.7L37.3 174.5L37.3 78.5L128 17.3L128 58.5L80 90.9L80 162.1L128 194.5Z"/>
+  </g>
+  <path fill="#ffffff" fill-opacity="0.7" d="M120.5 156.3L131.7 191.2L182.3 233.6L218.6 238.6L207.4 203.7L156.8 161.3Z"/>
+  <path fill="#ffffff" d="M120.5 156.3L218.6 238.6L207.4 203.7L156.8 161.3Z"/>
+</svg>

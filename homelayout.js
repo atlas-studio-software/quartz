@@ -133,9 +133,22 @@
     return typeof name === 'string' && COLUMNS.indexOf(name) >= 0;
   }
 
+  /* The default Home (the look, 2026-11-24): Clock on the left, the Quartz
+     logo and the Search box in the centre, Markets on the right. Every other
+     piece starts switched off and is one switch away in Customize; a Home
+     someone has customised keeps exactly what they chose. */
+  var DEFAULT_VISIBLE = ['clock', 'logo', 'search', 'markets'];
+
+  /** No piece hidden: sanitize()'s starting point for a stored layout. */
+  function empty() {
+    return { v: VERSION, hidden: [], place: [] };
+  }
+
   /** The default layout, as a fresh object every time (callers may mutate). */
   function defaults() {
-    return { v: VERSION, hidden: [], place: [] };
+    var out = empty();
+    PIECES.forEach(function (p) { if (DEFAULT_VISIBLE.indexOf(p.id) < 0) out.hidden.push(p.id); });
+    return out;
   }
 
   /** One anchor, cleaned: { h, x, v, y } or null. */
@@ -156,9 +169,11 @@
    * object it was given (or anything inside it).
    */
   function sanitize(value) {
-    var out = defaults();
     var src = (value && typeof value === 'object' && !Array.isArray(value)) ? value : null;
-    if (!src) return out;
+    // Nothing stored (or nothing usable): the default Home. Something stored:
+    // exactly its own hidden list, over a Home with nothing hidden.
+    if (!src) return defaults();
+    var out = empty();
 
     var hidden = Array.isArray(src.hidden) ? src.hidden : [];
     var off = Object.create(null);

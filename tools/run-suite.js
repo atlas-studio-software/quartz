@@ -144,6 +144,8 @@ const TESTS = [
   { name: 'islands', file: 'islands-harness.js' },
   // Markets' charts (stockchart.js): scale, labels in their own gutter, the crosshair, which ranges the data can show.
   { name: 'stockchart', file: 'stockchart-harness.js' },
+  // The default Home (homelayout.js): Clock, logo + Search, Markets; a customised Home keeps its choice; three columns down to 1024px.
+  { name: 'homelayout', file: 'homelayout-harness.js' },
   // tools/css-lint.js: raw radii and type sizes off tokens.css's scale, the old --fg names, unused
   // --space-N steps, the allow comment; then the repository, nothing over tools/css-lint-baseline.json.
   { name: 'css-lint', file: 'css-lint-harness.js' },
