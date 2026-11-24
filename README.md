@@ -11,7 +11,7 @@ It is unofficial and not affiliated with any of the services it works with (see
 
 ## Download
 
-**[Quartz-Setup.exe](https://github.com/Owen-Silva/quartz/releases/latest/download/Quartz-Setup.exe)**
+**[Quartz-Setup.exe](https://github.com/atlas-studio-software/quartz/releases/latest/download/Quartz-Setup.exe)**
 for Windows 11 (x64): run it, and Quartz is in your Start Menu. No Node.js or git needed. See
 [Install](#install) for what it does, the SmartScreen warning, and how to uninstall.
 
@@ -68,7 +68,7 @@ npm start
 
 ### With the installer
 
-1. Download `Quartz-Setup.exe` from the [latest release](https://github.com/Owen-Silva/quartz/releases/latest)
+1. Download `Quartz-Setup.exe` from the [latest release](https://github.com/atlas-studio-software/quartz/releases/latest)
    and run it.
 2. Windows SmartScreen says "Windows protected your PC", because the installer is not code-signed
    yet (see [Code signing policy](#code-signing-policy)). Click **More info**, check the app is
@@ -281,7 +281,7 @@ Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
 - **What is signed:** `Quartz-Setup.exe` on this repository's
-  [releases](https://github.com/Owen-Silva/quartz/releases), built from this repository's source by
+  [releases](https://github.com/atlas-studio-software/quartz/releases), built from this repository's source by
   the public [`installer` workflow](.github/workflows/installer.yml) on GitHub-hosted runners. The
   files inside it are not signed one by one: `Quartz.exe` is the castlabs Electron runtime, and the
   other executables and DLLs come from Electron, Chromium and the npm packages in

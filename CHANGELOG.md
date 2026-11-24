@@ -3,7 +3,7 @@
 This is the record of what changed in the browser, written so you can catch up without reading
 diffs. Everything below landed overnight, commit by commit, on `master` (the table at the end
 lists them; `git log --oneline` is always current). The repo is public at
-[github.com/Owen-Silva/quartz](https://github.com/Owen-Silva/quartz). Run it with `npm start` or the
+[github.com/atlas-studio-software/quartz](https://github.com/atlas-studio-software/quartz). Run it with `npm start` or the
 taskbar pin; a copy that is already open keeps running the old code, so close it and launch again —
 or use Restart browser in Settings → About — to pick any of this up.
 
