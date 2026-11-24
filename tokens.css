@@ -124,6 +124,27 @@
 
   /* the background layer's wash (Helm shell.css), as an "r g b" triple */
   --wash-rgb: 9 10 11;
+
+  /* the floating islands (islands.css, newtab.css; the look, 2026-11-24):
+     soft shadows only, no hairline; the brightness check's neutral film */
+  --island-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
+  --island-float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+  --island-film-rgb: 10 12 14;
+  --island-fill-1: rgba(255, 255, 255, 0.07);
+  --island-fill-2: rgba(255, 255, 255, 0.12);
+  --island-fill-press: rgba(255, 255, 255, 0.05);
+  --island-ind: rgba(255, 255, 255, 0.16);
+  --island-ind-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 3px rgba(0, 12, 16, 0.25);
+  --island-glyph-lift: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);
+  /* Markets: the box chart, its rows, the big chart's scrim */
+  --chart-box: rgba(255, 255, 255, 0.05);
+  --chart-box-hover: rgba(255, 255, 255, 0.08);
+  --chart-box-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --chart-row-on: rgba(255, 255, 255, 0.10);
+  --chart-row-hover: rgba(255, 255, 255, 0.07);
+  --chart-pick: rgba(255, 255, 255, 0.12);
+  --chart-scrim: rgba(0, 0, 0, 0.32);
 }
 
 /* --- light --------------------------------------------------- */
@@ -200,6 +221,18 @@ html[data-theme="light"] {
   --scroll-thumb-hover: rgba(11, 14, 26, 0.28);
 
   --wash-rgb: 255 255 255;                  /* the white wash (backdrop.css) */
+
+  /* the floating islands, light: the same shadows, dark ink fills */
+  --island-fill-1: rgba(11, 14, 26, 0.05);
+  --island-fill-2: rgba(11, 14, 26, 0.09);
+  --island-fill-press: rgba(11, 14, 26, 0.04);
+  --island-ind: rgba(255, 255, 255, 0.55);
+  --chart-box: rgba(11, 14, 26, 0.04);
+  --chart-box-hover: rgba(11, 14, 26, 0.07);
+  --chart-box-edge: inset 0 0 0 1px rgba(11, 14, 26, 0.05);
+  --chart-row-on: rgba(11, 14, 26, 0.08);
+  --chart-row-hover: rgba(11, 14, 26, 0.05);
+  --chart-pick: rgba(11, 14, 26, 0.09);
 }
 
 /* --- palettes: an accent, nothing else ------------------------ */

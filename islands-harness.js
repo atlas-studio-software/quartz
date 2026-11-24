@@ -49,5 +49,14 @@ const last = html.lastIndexOf('<link rel="stylesheet"');
 check(html.indexOf('href="islands.css"') === html.indexOf('"', last + 0) - 0 || html.slice(last).indexOf('islands.css') > 0, 'index.html: islands.css is the last stylesheet');
 check(html.indexOf('<script src="islands.js"></script>') > html.indexOf('<script src="backdrop.js"></script>'), 'index.html: islands.js after backdrop.js');
 
+const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+check(app.indexOf("const HOME_ICON = new URL('assets/quartz-logo-light.svg'") >= 0 && /if \(home\) \{[\s\S]{0,200}showTabIconData\(tab, HOME_ICON, token\)/.test(app),
+  'the Home tab wears the light Quartz mark');
+check(fs.existsSync(path.join(__dirname, 'assets', 'quartz-logo-light.svg')) && /src="assets\/quartz-logo-light\.svg"/.test(fs.readFileSync(path.join(__dirname, 'newtab.html'), 'utf8')),
+  'the same light mark is the Home logo');
+const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+check(/--island-float:/.test(tok) && /--island-film-rgb: 10 12 14;/.test(tok), 'the islands\' colours are tokens (tokens.css)');
+check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one through a token');
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

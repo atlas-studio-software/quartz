@@ -5365,6 +5365,9 @@ const WATCH_URL = new URL('watch.html', window.location.href).href;
 // Lumen's mark (direction 2, Aperture) at 16 and 24 px: its tab chip and its
 // palette row. assets/lumen-logo.svg is the master for 32 px and up.
 const LUMEN_ICON_SMALL = new URL('assets/lumen-logo-small.svg', window.location.href).href;
+// The Home tab's icon: the Quartz mark in one light ink (the look, 2026-11-24),
+// the same file as the Home's own logo.
+const HOME_ICON = new URL('assets/quartz-logo-light.svg', window.location.href).href;
 
 /** True for the bundled Watch page, query string and hash included. */
 function isWatchUrl(url) {
@@ -6487,7 +6490,8 @@ function syncTabFavicon(tab, force) {
   }
   const origin = TI ? TI.originOf(tab.url) : null;
   const lumen = !origin && isWatchUrl(tab.url);
-  const key = origin || (lumen ? 'lumen' : 'glyph:' + chipGlyphFor(tab.url));
+  const home = !origin && !lumen && isNewTabUrl(tab.url);
+  const key = origin || (lumen ? 'lumen' : home ? 'home' : 'glyph:' + chipGlyphFor(tab.url));
   if (!force && key === tab.favKey) return;
   tab.favKey = key;
   const token = ++tab.favToken;
@@ -6498,6 +6502,14 @@ function syncTabFavicon(tab, force) {
     // case the file ever fails to decode.
     setTabMono(tab, chipGlyphFor(tab.url), true);
     showTabIconData(tab, LUMEN_ICON_SMALL, token);
+    return;
+  }
+
+  if (home) {
+    // The Home tab wears the Quartz mark; its glyph sits under it in case
+    // the file ever fails to decode.
+    setTabMono(tab, chipGlyphFor(tab.url), true);
+    showTabIconData(tab, HOME_ICON, token);
     return;
   }
 
