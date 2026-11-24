@@ -15,7 +15,7 @@
    ============================================================ */
 
 :root {
-  --isl-gap: 8px;
+  --isl-gap: 12px;          /* LOOK.md section 2: air to the window edge and between big panels */
   --isl-r: 12px;
   --isl-r-s: 8px;
   --isl-float: var(--island-float);
@@ -77,8 +77,9 @@ html .navrow {
 .isl-plate[hidden] { display: none; }
 
 /* ---------- tab row ---------- */
-/* the one highlight that slides between chips; the accent underline sits
-   under the title's words (--ul-x, islands.js) */
+/* the one highlight that slides between chips, and the accent underline
+   under the title's words (.tab-ul). Both move by transform only: the
+   highlight is a FLIP (islands.js indMove), its width is never animated. */
 .tab-ind {
   position: absolute;
   left: 0;
@@ -90,22 +91,23 @@ html .navrow {
   pointer-events: none;
   background: var(--island-ind);
   box-shadow: var(--island-ind-edge);
-  transition: transform 320ms var(--isl-ease-lift), width 320ms var(--isl-ease-lift);
+  transform-origin: 0 0;
+  transition: transform 320ms var(--isl-ease-lift);
 }
-.tab-ind::after {
-  content: '';
+.tab-ul {
   position: absolute;
-  left: var(--ul-x, 50%);
-  bottom: 3px;
+  left: 0;
+  top: 0;
+  z-index: 1;
   width: 16px;
   height: 2px;
   border-radius: var(--radius-xs);
+  pointer-events: none;
   background: var(--accent);
-  transition: left 320ms var(--isl-ease-lift);
+  transition: transform 320ms var(--isl-ease-lift);
 }
-.tab-ind.no-title::after { left: calc(50% - 8px); }
-.tab-ind.instant, .tab-ind.instant::after { transition: none; }
-.tab-ind[hidden] { display: none; }
+.tab-ind.instant, .tab-ul.instant { transition: none; }
+.tab-ind[hidden], .tab-ul[hidden] { display: none; }
 
 .tab { border-color: transparent !important; }
 .tab:hover { background: var(--isl-fill-1); }
@@ -125,6 +127,8 @@ html .navrow {
    window still closes from the corner), bare over the picture */
 .wincontrols { align-self: flex-start; margin-top: -6px; }
 .wincontrols button { filter: var(--island-glyph-lift); }
+#win-close:hover { background: var(--caption-close); }
+#win-close:active { background: var(--caption-close-press); }
 
 /* ---------- toolbar: nav / address / tools ---------- */
 .navrow > button { border-radius: var(--isl-r-s); }
@@ -170,6 +174,6 @@ html .navrow {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab-ind, .tab-ind::after { transition: none; }
+  .tab-ind, .tab-ul { transition: none; }
   #views > webview, #views > .claude-view { animation: none !important; }
 }

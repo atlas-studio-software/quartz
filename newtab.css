@@ -3267,9 +3267,12 @@ body.home-unfold { --home-fold: 0; }
 .stk-big-note[hidden] { display: none; }
 
 /* the morph: the box chart and the big panel share one name in turn */
-::view-transition-group(stk-chart) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.22, 1.12, 0.36, 1); }
+/* LOOK.md section 10: group 480 ms, the old snapshot out in 200, the new in at 300 after 90 */
+::view-transition-group(stk-chart) { animation-duration: 480ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+::view-transition-old(stk-chart) { animation-duration: 200ms; }
+::view-transition-new(stk-chart) { animation-duration: 300ms; animation-delay: 90ms; animation-fill-mode: both; }
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(stk-chart) { animation: none; }
+  ::view-transition-group(stk-chart), ::view-transition-old(stk-chart), ::view-transition-new(stk-chart) { animation: none; }
 }
 
 /* ==============================================================
@@ -3327,5 +3330,5 @@ body.home-unfold { --home-fold: 0; }
   box-shadow: var(--isl-float);
 }
 .chip.soft, .rtile.soft { --frost: var(--frost-soft); }
-.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-2); }
+.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }   /* LOOK.md section 3: a .07 sheen on hover only */
 .chip:active, .rtile:active { --frost-hover: var(--island-fill-press); }

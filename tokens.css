@@ -135,7 +135,10 @@
   --island-fill-press: rgba(255, 255, 255, 0.05);
   --island-ind: rgba(255, 255, 255, 0.16);
   --island-ind-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 3px rgba(0, 12, 16, 0.25);
-  --island-glyph-lift: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  --island-glyph-lift: drop-shadow(0 1px 1px rgba(0, 12, 16, 0.4));
+  /* the caption close button's hover (LOOK.md section 2: the Windows red) */
+  --caption-close: #C42B1C;
+  --caption-close-press: rgba(196, 43, 28, 0.8);
   --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);
   /* Markets: the box chart, its rows, the big chart's scrim */
   --chart-box: rgba(255, 255, 255, 0.05);
