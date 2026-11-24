@@ -127,6 +127,14 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(fjs.indexOf('document.querySelectorAll(selector)') >= 0 && fjs.indexOf("document.querySelectorAll('.frost')") < 0, 'frost.js places by one selector, .frost plus what a page watches');
 }
 
+/* ---- light theme keeps today's look: no brightness film (decision 2026-11-24) ---- */
+{
+  const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
+  check(fjs.indexOf("var light = docEl.getAttribute('data-theme') === 'light';") >= 0 && fjs.indexOf('copy && geo && !light ? filmFromPixels(') >= 0, 'light theme: panels get no film');
+  check(fjs.indexOf("themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme'] })") >= 0, 'a theme flip re-places the panels');
+  check(fjs.indexOf("'off in the light theme: it keeps its look until it has its own design'") >= 0, 'Frost.state().check says the film is off in light, and why');
+}
+
 /* ---- no silent default: Settings says when Quartz paints 20% over the shared seed ---- */
 {
   const bjs = fs.readFileSync(path.join(__dirname, 'backdrop.js'), 'utf8');

@@ -75,6 +75,8 @@ const storedGlass = (b) => b.S.get('glass');
   ok('normalizeGlass drops a non-boolean dimAuto', !('dimAuto' in bad.dark) && !('dimAuto' in bad.light), bad);
   const none = b.S._normalizeGlass({ dark: { dim: 0.5 } });
   ok('normalizeGlass leaves an absent dimAuto absent', !('dimAuto' in none.dark) && !('dimAuto' in none.light), none);
+  const low = b.S._normalizeGlass({ dark: { dim: 0.05 }, light: { dim: 0 } });
+  ok('normalizeGlass: a Dim under 20% (an old 0-60% prototype value) is clamped to 0.20', low.dark.dim === 0.2 && low.light.dim === 0.2, low);
 }
 
 // ---- 2. Dim / Auto / Blur / See-through through the rendered rows -------------------------
@@ -93,6 +95,7 @@ const storedGlass = (b) => b.S.get('glass');
 
   // Dim drag: preview says manual; let go: stored manual + value
   let dim = q(b.field, '#set-glass-dim');
+  ok('the Dim slider runs 20% to 90% (floor 20%, decision 2026-11-24)', dim && String(dim.min) === '20' && String(dim.max) === '90', dim && [dim.min, dim.max]);
   b.previews.length = 0;
   drag(dim, 24);
   const p = b.previews.filter((x) => x.g).pop();

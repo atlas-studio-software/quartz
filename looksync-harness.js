@@ -142,6 +142,12 @@ async function glueChecks() {
     const pub = g2.bridge.published.filter((p) => p.field === 'glass').pop();
     ok('glue: publish(glass) sends dimAuto false for dark', pub && pub.value.dark.dimAuto === false && pub.value.dark.dim === 0.2, pub);
     ok('glue: publish(glass) leaves an absent dimAuto absent (light)', pub && !('dimAuto' in pub.value.light), pub);
+    // Dim floor 20% (decision 2026-11-24): a saved Dim under .20 (an old prototype's 0-60% range) is
+    // published as .20, never below the contract's range.
+    g2.settings.set({ glass: { dark: { blurPx: 0, dim: 0.05, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0, panel: 0 }, render: 'picture' } });
+    await sleep(10);
+    const low = g2.bridge.published.filter((p) => p.field === 'glass').pop();
+    ok('glue: a saved Dim under 20% is published as 0.20 (dark .05, light 0)', low && low.value.dark.dim === 0.2 && low.value.light.dim === 0.2, low);
   }
   // remote apply: only an absent-vs-true dimAuto and key order differ -> no "glass changed", no publish back
   {
