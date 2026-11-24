@@ -819,21 +819,20 @@ it displaces the other action, and the displaced one is left unbound and named.
   it; off ends it and disables it, because the task carries a repeating keepalive trigger and one
   that is merely ended restarts itself within minutes. Where the task is missing, the switch
   launches the bridge directly and remembers the choice.
-- This browser's own tabs hold Spotify paused too, behind a second switch, "Also pause for videos
-  in this browser", with a line under it counting the tabs playing right now. A tab making sound
-  on a watched site (YouTube, Twitch, Kick, Vimeo, Dailymotion, TikTok, Netflix, Hulu, Disney+,
-  Prime Video, Max, Peacock and Crunchyroll out of the box; Twitch was the
-  first miss the user hit, so the list grew past the extension's), or any tab at all with "Any tab
-  that makes sound" on, registers a hold at the bridge on
-  127.0.0.1 (the first free of ports 8787 to 8790) under its own `src=owen-browser`, so the two
-  browsers can never release each other's hold. The hold refreshes every 60 seconds and is handed
-  back 1.5 seconds after the sound stops, or on quit. Spotify's own web player never counts as a
-  video.
+- This browser's own tabs hold Spotify paused too, behind a second switch, "Also pause for videos in
+  this browser", with a line under it counting the tabs playing right now. A tab making sound on a
+  watched site (YouTube, Twitch, Kick, Vimeo, Dailymotion, TikTok, Netflix, Hulu, Disney+, Prime
+  Video, Max, Peacock and Crunchyroll out of the box; Twitch was the first miss the user hit, so the
+  list grew past the extension's), or any tab at all with "Any tab that makes sound" on, registers a
+  hold at the bridge on 127.0.0.1 (the first free of ports 8787 to 8790) under its own source name,
+  so the two browsers can never release each other's hold. The hold refreshes every 60 seconds and
+  is handed back 1.5 seconds after the sound stops, or on quit. Spotify's own web player never
+  counts as a video.
 - A readout under the switch says what is actually true, down to the port and whether Spotify is
   open, and "Check health" runs the helper's own `doctor.ps1` and prints the report without
   changing anything.
-- Verified live: a tab making sound registered `owen-browser` at the bridge within five seconds
-  and released the hold when it closed.
+- Verified live: a tab making sound registered its hold at the bridge within five seconds and
+  released the hold when it closed.
 - "Quiet Spotify ads", a third switch in the same section (33a77e0, bc25347). With it on, the helper
   drops Spotify's own in-app volume to 10% while an ad is playing and puts it back to full when the
   ad ends, so the free tier's ad breaks stop being the loudest thing in the room. The switch reads
@@ -1173,12 +1172,12 @@ Found, and not ours to fix:
   other window and start Quartz again" — and quits without moving, merging or deleting anything.
   Test runs (`--test-profile`) are never moved. The code was inert until the name changed, so it
   landed before `package.json` did.
-- The Windows identity is fixed at `com.owensilva.quartz` (it was the derived
-  `electron.app.browser`), so a future display-name change cannot move it again.
+- The Windows identity is now a fixed app id (it was the derived `electron.app.browser`), so a
+  future display-name change cannot move it again.
 - New `relink-shortcut.ps1` writes Start Menu → `Quartz.lnk` carrying that id, which Windows needs
   before it shows the "Claude is waiting" toast. `register-default-browser.ps1` now registers
-  `Quartz` / `QuartzURL` / `QuartzHTML`, and `-RemoveOld` deletes the old `OwenBrowser` entries
-  once no default still points at them. Neither runs by itself; the taskbar pin keeps its
+  `Quartz` / `QuartzURL` / `QuartzHTML`, and `-RemoveOld` deletes the old entries from before the
+  rename once no default still points at them. Neither runs by itself; the taskbar pin keeps its
   `Browser.lnk` file name so Mantle's bar order holds.
 - Verified with a pure-node harness on temp folders (38/38), including a folder locked the way
   Chromium holds its `lockfile`, which is refused with the box's wording. Measured on a scratch
