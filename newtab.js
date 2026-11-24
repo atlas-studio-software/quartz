@@ -4892,7 +4892,15 @@ function renderHome(layout) {
    frosted islands. frost.js paints the chrome's blurred picture into each
    .frost element, lined up with the picture behind it; this marks them and
    asks for a re-line-up whenever the pieces moved. */
+let frostChipsWatched = false;
 function frostHome() {
+  // The shortcut chips and Saved tiles are made on the fly: frost.js lines
+  // them up by selector rather than by class.
+  if (!frostChipsWatched && window.Frost && typeof window.Frost.watch === 'function') {
+    window.Frost.watch('.chip');
+    window.Frost.watch('.rtile');
+    frostChipsWatched = true;
+  }
   const marks = document.querySelectorAll('.module[data-kind="card"], #search');
   for (let i = 0; i < marks.length; i += 1) {
     if (!marks[i].classList.contains('frost')) marks[i].classList.add('frost');

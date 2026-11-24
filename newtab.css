@@ -3309,3 +3309,23 @@ body.home-unfold { --home-fold: 0; }
   box-shadow: none;
 }
 .search.frost:focus-within { box-shadow: var(--isl-float), 0 0 0 2px var(--ion); }
+
+/* The shortcut chips and the Saved tiles: small islands (frost.js lines them
+   up by selector, newtab.js frostHome). They lose their live blur; a hover
+   lights them with one fill, the only time an island has one. */
+.chip,
+.rtile {
+  background:
+    linear-gradient(var(--frost-hover, transparent), var(--frost-hover, transparent)),
+    linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
+    linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
+    var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
+    var(--bg);
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+  box-shadow: var(--isl-float);
+}
+.chip.soft, .rtile.soft { --frost: var(--frost-soft); }
+.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-2); }
+.chip:active, .rtile:active { --frost-hover: var(--island-fill-press); }

@@ -116,6 +116,17 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(has(njs, 'function frostHome()') && has(njs, '.module[data-kind="card"], #search'), 'newtab.js marks every card and the search box');
 }
 
+/* ---- the Home's chips and Saved tiles: islands by selector, no live blur ---- */
+{
+  const njs = fs.readFileSync(path.join(__dirname, 'newtab.js'), 'utf8');
+  check(njs.indexOf("window.Frost.watch('.chip');") >= 0 && njs.indexOf("window.Frost.watch('.rtile');") >= 0, 'newtab.js has frost.js line up the chips and Saved tiles');
+  const ncss = fs.readFileSync(path.join(__dirname, 'newtab.css'), 'utf8');
+  const tail = ncss.slice(ncss.indexOf('The shortcut chips and the Saved tiles: small islands'));
+  check(/backdrop-filter: none/.test(tail) && /--frost-hover/.test(tail), 'chips and tiles: no live blur, a fill only on hover');
+  const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
+  check(fjs.indexOf('document.querySelectorAll(selector)') >= 0 && fjs.indexOf("document.querySelectorAll('.frost')") < 0, 'frost.js places by one selector, .frost plus what a page watches');
+}
+
 /* ---- no silent default: Settings says when Quartz paints 20% over the shared seed ---- */
 {
   const bjs = fs.readFileSync(path.join(__dirname, 'backdrop.js'), 'utf8');

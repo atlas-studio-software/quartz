@@ -169,6 +169,7 @@
   var pending = false;
   var pictureBox = null;                         // guest: the picture's box, or null = cover on the page
   var guestDim = null;
+  var selector = '.frost';                       // + what a page adds with watch()
   var st = { state: 'waiting', reason: 'no picture yet', panels: 0, films: 0, source: '', mode: chromeMode ? 'chrome' : 'guest' };
 
   function urlOfBg(el) {
@@ -353,7 +354,7 @@
       docEl.style.setProperty('--fh', geo.ch.toFixed(1) + 'px');
     }
     var dim = dimNow();
-    var panels = document.querySelectorAll('.frost');
+    var panels = document.querySelectorAll(selector);
     var films = 0, count = 0;
     for (var i = 0; i < panels.length; i++) {
       var f = panels[i];
@@ -400,7 +401,7 @@
   var watched = typeof WeakSet === 'function' ? new WeakSet() : null;
   function watchPanels() {
     if (!ro || !watched) return;
-    var panels = document.querySelectorAll('.frost');
+    var panels = document.querySelectorAll(selector);
     for (var i = 0; i < panels.length; i++) if (!watched.has(panels[i])) { watched.add(panels[i]); ro.observe(panels[i]); }
   }
   function startTree() {
@@ -418,6 +419,13 @@
   pure.refresh = refresh;
   pure.payload = payload;
   pure.setPictureBox = setPictureBox;
+  /** Also line up elements a page makes on the fly (the Home's chips and tiles), by selector. */
+  pure.watch = function (sel) {
+    if (typeof sel !== 'string' || !sel || selector.split(', ').indexOf(sel) >= 0) return;
+    selector += ', ' + sel;
+    watchPanels();
+    queue();
+  };
   pure.state = function () { return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source, mode: st.mode }; };
   return pure;
 });
