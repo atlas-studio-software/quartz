@@ -153,6 +153,8 @@
     var t = toolsRange();
     putPlate(plates.tools, navrow, t && t[0], t && t[1]);
     placeInd(snap === true);
+    // the plates moved: line their glass up again (frost.js)
+    if (window.Frost && typeof window.Frost.refresh === 'function') window.Frost.refresh();
   }
 
   function queue() {

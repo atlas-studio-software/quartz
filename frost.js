@@ -146,17 +146,30 @@
   };
   if (typeof document === 'undefined' || typeof window === 'undefined') return pure;
 
-  /* ---- DOM (the chrome window only) ---- */
+  /* ---- DOM ----
+     Two documents use this file:
+       the chrome  (index.html): it blurs the picture backdrop.js shows and
+                   lines the copies up under its own panels, and offers the
+                   copies to the Home guest (payload(), 'frostchange');
+       the Home    (newtab.html, a preload-less file:// guest): it never
+                   blurs anything itself (a file: picture would taint its
+                   canvas); the chrome pushes the two copies in as data:
+                   URLs with the wash (window.__applyFrost), and newtab.js
+                   says where the picture sits (setPictureBox). */
 
   var docEl = document.documentElement;
   var photoEl = document.querySelector('.backdrop > .bg-photo');
   var clearImgEl = document.querySelector('.bg-clear > .bg-clear-img');
-  var copies = { light: null, soft: null };      // { url, lum }
+  var chromeMode = !!photoEl;
+  var copies = { light: null, soft: null };      // { url, lum, dataUrl? }
   var srcUrl = '';
   var img = { w: 0, h: 0 };
   var buildSeq = 0;
+  var rev = 0;
   var pending = false;
-  var st = { state: 'waiting', reason: 'no picture yet', panels: 0, films: 0, source: '' };
+  var pictureBox = null;                         // guest: the picture's box, or null = cover on the page
+  var guestDim = null;
+  var st = { state: 'waiting', reason: 'no picture yet', panels: 0, films: 0, source: '', mode: chromeMode ? 'chrome' : 'guest' };
 
   function urlOfBg(el) {
     if (!el) return '';
@@ -164,11 +177,18 @@
     return m ? m[1] : '';
   }
 
-  /** The element whose picture is on screen now, and its URL. */
+  /** The chrome: the element whose picture is on screen now, and its URL. */
   function pictureNow() {
     var home = document.body && document.body.hasAttribute('data-bg-home');
     var el = home && urlOfBg(clearImgEl) ? clearImgEl : photoEl;
     return { el: el, url: urlOfBg(el) };
+  }
+
+  function lumOfImage(source, w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(source, 0, 0, w, h);
+    return { canvas: c, lum: { w: w, h: h, px: g.getImageData(0, 0, w, h).data } };
   }
 
   function blurCopy(source, w, h, blurPx) {
@@ -199,13 +219,19 @@
     if (old && old.url && old.url.indexOf('blob:') === 0) { try { URL.revokeObjectURL(old.url); } catch (e) { /* gone */ } }
   }
 
-  /** Re-blur when the picture's URL changes; nothing else ever re-blurs. */
+  function says(state, reason) {
+    st.state = state; st.reason = reason || '';
+    if (state === 'ok') docEl.setAttribute('data-frost', ''); else docEl.removeAttribute('data-frost');
+    if (state === 'fallback' && reason) console.warn('[frost] ' + reason);
+  }
+
+  /** The chrome: re-blur when the picture's URL changes; nothing else ever re-blurs. */
   function rebuild() {
+    if (!chromeMode) return;
     var now = pictureNow();
     if (!now.url) {
-      if (srcUrl) { srcUrl = ''; setCopy('light', null); setCopy('soft', null); }
-      st.state = 'waiting'; st.reason = 'no picture is shown, so the panels show the plain ground';
-      docEl.removeAttribute('data-frost');
+      if (srcUrl) { srcUrl = ''; setCopy('light', null); setCopy('soft', null); rev++; announce(); }
+      says('waiting', 'no picture is shown, so the panels show the plain ground');
       return;
     }
     if (now.url === srcUrl) return;
@@ -219,36 +245,109 @@
       var w = BITMAP_W, h = Math.max(1, Math.round(w * img.h / img.w));
       var left = 2;
       Object.keys(BLURS).forEach(function (name) {
-        var made = blurCopy(im, w, h, BLURS[name]);
+        var made;
+        try { made = blurCopy(im, w, h, BLURS[name]); } catch (err) {
+          says('fallback', 'the picture could not be blurred for the panels (' + ((err && err.message) || err) + '), so they show the plain ground');
+          return;
+        }
+        var dataUrl = '';
+        try { dataUrl = made.canvas.toDataURL('image/jpeg', 0.86); } catch (err) { dataUrl = ''; }
         made.canvas.toBlob(function (blob) {
           if (my !== buildSeq) return;
-          if (blob) setCopy(name, { url: URL.createObjectURL(blob), lum: made.lum });
+          if (blob) setCopy(name, { url: URL.createObjectURL(blob), lum: made.lum, dataUrl: dataUrl });
           if (--left === 0) {
-            st.state = 'ok'; st.reason = ''; st.source = now.el === clearImgEl ? 'full picture' : 'small picture';
-            docEl.setAttribute('data-frost', '');
+            st.source = now.el === clearImgEl ? 'full picture' : 'small picture';
+            says('ok');
+            rev++;
             queue();
+            announce();
           }
         }, 'image/jpeg', 0.92);
       });
     }, function (err) {
       if (my !== buildSeq) return;
-      st.state = 'fallback';
-      st.reason = 'the picture could not be decoded for the panels\' blur (' + ((err && err.message) || err) + '), so they show the plain ground';
-      docEl.removeAttribute('data-frost');
-      console.warn('[frost] ' + st.reason);
+      says('fallback', 'the picture could not be decoded for the panels\' blur (' + ((err && err.message) || err) + '), so they show the plain ground');
     });
+  }
+
+  function announce() {
+    try { document.dispatchEvent(new CustomEvent('frostchange', { detail: { rev: rev } })); } catch (e) { /* old engine */ }
+  }
+
+  /** The chrome: what the Home guest needs, or null while there is nothing. */
+  function payload() {
+    if (!chromeMode || !copies.light || !copies.soft || !copies.light.dataUrl || !copies.soft.dataUrl) return null;
+    var now = pictureNow();
+    var r = now.el ? now.el.getBoundingClientRect() : null;
+    return { rev: rev, iw: img.w, ih: img.h, light: copies.light.dataUrl, soft: copies.soft.dataUrl,
+             dim: dimNow(), washRgb: getComputedStyle(docEl).getPropertyValue('--wash-rgb').trim(),
+             picture: r && r.width ? { left: r.left, top: r.top, width: r.width, height: r.height } : null };
+  }
+
+  var DATA_JPEG = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
+  var MAX_DATA = 4 * 1024 * 1024;
+
+  /** The Home guest: the chrome's copies arrive. Checked before anything is drawn. */
+  function applyGuest(p) {
+    if (chromeMode) return { ok: false, reason: 'only the Home page takes pushed copies' };
+    if (!p || typeof p !== 'object') return { ok: false, reason: 'no copies were sent' };
+    if (typeof p.dim === 'number' && isFinite(p.dim)) {
+      guestDim = Math.max(0, Math.min(1, p.dim));
+      docEl.style.setProperty('--chrome-glass-a', String(guestDim));
+    }
+    if (typeof p.washRgb === 'string' && /^\d{1,3} \d{1,3} \d{1,3}$/.test(p.washRgb)) docEl.style.setProperty('--wash-rgb', p.washRgb);
+    // where the chrome's picture sits, in this page's px (null = cover on the page)
+    if (p.box !== undefined) setPictureBox(p.box);
+    if (p.light === undefined && p.soft === undefined) { queue(); return { ok: true, reason: 'the wash only' }; }
+    var bad = ['light', 'soft'].filter(function (k) { return typeof p[k] !== 'string' || p[k].length > MAX_DATA || !DATA_JPEG.test(p[k]); });
+    if (bad.length || !(p.iw > 0) || !(p.ih > 0)) {
+      says('fallback', 'the chrome sent copies this page cannot use, so the pieces show the plain ground');
+      return { ok: false, reason: st.reason };
+    }
+    if (p.rev === rev && copies.light) return { ok: true, reason: 'already shown' };
+    var my = ++buildSeq;
+    img.w = p.iw; img.h = p.ih;
+    var left = 2;
+    ['light', 'soft'].forEach(function (name) {
+      var im = new Image();
+      im.src = p[name];
+      (typeof im.decode === 'function' ? im.decode() : Promise.resolve()).then(function () {
+        if (my !== buildSeq) return;
+        var made = lumOfImage(im, im.naturalWidth || BITMAP_W, im.naturalHeight || 1);
+        setCopy(name, { url: p[name], lum: made.lum });
+        if (--left === 0) { rev = p.rev; st.source = 'the chrome'; says('ok'); queue(); }
+      }, function () {
+        if (my !== buildSeq) return;
+        says('fallback', 'the copies the chrome sent did not decode, so the pieces show the plain ground');
+      });
+    });
+    return { ok: true, reason: '' };
+  }
+
+  /** The Home guest: where the picture sits ({left, top, width, height}), or null = cover on the page. */
+  function setPictureBox(box) {
+    var ok = box && isFinite(box.left) && isFinite(box.top) && box.width > 0 && box.height > 0;
+    pictureBox = ok ? { left: box.left, top: box.top, width: box.width, height: box.height } : null;
+    queue();
   }
 
   function dimNow() {
     var v = parseFloat(getComputedStyle(docEl).getPropertyValue('--chrome-glass-a'));
-    return isFinite(v) ? v : DIM_DEFAULT;
+    return isFinite(v) ? v : (guestDim == null ? DIM_DEFAULT : guestDim);
+  }
+
+  function geometryNow() {
+    if (chromeMode) {
+      var now = pictureNow();
+      return now.el ? coverGeometry(now.el.getBoundingClientRect(), img.w, img.h) : null;
+    }
+    var box = pictureBox || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    return coverGeometry(box, img.w, img.h);
   }
 
   function place() {
     pending = false;
-    var now = pictureNow();
-    var box = now.el ? now.el.getBoundingClientRect() : null;
-    var geo = box ? coverGeometry(box, img.w, img.h) : null;
+    var geo = img.w ? geometryNow() : null;
     if (geo) {
       docEl.style.setProperty('--fw', geo.cw.toFixed(1) + 'px');
       docEl.style.setProperty('--fh', geo.ch.toFixed(1) + 'px');
@@ -287,10 +386,13 @@
 
   // What moves a panel's picture: the picture changing or its layer moving
   // (backdrop.js writes its style), the window resizing, a panel appearing,
-  // going or changing size. All of it is coalesced into one frame.
-  var mo = typeof MutationObserver === 'function' ? new MutationObserver(function () { refresh(); }) : null;
+  // going or changing size, the page scrolling. A panel MOVED by script
+  // (islands.js plates, a Home piece placed or dragged) calls Frost.refresh().
+  // All of it is coalesced into one frame. Style changes are not watched: a
+  // progress bar ticking would re-place every panel for nothing.
+  var mo = typeof MutationObserver === 'function' && chromeMode ? new MutationObserver(function () { refresh(); }) : null;
   if (mo) {
-    if (photoEl) mo.observe(photoEl, { attributes: true, attributeFilter: ['style', 'data-ready'] });
+    mo.observe(photoEl, { attributes: true, attributeFilter: ['style', 'data-ready'] });
     if (clearImgEl) mo.observe(clearImgEl, { attributes: true, attributeFilter: ['style'] });
     if (document.body) mo.observe(document.body, { attributes: true, attributeFilter: ['data-bg-home'] });
   }
@@ -301,14 +403,21 @@
     var panels = document.querySelectorAll('.frost');
     for (var i = 0; i < panels.length; i++) if (!watched.has(panels[i])) { watched.add(panels[i]); ro.observe(panels[i]); }
   }
-  var tree = typeof MutationObserver === 'function' ? new MutationObserver(function () { watchPanels(); queue(); }) : null;
-  if (tree && document.body) tree.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  function startTree() {
+    var tree = typeof MutationObserver === 'function' ? new MutationObserver(function () { watchPanels(); queue(); }) : null;
+    if (tree && document.body) tree.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+    watchPanels();
+  }
+  if (document.body) startTree(); else document.addEventListener('DOMContentLoaded', startTree, { once: true });
   window.addEventListener('resize', queue);
-  document.addEventListener('backdropchange', refresh);
-  watchPanels();
+  window.addEventListener('scroll', queue, { passive: true, capture: true });
+  if (chromeMode) document.addEventListener('backdropchange', refresh);
+  else window.__applyFrost = applyGuest;
   refresh();
 
   pure.refresh = refresh;
-  pure.state = function () { return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source }; };
+  pure.payload = payload;
+  pure.setPictureBox = setPictureBox;
+  pure.state = function () { return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source, mode: st.mode }; };
   return pure;
 });

@@ -709,7 +709,40 @@ function pushAlignToTab(tab) {
 }
 
 function pushAlignToVisible() {
-  for (const tab of tabs) pushAlignToTab(tab);
+  for (const tab of tabs) { pushAlignToTab(tab); pushFrostToTab(tab); }
+}
+
+/*
+ * The floating islands' glass on the Home (frost.js). The chrome blurs the
+ * picture once; a Home guest never does (a file: picture would taint its
+ * canvas), so it gets the two copies as data: URLs plus the wash and where
+ * the picture sits relative to the guest. The copies go only when they
+ * changed (their rev); a move, a resize or a new Dim sends the small part.
+ */
+function pushFrostToTab(tab) {
+  const F = window.Frost;
+  if (!F || typeof F.payload !== 'function') return;
+  if (!isViewUsable(tab) || !isNewTabUrl(tab.url)) return;
+  const p = F.payload();
+  if (!p) return;
+  const vr = tab.viewEl.getBoundingClientRect();
+  if (!vr.width || !vr.height) return;           // hidden: it gets the lot when it shows
+  const box = p.picture ? {
+    left: Math.round((p.picture.left - vr.left) * 10) / 10, top: Math.round((p.picture.top - vr.top) * 10) / 10,
+    width: Math.round(p.picture.width * 10) / 10, height: Math.round(p.picture.height * 10) / 10,
+  } : null;
+  const small = { dim: p.dim, washRgb: p.washRgb, box };
+  const full = !pushUnchanged(tab, 'frost-rev', String(p.rev));
+  const geo = JSON.stringify(small);
+  if (!full && pushUnchanged(tab, 'frost-geo', geo)) return;
+  if (full) pushUnchanged(tab, 'frost-geo', geo);
+  const out = full ? Object.assign({ rev: p.rev, iw: p.iw, ih: p.ih, light: p.light, soft: p.soft }, small) : small;
+  try {
+    const pending = tab.viewEl.executeJavaScript('window.__applyFrost && window.__applyFrost(' + JSON.stringify(out) + ')');
+    if (pending && typeof pending.catch === 'function') {
+      pending.catch(() => { pushFailed(tab, 'frost-rev'); pushFailed(tab, 'frost-geo'); });
+    }
+  } catch (err) { pushFailed(tab, 'frost-rev'); pushFailed(tab, 'frost-geo'); }
 }
 
 let lookAlignFrame = 0;
@@ -734,6 +767,9 @@ function wireLookSyncBackground() {
   document.addEventListener('lookplace', scheduleLookAlign);
   window.addEventListener('resize', scheduleLookAlign);
   document.addEventListener('sidepane', scheduleLookAlign);
+  // The islands' glass: new copies, or a new Dim / picture place (frost.js, backdrop.js).
+  document.addEventListener('frostchange', () => { for (const tab of tabs) pushFrostToTab(tab); });
+  document.addEventListener('backdropchange', scheduleLookAlign);
   document.addEventListener('workspacechange', scheduleLookAlign);
   // A tab coming on screen may have been told an align while hidden (or
   // before the window moved): correct it now, not a frame later.
@@ -11880,6 +11916,7 @@ function wireViewEvents(tab) {
     pushHomeToTab(tab, false, null);  // the Home's layout: which pieces, where
     pushSavedToTab(tab, false);  // the Saved row: the bookmarks list it cannot read
     pushBackgroundToTab(tab);
+    pushFrostToTab(tab);  // the islands' glass (frost.js): a reload lost the copies
     pushAppsToTab(tab);   // the app dock: pins, the installed list, running state
     pushProcIconCacheToTab(tab);  // process icons we already have, in one go
     pushHistoryToTab(tab);

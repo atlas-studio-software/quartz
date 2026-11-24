@@ -3271,3 +3271,41 @@ body.home-unfold { --home-fold: 0; }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(stk-chart) { animation: none; }
 }
+
+/* ==============================================================
+   The floating islands on the Home (the look, 2026-11-24). Every card
+   and the search box is a .frost island: it shows only the chrome's
+   blurred picture behind it (frost.js, pushed in by app.js), under the
+   same wash as around it. No tint card, no hairline edge, no live
+   backdrop-filter; soft shadows only. Until the copies arrive the
+   island shows the plain ground.
+   ============================================================== */
+:root {
+  --frost: none;
+  --frost-soft: none;
+  --isl-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
+}
+.frost,
+.module.frost {
+  background:
+    linear-gradient(rgba(10, 12, 14, var(--film, 0)), rgba(10, 12, 14, var(--film, 0))),
+    linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
+    var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
+    var(--bg);
+  border-color: transparent;
+  box-shadow: var(--isl-float);
+}
+.frost.soft { --frost: var(--frost-soft); }
+.module.frost { border-radius: var(--radius-l); }
+.module.frost { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
+
+/* the search box: the form is the island, the field inside it is clear */
+.search.frost { border-radius: var(--radius-l); }
+.search.frost .search-input {
+  background: transparent;
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+  box-shadow: none;
+}
+.search.frost:focus-within { box-shadow: var(--isl-float), 0 0 0 2px var(--ion); }

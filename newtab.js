@@ -4885,6 +4885,19 @@ function renderHome(layout) {
   // The markets tile listens for this; it lives in its own closure.
   try { window.dispatchEvent(new Event('homelayout')); } catch (err) { /* old engine */ }
   refreshHomeEdit();
+  frostHome();
+}
+
+/* The look (2026-11-24): every Home card and the search box float as
+   frosted islands. frost.js paints the chrome's blurred picture into each
+   .frost element, lined up with the picture behind it; this marks them and
+   asks for a re-line-up whenever the pieces moved. */
+function frostHome() {
+  const marks = document.querySelectorAll('.module[data-kind="card"], #search');
+  for (let i = 0; i < marks.length; i += 1) {
+    if (!marks[i].classList.contains('frost')) marks[i].classList.add('frost');
+  }
+  if (window.Frost && typeof window.Frost.refresh === 'function') window.Frost.refresh();
 }
 
 /** A piece was shown, hidden or moved: start, stop or resize its work. */
@@ -5618,6 +5631,7 @@ function onHomeBoxMove(ev) {
   const el = homePieceEl(d.id);
   if (el) el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
   d.box.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+  if (window.Frost && typeof window.Frost.refresh === 'function') window.Frost.refresh();   // its glass stays the picture behind it
   d.landing = homeLanding(d, d.start.left + dx, d.start.top + dy, ev.altKey);
   drawHomeLanding(d.landing);
 }
@@ -5660,6 +5674,7 @@ function homeGlideFrom(el, seen) {
   el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
   void el.offsetWidth;   // the start of the glide is this frame's box
   el.style.transition = 'transform ' + HOME_GLIDE_MS + 'ms var(--ease)';
+  setTimeout(frostHome, HOME_GLIDE_MS + 20);   // the glass lines up again where it landed
   el.style.transform = '';
   setTimeout(function () { el.style.transition = ''; scheduleHomeLayout(); }, HOME_GLIDE_MS + 40);
 }

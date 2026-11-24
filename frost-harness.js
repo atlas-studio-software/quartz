@@ -97,5 +97,24 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(!/LookSync\.(set|write|publish)/.test(fjs) && !/look\.json/.test(fjs.replace(/\/\*[\s\S]*?\*\//g, '')), 'frost.js never writes Look Sync');
 }
 
+/* ---- the Home guest: the chrome hands over its copies, the guest never blurs ---- */
+{
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const has = (text, s) => text.indexOf(s) >= 0;
+  check(has(app, 'function pushFrostToTab(tab)') && has(app, "pushFrostToTab(tab);  // the islands' glass"), 'app.js: every Home guest gets the glass on dom-ready');
+  check(has(app, "addEventListener('frostchange'"), 'app.js: new copies go to every Home guest');
+  check(has(app, "pushUnchanged(tab, 'frost-rev'") && has(app, "pushUnchanged(tab, 'frost-geo'"), 'app.js: the copies go once per rev, a move sends only the small part');
+  const nh = fs.readFileSync(path.join(__dirname, 'newtab.html'), 'utf8');
+  check(nh.indexOf('<script src="frost.js"></script>') > 0 && nh.indexOf('<script src="frost.js"></script>') < nh.indexOf('<script src="newtab.js"></script>'), 'newtab.html loads frost.js before newtab.js');
+  const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
+  check(has(fjs, 'var DATA_JPEG = /^data:image\\/jpeg;base64,') && has(fjs, 'MAX_DATA'), 'the guest takes only data:image/jpeg copies, size-capped');
+  check(has(fjs, "if (chromeMode) return { ok: false"), 'the chrome never takes pushed copies');
+  const ncss = fs.readFileSync(path.join(__dirname, 'newtab.css'), 'utf8');
+  const tail = ncss.slice(ncss.indexOf('The floating islands on the Home'));
+  check(has(tail, '.module.frost') && /\.search\.frost \.search-input \{[^}]*backdrop-filter: none/.test(tail), 'Home cards and the search box are islands; the search field has no live blur');
+  const njs = fs.readFileSync(path.join(__dirname, 'newtab.js'), 'utf8');
+  check(has(njs, 'function frostHome()') && has(njs, '.module[data-kind="card"], #search'), 'newtab.js marks every card and the search box');
+}
+
 console.log('frost: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
