@@ -311,7 +311,7 @@ run('watch-leak-e2e', async ({ check, launch, say, profileDir }) => {
     const ref = srv.referers.filter((r) => r.path === '/embed/' + VID).pop();
     const refAttr = () => chrome.ev('(() => { const v = document.querySelector(".wp-layer webview"); return v ? v.getAttribute("httpreferrer") : null; })()');
     const attr = await refAttr();
-    check(!!ref && attr === 'https://github.com/Owen-Silva/quartz', 'the embed loads with the app\'s Referer asked for (YouTube refuses an embed without one)', { attr, served: ref });
+    check(!!ref && attr === 'https://github.com/atlas-studio-software/quartz', 'the embed loads with the app\'s Referer asked for (YouTube refuses an embed without one)', { attr, served: ref });
     await shot('embed-fullpage-button', 1536, 800);
     await chrome.ev('document.querySelector(".wp-yt-full").click(), 1');
     sl = await layerAt(FY + '/watch?v=' + VID);
@@ -330,7 +330,7 @@ run('watch-leak-e2e', async ({ check, launch, say, profileDir }) => {
     await sleep(600);
     const ref2 = srv.referers.filter((r) => r.path === '/embed/' + FAIL_VID).pop();
     const attr2 = await refAttr();
-    check(!!sl && !sl.state && !!ref2 && attr2 === 'https://github.com/Owen-Silva/quartz' && (await chrome.ev('WatchPlayerYT._state().fullShown')), 'the fallback plays the embed (the Referer asked for) and offers "Full page"', { url: sl && sl.url, attr2, served: !!ref2 });
+    check(!!sl && !sl.state && !!ref2 && attr2 === 'https://github.com/atlas-studio-software/quartz' && (await chrome.ev('WatchPlayerYT._state().fullShown')), 'the fallback plays the embed (the Referer asked for) and offers "Full page"', { url: sl && sl.url, attr2, served: !!ref2 });
     await chrome.ev('WatchPlayer.close("e2e"), 1');
     await chrome.waitFor(`!${ST}.open`, 8000).catch(() => 0);
 

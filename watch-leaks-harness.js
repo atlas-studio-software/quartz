@@ -17,6 +17,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const Leaks = require('./watch-leaks');
 const YT = require('./watch-player-yt');
+const Preview = require('./watch/preview');
 const PM = require('./watch-player-main');
 const WM = require('./watch-main');
 
@@ -82,6 +83,11 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'watch-leaks-'));
   check(v && v.embed && YT.pageUrl(v) === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=7s', '"Full page": the embed goes back to the watch page at the same time', v);
   const s = { service: 'youtube', multi: false };
   check(YT.referrer({}, s, 'https://www.youtube.com/embed/dQw4w9WgXcQ') === YT.REFERER && YT.referrer({}, s, W) === undefined, 'yt: only the embed gets the app Referer');
+  // The app identity YouTube's embed gets (error 153 without one): the project's public repo, the
+  // same in the chrome's player and in main's header for Watch's preview.
+  check(YT.REFERER === 'https://github.com/atlas-studio-software/quartz', 'yt: the embed Referer is the public repo', YT.REFERER);
+  check(Preview.EMBED_REFERER === YT.REFERER && Preview.currentEmbedReferer() === YT.REFERER, 'yt: watch/preview.js sends the same Referer', Preview.EMBED_REFERER);
+  check(Preview.cleanReferer(YT.REFERER) === YT.REFERER, 'yt: the default passes its own https check');
   check(YT.slotUrl({}, s, W) === undefined && YT.slotUrl({}, { service: 'youtube', multi: true }, W).indexOf('/embed/') !== -1, 'yt: the slotUrl hook changes only what must change');
 }
 

@@ -22,7 +22,7 @@ var Preview = require('../watch/preview');
 var WM = require('../watch-main');
 var SportsMain = require('../sports-main');
 
-var PUBLIC_REFERER = 'https://github.com/Owen-Silva/quartz';
+var PUBLIC_REFERER = 'https://github.com/atlas-studio-software/quartz';
 
 /* A watch-main with fakes: a clock, timers we fire by hand, and a count of everything that would touch a service. */
 function world(dir) {

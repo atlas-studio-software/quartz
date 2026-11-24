@@ -27,7 +27,7 @@
   // without a Referer naming the app that embeds it. Only the embed gets it. REFERER is the
   // project's public default; watch.json's optional "embedReferer" replaces it, and main hands
   // that over in Settings' describe() (asked once below, when this file loads in the chrome).
-  var REFERER = 'https://github.com/Owen-Silva/quartz';
+  var REFERER = 'https://github.com/atlas-studio-software/quartz';
   var referer = REFERER;
   function currentReferer() { return referer; }
   /** main's answer (already checked there, watch/preview.js cleanReferer): an https URL, or keep the default. */

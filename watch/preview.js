@@ -46,7 +46,7 @@
    * same file, so they share the one value; the chrome's player (watch-player-yt.js) gets it
    * from Settings' describe(). Anything that is not a plain https URL is ignored.
    */
-  var EMBED_REFERER = 'https://github.com/Owen-Silva/quartz';
+  var EMBED_REFERER = 'https://github.com/atlas-studio-software/quartz';
   var embedRef = EMBED_REFERER;
   var YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
