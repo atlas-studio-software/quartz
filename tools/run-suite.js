@@ -138,6 +138,10 @@ const TESTS = [
   // The background layer: the picture shows unblurred whenever the window has a still picture, whatever
   // tab is in front (the top band never changes with the front tab), and says why when it cannot.
   { name: 'backdrop', file: 'backdrop-harness.js' },
+  // The floating islands' glass (frost.js): blur kind, cover geometry, the brightness check, the 20% Dim default.
+  { name: 'frost', file: 'frost-harness.js' },
+  // The islands (islands.js / islands.css): plates, the underline under the title's words, the look's rules.
+  { name: 'islands', file: 'islands-harness.js' },
   // tools/css-lint.js: raw radii and type sizes off tokens.css's scale, the old --fg names, unused
   // --space-N steps, the allow comment; then the repository, nothing over tools/css-lint-baseline.json.
   { name: 'css-lint', file: 'css-lint-harness.js' },

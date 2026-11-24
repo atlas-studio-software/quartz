@@ -241,7 +241,20 @@
         g = all && typeof all === 'object' ? all[t] : null;
       } catch (err) { g = null; }
     }
-    return normGlass(g, t);
+    var n = normGlass(g, t);
+    // The Dim Quartz PAINTS (frost.js effectiveDim): Look Sync's untouched seed
+    // reads as Quartz's default 20%; a Dim set by hand (dimAuto false) or any
+    // other shared value wins. Nothing here is written back: look.json and the
+    // shared glass stay exactly as they are.
+    var F = window.Frost;
+    if (F && typeof F.effectiveDim === 'function') {
+      var e = F.effectiveDim(n, n.dimAuto === false);
+      n.dimShared = n.dim;
+      n.dim = e.dim;
+      n.dimSource = e.source;
+      n.dimReason = e.reason;
+    }
+    return n;
   }
 
   /* --- LookSync: the desktop record and this window's place ------------ */

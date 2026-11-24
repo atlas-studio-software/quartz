@@ -64,6 +64,8 @@
   <link rel="stylesheet" href="watch-ambient.css">
   <link rel="stylesheet" href="watch-alerts.css">
   <link rel="stylesheet" href="updater.css">
+  <!-- The floating islands (islands.js + frost.js): loaded last, it restyles the rows above. -->
+  <link rel="stylesheet" href="islands.css">
 </head>
 <body>
 
@@ -265,7 +267,10 @@
   <!-- The first-run welcome (welcome.html): app.js calls FirstRun.boot() once the strip is up. -->
   <script src="firstrun.js"></script>
   <script src="keywords.js"></script>
+  <!-- The islands' glass: the picture blurred twice, lined up under every .frost panel. Before backdrop.js (it reads Frost.effectiveDim). -->
+  <script src="frost.js"></script>
   <script src="backdrop.js"></script>
+  <script src="islands.js"></script>
   <!-- After backdrop.js: tells Mantle what the top pixel row looks like (top bar hints). -->
   <script src="toprow.js"></script>
   <script src="userstyle.js"></script>

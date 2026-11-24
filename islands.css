@@ -1,0 +1,176 @@
+/* ============================================================
+   islands.css — Quartz's look (the user, 2026-11-24): everything floats
+   over the wallpaper as islands, with air all round and soft shadows.
+   Nothing but the picture touches the window's edges.
+
+   A panel (.frost) shows ONLY the blurred picture behind it at its own
+   colours (frost.js pre-blurs it twice and lines it up), under the same
+   wash as the window around it. No tint film, no white sheen, no hairline
+   edge; only the brightness check's neutral film where the picture behind
+   is too bright for white text (--film, 0 over dark areas). Soft shadows
+   only. Loaded LAST: it restyles chrome.css's rows, it does not replace
+   their behaviour.
+
+   No backdrop-filter anywhere here, and nothing animates at rest.
+   ============================================================ */
+
+:root {
+  --isl-gap: 8px;
+  --isl-r: 12px;
+  --isl-r-s: 8px;
+  --isl-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
+  --isl-float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+  --isl-ease-lift: cubic-bezier(0.22, 1.12, 0.36, 1);
+  --isl-fill-1: rgba(255, 255, 255, 0.07);
+  --isl-fill-2: rgba(255, 255, 255, 0.12);
+  --isl-fill-press: rgba(255, 255, 255, 0.05);
+  /* until frost.js has the blurred copies: the plain ground */
+  --frost: none;
+  --frost-soft: none;
+}
+
+/* ---------- the frosted island ---------- */
+.frost {
+  background:
+    linear-gradient(rgba(10, 12, 14, var(--film, 0)), rgba(10, 12, 14, var(--film, 0))),
+    linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
+    var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
+    var(--bg);
+  box-shadow: var(--isl-float);
+  border: 0;
+}
+.frost.soft { --frost: var(--frost-soft); }
+.island { border-radius: var(--isl-r); }
+
+/* ---------- the rows: no fill of their own, air at the window's edges ---------- */
+html #titlebar,
+html .navrow {
+  background: transparent !important;
+  border-bottom-color: transparent !important;
+  box-shadow: none;
+}
+
+#titlebar {
+  position: relative;
+  height: calc(var(--titlebar-h) + 4px);
+  padding: 6px 0 0 var(--isl-gap);
+  align-items: center;
+}
+#titlebar > :not(.isl-plate):not(.tab-ind) { position: relative; z-index: 2; }
+#tabstrip { padding: 0 4px; }
+
+.navrow {
+  position: relative;
+  margin: 4px var(--isl-gap) 0;
+  padding: 4px;
+  gap: 2px;
+  background: transparent;
+}
+.navrow > :not(.isl-plate) { position: relative; z-index: 1; }
+
+/* the plates islands.js places behind each group */
+.isl-plate {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+.isl-plate[hidden] { display: none; }
+
+/* ---------- tab row ---------- */
+/* the one highlight that slides between chips; the accent underline sits
+   under the title's words (--ul-x, islands.js) */
+.tab-ind {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  width: 0;
+  height: 30px;
+  border-radius: var(--isl-r-s);
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 3px rgba(0, 12, 16, 0.25);
+  transition: transform 320ms var(--isl-ease-lift), width 320ms var(--isl-ease-lift);
+}
+.tab-ind::after {
+  content: '';
+  position: absolute;
+  left: var(--ul-x, 50%);
+  bottom: 3px;
+  width: 16px;
+  height: 2px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  transition: left 320ms var(--isl-ease-lift);
+}
+.tab-ind.no-title::after { left: calc(50% - 8px); }
+.tab-ind.instant, .tab-ind.instant::after { transition: none; }
+.tab-ind[hidden] { display: none; }
+html[data-theme="light"] .tab-ind { background: rgba(255, 255, 255, 0.55); }
+
+.tab { border-color: transparent !important; }
+.tab:hover { background: var(--isl-fill-1); }
+.tab:active { background: var(--isl-fill-press); }
+.tab.active { background: transparent; box-shadow: none; }
+.tab.active:focus-visible { box-shadow: var(--focus-ring); }
+.tab::after, .tab.active::after { opacity: 0 !important; }
+.tab-title { mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent); }
+
+#newtab { border-radius: var(--radius-pill); }
+#newtab:hover { background: var(--isl-fill-2); }
+
+/* the workspace pill: its own island before the tabs */
+#workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }
+
+/* Windows' caption buttons stay at the window's real corner (a maximised
+   window still closes from the corner), bare over the picture */
+.wincontrols { align-self: flex-start; margin-top: -6px; }
+.wincontrols button { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4)); }
+
+/* ---------- toolbar: nav / address / tools ---------- */
+.navrow > button { border-radius: var(--isl-r-s); }
+.navrow > button:hover { background: var(--isl-fill-2); }
+.navrow > button:active { background: var(--isl-fill-press); }
+
+#omnibox.frost {
+  flex: 1 1 auto;
+  max-width: 760px;
+  margin: 0 auto;
+  height: 40px;
+  border-radius: var(--isl-r);
+  padding: 0 14px;
+}
+#omnibox.frost:focus { box-shadow: var(--isl-float), 0 0 0 2px var(--accent); }
+
+/* ---------- the well: a page floats as a sheet ---------- */
+#well {
+  margin: var(--isl-gap);
+  gap: var(--isl-gap);
+  border-top: 0 !important;
+}
+#views {
+  border-radius: var(--isl-r);
+  overflow: hidden;
+  box-shadow: var(--isl-float);
+}
+#sidepane {
+  border-radius: var(--isl-r);
+  border-left: 0;
+  box-shadow: var(--isl-float);
+}
+
+/* sink-and-lift: a tab body rises into place each time it comes to the
+   front (display none -> shown restarts the animation) */
+@keyframes isl-lift {
+  from { opacity: 0.35; transform: translateY(10px) scale(0.985); }
+}
+#views > webview:not(.inactive):not(.hidden):not([hidden]),
+#views > .claude-view:not([hidden]) {
+  animation: isl-lift 320ms var(--isl-ease-lift) both;
+  transform-origin: 50% 30%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-ind, .tab-ind::after { transition: none; }
+  #views > webview, #views > .claude-view { animation: none !important; }
+}
