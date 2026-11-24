@@ -142,6 +142,8 @@ const TESTS = [
   { name: 'frost', file: 'frost-harness.js' },
   // The brightness check as one pure function (brightcheck.js), swappable for look-sync v2's.
   { name: 'brightcheck', file: 'brightcheck-harness.js' },
+  // The preview launcher (tools/newlook-preview.js): its command, refusals, environment and seeded picture.
+  { name: 'newlook-preview', file: 'tests/newlook-preview-test.js' },
   // The islands (islands.js / islands.css): plates, the underline under the title's words, the look's rules.
   { name: 'islands', file: 'islands-harness.js' },
   // Markets' charts (stockchart.js): scale, labels in their own gutter, the crosshair, which ranges the data can show.
