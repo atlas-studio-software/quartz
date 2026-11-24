@@ -27,7 +27,7 @@ const FILES = ['look-sync.js', 'accent.js', 'windows-mode.js', 'fake-writer.js']
 const HERE = __dirname;
 
 function header(commit, file) {
-  return '/* VENDORED from ~/look-sync commit ' + commit + ' (' + file + '), Owen-Silva/look-sync.\n' +
+  return '/* VENDORED from ~/look-sync commit ' + commit + ' (' + file + ').\n' +
     '   Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */\n';
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* VENDORED from ~/look-sync commit 3fa3800 (fake-writer.js), Owen-Silva/look-sync.
+/* VENDORED from ~/look-sync commit 3fa3800 (fake-writer.js).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 'use strict';
 /*

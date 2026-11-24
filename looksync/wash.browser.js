@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit 3fa3800 (look-sync.js pure block: washAlpha, wrapped for <script> pages), Owen-Silva/look-sync.
+/* VENDORED from ~/look-sync commit 3fa3800 (look-sync.js pure block: washAlpha, wrapped for <script> pages).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 (function () {
 'use strict';
