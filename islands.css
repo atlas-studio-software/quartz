@@ -48,7 +48,8 @@
    new-tab button) keep it under their own hover and press. */
 .frost,
 #workspace-pill.frost:hover, #workspace-pill.frost:active, #workspace-pill.frost.is-open,
-#newtab.frost:hover, #newtab.frost:active {
+#newtab.frost:hover, #newtab.frost:active,
+#tabsearch-btn.frost:hover, #tabsearch-btn.frost:active, #tabsearch-btn.frost.is-on {
   background:
     linear-gradient(rgb(var(--sheen-rgb) / var(--sheen, 0)), rgb(var(--sheen-rgb) / var(--sheen, 0))),
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
@@ -163,6 +164,10 @@ html .navrow {
 #newtab.frost { width: 32px; height: 32px; margin-left: 6px; }
 #newtab:not(.frost):hover { background: var(--isl-fill-2); }
 #newtab.frost:hover { --sheen: var(--sheen-hover); color: var(--text); }
+/* the tab-search button: the design's second round island (#tab-search), 6 after the + */
+#tabsearch-btn.frost { width: 32px; height: 32px; margin-left: 6px; border-radius: var(--radius-pill); }
+#tabsearch-btn.frost:hover { --sheen: var(--sheen-hover); color: var(--text); }
+#tabsearch-btn.frost.is-on { --sheen: var(--sheen-open); color: var(--text); box-shadow: var(--isl-float); }
 
 /* the workspace pill: its own island before the tabs */
 #workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }

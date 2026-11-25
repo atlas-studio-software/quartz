@@ -241,6 +241,9 @@
     // the new-tab button is an island of its own (the design's .new-tab)
     var nt = document.getElementById('newtab');
     if (nt && !nt.classList.contains('frost')) nt.classList.add('frost', 'island');
+    // ...and so is the tab-search button after it (tabsearch.js adds it; the design's #tab-search)
+    var ts = document.getElementById('tabsearch-btn');
+    if (ts && !ts.classList.contains('frost')) ts.classList.add('frost', 'island');
     placeBar();
     // the tabs island is the strip's own box: its 3px padding is the island's air (islands.css)
     putPlate(plates.tabs, titlebar, tabstrip, tabstrip, 0);
