@@ -175,11 +175,18 @@
   --caption-close-press: rgba(196, 43, 28, 0.8);
   --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);   /* the design's .frost text-shadow */
   /* Markets: the box chart, its rows, the big chart's scrim */
-  --chart-box: rgba(255, 255, 255, 0.05);
-  --chart-box-hover: rgba(255, 255, 255, 0.08);
-  --chart-box-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --chart-row-on: rgba(255, 255, 255, 0.10);
+  /* the design's .stk-chart (a dark well, white on hover) and its rows (fill-1 hover, fill-2 selected) */
+  --chart-box: rgba(0, 0, 0, 0.12);
+  --chart-box-hover: rgba(255, 255, 255, 0.06);
+  --chart-box-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  --chart-box-edge-hover: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  --chart-row-on: rgba(255, 255, 255, 0.12);
   --chart-row-hover: rgba(255, 255, 255, 0.07);
+  /* the design's gain / loss and the open-market pill, on an island */
+  --look-ok: #8fe3b4;
+  --look-down: #ff9d95;
+  --look-ok-soft: rgba(143, 227, 180, 0.14);
+  --look-ok-under: transparent;
   --chart-pick: rgba(255, 255, 255, 0.12);
   --chart-scrim: rgba(0, 0, 0, 0.32);
 }
@@ -265,11 +272,18 @@ html[data-theme="light"] {
   --island-fill-press: rgba(11, 14, 26, 0.04);
   --island-sheen-big: rgba(11, 14, 26, 0.035);     /* .05 of .07, as dark's big sheen is of its hover */
   --island-ind: rgba(255, 255, 255, 0.55);
-  --chart-box: rgba(11, 14, 26, 0.04);
-  --chart-box-hover: rgba(11, 14, 26, 0.07);
-  --chart-box-edge: inset 0 0 0 1px rgba(11, 14, 26, 0.05);
-  --chart-row-on: rgba(11, 14, 26, 0.08);
-  --chart-row-hover: rgba(11, 14, 26, 0.05);
+  /* the design's light.css: a well inside a light island lightens (white .12, .24 hovered) */
+  --chart-box: rgba(255, 255, 255, 0.12);
+  --chart-box-hover: rgba(255, 255, 255, 0.24);
+  --chart-box-edge: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --chart-box-edge-hover: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  --chart-row-on: rgba(0, 0, 0, 0.08);
+  --chart-row-hover: rgba(0, 0, 0, 0.05);
+  --look-ok: #124028;
+  --look-down: #6f1813;
+  /* the light pill: the ok tint laid on white .24 (two layers, as the design paints it) */
+  --look-ok-soft: rgba(18, 64, 40, 0.08);
+  --look-ok-under: rgba(255, 255, 255, 0.24);
   --chart-pick: rgba(11, 14, 26, 0.09);
 }
 

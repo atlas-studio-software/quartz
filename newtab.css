@@ -9,7 +9,7 @@
    the user's dim wash; the Q, a search field and the Saved row down
    the middle, then the shortcut chips and the instrument card; the
    clock and now playing in the left rail; the session tile and the
-   markets in the right. Below 1296px the rails fold into the one
+   markets in the right. Below 1024px the rails fold into the one
    column.
 
    Colours, type, radii, shadows and motion are tokens.css's (Helm's
@@ -61,8 +61,8 @@
   /* Bahnschrift's condensed width is gone with Bahnschrift */
   --readout-stretch: normal;
 
-  --stk-up:     var(--ok);
-  --stk-down:   var(--danger);
+  --stk-up:     var(--look-ok);      /* the design's gain / loss, on an island */
+  --stk-down:   var(--look-down);
   --saved-warn: var(--warn);
 }
 
@@ -79,7 +79,7 @@
   --home-scrim: 9 10 11;
   --home-card: color-mix(in srgb, var(--surface-solid) 92%, transparent);
 
-  --rail-w: 352px;                 /* the markets tile's width */
+  --rail-w: 296px;                 /* a rail, and every card in it (the design's 296) */
 }
 /* Light (CONTRACT "Light look"): white glass, Mantle's hairline and ink. */
 html[data-theme="light"] {
@@ -249,15 +249,19 @@ html[data-theme="light"] #bg-dim {
 /* Three tracks: a rail, the column, a rail. The rails are the same
    width so the column stays centred; each rail's tiles hug its outer
    edge. */
+/* The design's .home-grid: two 296px rails and a centre column of at most
+   640px, spread to the edges (space-between), 32px apart at least, never
+   wider than 1600px (plus the 24px of side padding) and centred. */
 .home {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns:
-    minmax(var(--rail-w), 1fr)
-    minmax(480px, 720px)
-    minmax(var(--rail-w), 1fr);
+  grid-template-columns: var(--rail-w) minmax(0, 640px) var(--rail-w);
+  justify-content: space-between;
+  align-items: start;
   column-gap: 32px;
+  max-width: calc(1600px + 24px);
+  margin: 0 auto;
   min-height: 100%;
   /* The design's Home box: 24 under the tool row's 12 of air, 12 at the
      sides and the foot. With Home alone in front the guest reaches the
@@ -273,15 +277,32 @@ html[data-theme="light"] #bg-dim {
   padding: 0;
 }
 
-.home-left  { align-items: flex-start; }
-.home-right { align-items: flex-end; }
+/* The design's rails: cards take the rail's width; the right rail rests at
+   the foot of the page (its align-self: end), the left one at the top. The
+   rails stretch to the row (the page's height) so the right one has a foot
+   to rest on. */
+.home-rail { align-self: stretch; }
+.home-left  { align-items: stretch; }
+.home-right { align-items: stretch; justify-content: flex-end; }
 
+/* The design's centre: a column of pieces 16 apart, a little above the
+   middle of the page. Its min-height is the page under the chrome less the
+   Home's 24 + 12 of padding (100vh here IS the page under the chrome when
+   Home is alone in front), and the 10vh under it is the WINDOW's (the
+   guest's height plus the 100px of chrome above it). */
 .stage {
   min-width: 0;
-  padding: clamp(28px, 11vh, 128px) 0 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 24px - 12px);
+  padding: 0 0 calc((100vh + 100px) / 10);
 }
 
 .column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
   text-align: center;
 }
@@ -291,8 +312,8 @@ html[data-theme="light"] #bg-dim {
    them (a centred flex column with an 18px gap) is gone and the column
    says the same thing directly: the Q centred, the field 18px under it
    and centred at its 640px. Identical boxes, one wrapper fewer. */
-.column > .home-logo { margin: 0 auto; }
-.column > .search    { margin: 18px auto 0; }
+.column > .home-logo { margin: 4px auto; }   /* the design's logo piece: padding 4px 8px round the Q */
+.column > .search    { margin: 0; }
 
 .home-logo {
   display: block;
@@ -384,8 +405,9 @@ html[data-theme="light"] #bg-dim {
 .column > [data-piece]:first-child { margin-top: 0; }
 /* The Q has no margin of its own (it was always first); under another
    piece (the clock dropped on top of the column) it needs one. */
-.column > [data-piece] + .home-logo { margin-top: 24px; }
-.column > .module { margin: 28px auto 0; }
+.column > [data-piece] + .home-logo { margin-top: 4px; }
+/* a card dropped into the centre keeps a card's width (the design) */
+.column > .module { width: 100%; max-width: 352px; margin: 0 auto; }
 .column > .module-clock { text-align: center; }
 .column > .module-clock .mod-time { justify-content: center; }
 
@@ -401,16 +423,15 @@ html[data-theme="light"] #bg-dim {
 .home-right > .module-clock { text-align: right; }
 .home-right > .module-clock .mod-time { justify-content: flex-end; }
 
-/* Markets sits at the foot of the right rail, as it always has, when it is
-   the last piece there. Anywhere else it stacks like everything else: what
-   the drop line showed is where it lands. */
-.home .home-right > .module-stocks:last-child { margin-top: auto; }
+/* Markets is the last card of the right rail, which rests at the page's
+   foot (above): the design's session card sits right above it, not at the
+   top of the rail. */
 
 /* The app dock away from the stats card: the same card, on its own. When
    it follows the stats in the same column it is drawn INSIDE the stats
    card, exactly as it always was (newtab.js puts it there). */
 .dock.is-alone {
-  margin-top: 28px;
+  margin-top: 0;                   /* the column's 16px gap is the space */
   padding: 16px 20px;
   border: 1px solid var(--home-edge);
   border-radius: var(--radius-l);
@@ -448,7 +469,7 @@ html.home-measure body { overflow: hidden; }
    at the window's foot, not under a centre column that an open process
    list made taller than the window. When everything fits, the row was
    already exactly this tall (.home's min-height), so nothing moves. */
-html.home-measure .home { grid-template-rows: 100vh; }
+html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* the page less the Home's own padding */
 
 /* The process list unfolds over whatever was put under the stats card
    (the card is laid out at its folded height), so it is drawn on top. */
@@ -784,7 +805,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
    tint. No backdrop-filter: they are tall, and may sit over a clip. */
 .module {
   position: relative;
-  width: 224px;
+  width: auto;                     /* the rail's width (the design's cards fill it) */
   padding: 14px 16px;
   border: 1px solid var(--home-edge);
   border-radius: var(--radius-l);
@@ -1221,7 +1242,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
 .stats {
   position: relative;
   display: block;
-  margin-top: 28px;
+  margin-top: 0;                   /* the column's 16px gap (the design) */
   padding: 16px 20px;
   cursor: pointer;                 /* the whole strip opens the process list */
   /* Helm's card in the Home tint: large radius, a hairline, the panel's
@@ -1816,7 +1837,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
    The row is 56px tall whether it holds nothing or nine tiles, so the
    first pin does not move the card; two rows grow it. */
 .dock {
-  margin-top: 16px;
+  margin-top: 0;                   /* its own card now: the column's gap */
   text-align: left;
   cursor: default;                 /* the strip's pointer stops at the dock */
 }
@@ -2385,7 +2406,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 0;                   /* the column's 16px gap (the design) */
 }
 
 /* Chips are controls, not containers: they keep ordinary round corners
@@ -2461,7 +2482,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-top: 32px;                /* Helm: a label opens a new group */
+  margin-top: 0;                   /* the column's 16px gap (the design) */
 }
 
 /* The amber of a request that did not happen: the chrome's --amber, which
@@ -2736,26 +2757,25 @@ html.home-measure .home { grid-template-rows: 100vh; }
    first one. */
 
 /* --- narrow windows ------------------------------------------ */
-/* Below 1296px the two rails no longer fit beside a readable column, so
-   they fold into it: the clock on top, centred; then the column; then the
-   now-playing, session and markets cards in a wrapping row under it (for
-   a customised Home: the rails' pieces, left then right; see the foot). The
-   rails step out of the way with display: contents, so every card keeps
-   its own rules and only its place changes.
+/* Below 1024px the two rails no longer fit beside a readable column, so
+   they fold under it (the design): the centre column first, then the left
+   rail, then the right, each rail two cards side by side (see the foot).
+   Every card keeps its own rules; only its place changes.
 
    The fold is a STYLE query on --home-fold rather than the media query
    itself, so a free Home (newtab.js "free placement") can switch it off
    with one class on <body>: it measures, and is drawn from, the three
    columns at any width, and only folds when its pieces do not fit. Same
    width, same rules, same order as the media query had; with no class
-   the two are the same thing. Unfolded below 1296px the rails give way
+   the two are the same thing. Unfolded below 1024px the rails give way
    to a 480px column, as the grid's own minimums cannot fit. */
-/* The look (2026-11-24): three columns down to 1024px. Between 1024 and
-   1295px the rails narrow to 272px and the centre takes the rest; only
-   below 1024px does the Home fold into one column. */
-@media (max-width: 1295px) {
-  body { --rail-w: 272px; }
-  .home { grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-w); }
+/* The approved design's narrower windows. 1024-1279 (1366x768 at 125% is
+   1093 wide): the three columns stay, the rails at 280px and 24px apart
+   (280 + 24 + 461 + 24 + 280 + 24 of edge = 1093), the clock at 76px (the
+   clock section). Under 1024 the Home folds into one column. */
+@media (max-width: 1279px) {
+  body { --rail-w: 280px; }
+  .home { column-gap: 24px; }
 }
 @media (max-width: 1023px) {
   body { --home-fold: 1; }
@@ -2766,62 +2786,51 @@ html.home-measure .home { grid-template-rows: 100vh; }
 
 body.home-unfold { --home-fold: 0; }
 
+/* The design's fold: one centred column at most 680px wide, the centre's
+   pieces first, then the left rail, then the right, each rail two cards
+   side by side (one under 720px), 16 apart. A wide piece that lives in a
+   rail takes the rail's whole row. */
 @container style(--home-fold: 1) {
   .home {
-    display: flex;
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 680px);
     justify-content: center;
-    align-content: flex-start;
-    gap: 16px;
-    padding: 0 24px 32px;
+    align-content: start;
+    row-gap: 16px;
   }
 
-  .home-rail { display: contents; }
-
-  .module-clock {
-    order: 0;
-    flex: 0 0 100%;
-    padding-top: 16px;                 /* the design's folded clock */
-    text-align: center;
-  }
-
-  .module-clock .mod-time { justify-content: center; }
-
-  /* Full width, so it always takes a line of its own (a 720px-capped item
-     let the media card share its line at 1100px); the column inside is
-     what stays 720px and centred. */
   .stage {
-    order: 1;
-    flex: 0 0 100%;
-    padding: 20px 0 8px;
+    grid-row: 1;
+    min-height: 0;
+    padding: 24px 0 0;
+    justify-content: flex-start;
   }
 
-  .column {
-    max-width: 720px;
-    margin: 0 auto;
+  .home-left  { grid-row: 2; }
+  .home-right { grid-row: 3; justify-content: flex-start; }
+
+  .home-rail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+    align-self: auto;
   }
 
-  /* A customised Home folds by the same rule. The clock, from whichever
-     rail it is in, stays the line on top (it is the page's greeting); then
-     the centre column, because the search, the saved sites and the stats
-     are what a narrow window is opened for; then the left rail's pieces
-     and the right rail's, each in its saved order, wrapping in a row. For
-     the default layout that is exactly the old fold: clock, column, now
-     playing, session, markets. A wide piece that lives in a rail takes a
-     line of its own at the column's width, like the column's rows. */
-  .home-left  > [data-piece] { order: 2; }
-  .home-right > [data-piece] { order: 3; }
-  .home-rail > .module-clock { order: 0; text-align: center; }
-  .home-rail > .module-clock .mod-time { justify-content: center; }
-  .home-rail > [data-kind="wide"] { flex: 0 0 100%; max-width: 720px; }
-  .home-rail > .home-logo { object-fit: contain; max-width: none; height: 56px; }
+  .module-clock { padding-top: 16px; }   /* the design's folded clock */
+
+  .home-rail > [data-kind="wide"] { grid-column: 1 / -1; }
+  .home-rail > .home-logo { justify-self: center; }
+}
+
+@media (max-width: 720px) {
+  .home-rail { grid-template-columns: 1fr; }
 }
 
 /* Five columns stop being readable long before the window does, so the
    strip folds to three and then to two. Each fold is a different height,
    which is fine: it only ever happens on a resize. Within one width the
    height never moves. */
-@media (max-width: 620px) {
+@media (max-width: 720px) {          /* the design's 720: System in three columns */
   .stats-strip { grid-template-columns: repeat(3, 1fr); gap: 12px 4px; }
   /* The readouts keep their 20 / 16 px here: the old 18 / 15 px fold sat off
      the type scale, and a column after the fold is no narrower than one of
@@ -2849,7 +2858,6 @@ body.home-unfold { --home-fold: 0; }
 }
 
 @media (max-width: 460px) {
-  .home { padding: 0 16px 24px; }
   .stats { padding: 14px 16px; }
   .stats-strip { grid-template-columns: repeat(2, 1fr); }
   .rtile { max-width: 132px; }
@@ -2858,11 +2866,11 @@ body.home-unfold { --home-fold: 0; }
 
 /* --- a stats card in a rail ---------------------------------- */
 /* After the strip's own rules, so the fold below wins over them the way
-   the 620px query does. */
-/* A rail is 352 to ~550px wide, which is the strip's own narrow-window
-   case: the same three-column fold the 620px query below gives a narrow
+   the 720px query does. */
+/* A rail is 280 to 296px wide, which is the strip's own narrow-window
+   case: the same three-column fold the 720px query gives a narrow
    window, keyed to the rail instead. The rails are grid items sized by
-   their track (minmax(--rail-w, 1fr)), never by their content, so the
+   their track (--rail-w), never by their content, so the
    containment changes nothing about the default layout. */
 .home-rail { container-type: inline-size; }
 
@@ -2918,8 +2926,7 @@ body.home-unfold { --home-fold: 0; }
    clear 4.5:1 the way --fg-3 does. */
 
 .module-stocks {
-  width: var(--rail-w);
-  margin-top: auto;                /* the foot of the right rail */
+  width: auto;                     /* the rail's width: the design's 296 (280 from 1024 to 1279) */
   padding: 14px 16px 12px;
 }
 
@@ -3190,27 +3197,95 @@ body.home-unfold { --home-fold: 0; }
    view-transition morph. The data and the key handling are exactly
    as before (stocks.js in main).
    ============================================================== */
+/* The approved design's Markets card (its .markets, .card-head, .badge,
+   .stk-*). The card is the rail's width; the head is the design's card head
+   (28px, the title in sentence case); the market state a pill; the box a
+   dark well (light: a light one, tokens.css); the rows its four-column grid
+   (symbol 52, the spark, last 64, change 60). The x that drops a symbol is
+   Quartz's own: it sits over the end of the spark, on hover or focus only. */
+.module-stocks .stk-head {
+  align-items: center;
+  height: 28px;
+  margin: -4px 0 12px;
+}
+.module-stocks .stk-caption {
+  color: var(--text-2);
+  font-size: var(--look-fs-s);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: normal;
+}
+.module-stocks .stk-market {
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--island-fill-1);
+  color: var(--text-2);
+  font-size: var(--look-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 22px;
+}
+.module-stocks .stk-market::before { width: 6px; height: 6px; opacity: 1; }
+.module-stocks .stk-market[data-market="open"] { background: linear-gradient(var(--look-ok-soft), var(--look-ok-soft)), var(--look-ok-under); color: var(--look-ok); }
 .module-stocks .stk-chart {
   height: 92px;
-  margin: 10px 0 8px;
+  margin: 0;
   border-radius: var(--radius-m);
   background: var(--chart-box);
   box-shadow: var(--chart-box-edge);
+  overflow: hidden;
   cursor: pointer;
-  transition: background-color var(--dur, 160ms) ease;
+  transition: background-color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look);
 }
-.module-stocks .stk-chart:hover { background: var(--chart-box-hover); }
+.module-stocks .stk-chart:hover { background: var(--chart-box-hover); box-shadow: var(--chart-box-edge-hover); }
+.module-stocks .stk-chart:active { scale: var(--m-press-tile); }
 .module-stocks .stk-chart:focus-visible { outline: 2px solid var(--ion); outline-offset: 2px; }
 .module-stocks .stk-canvas { height: 92px; }
 
+.module-stocks .stk-rows { margin: 8px -6px 0; }
 .module-stocks .stk-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr 64px 60px;
+  align-items: center;
+  gap: 8px;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 6px;
+  border: 0;
   border-radius: var(--radius-s);
+  color: var(--text-2);
+  font-size: var(--look-fs-m);
+  font-variant-numeric: tabular-nums;
 }
 .module-stocks .stk-row + .stk-row { margin-top: 0; }
-.module-stocks .stk-row.is-on { background: var(--chart-row-on); border-color: transparent; }
-.module-stocks .stk-row:hover { background: var(--chart-row-hover); }
+.module-stocks .stk-row:hover { background: var(--chart-row-hover); color: var(--text); }
+.module-stocks .stk-row:active { background: var(--island-fill-press); }
+.module-stocks .stk-row.is-on { background: var(--chart-row-on); color: var(--text); }
+.module-stocks .stk-sym { color: var(--text); font-size: inherit; font-weight: 600; letter-spacing: 0; }
+.module-stocks .stk-spark { width: 100%; height: 20px; }
+.module-stocks .stk-last { min-width: 0; color: inherit; font-size: inherit; text-align: right; }
+.module-stocks .stk-chg { min-width: 0; font-size: var(--look-fs-s); font-weight: 600; text-align: right; }
+.module-stocks .stk-drop { position: absolute; top: 9px; right: calc(6px + 60px + 8px + 64px + 8px); }
+.module-stocks .stk-foot { height: 28px; margin-top: 8px; }
+.module-stocks .stk-add {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--island-fill-1);
+  color: var(--text-2);
+  font-size: 16px;  /* the + glyph at the design's 16px icon size, not text */
+  line-height: 28px;
+}
+.module-stocks .stk-add:hover { background: var(--island-fill-2); color: var(--text); }
+.module-stocks .stk-add:active { background: var(--island-fill-press); scale: var(--m-press-small); }
+.module-stocks .stk-as-of { color: var(--text-3); font-size: var(--look-fs-xs); }
+@media (prefers-reduced-motion: reduce) {
+  .module-stocks .stk-chart:active, .module-stocks .stk-add:active { scale: none; }
+}
 
 /* --- the big chart ---------------------------------------------- */
 .stk-big {

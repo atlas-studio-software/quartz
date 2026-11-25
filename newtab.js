@@ -4692,7 +4692,7 @@ window.__chips = function () {
  * stores anything itself.
  *
  * TWO WAYS TO DRAW. A Home nobody has moved anything on is the plain flow
- * it always was: the three columns, folding into one below 1296px, every
+ * it always was: the three columns, folding into one below 1024px, every
  * node where the markup put it. A Home with a piece moved (and every Home
  * in edit mode, so a drag has a canvas to land on) is FREE: each piece is
  * absolutely placed on the page, the window is the page, nothing scrolls.
