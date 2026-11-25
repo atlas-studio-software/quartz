@@ -316,6 +316,9 @@ async function main() {
           const rg = await attach(rt.webSocketDebuggerUrl);
           const filled = await rg.waitFor(`document.querySelector('.is-filled') ? 1 : 0`, 15000).catch(() => 0);
           check(!!filled, 'reader: the article is shown');
+          // The picture is a network fetch the page makes after it fills: give it time to finish
+          // (or fail) before judging it, or a slow runner reads "not loaded yet" as "refused".
+          await rg.waitFor(`(function(){var i=document.querySelector('.is-filled img');return !i||i.complete?1:0;})()`, 8000).catch(() => 0);
           const st = await rg.ev(`(function(){var c=document.querySelector('.is-filled');if(!c)return null;var img=c.querySelector('img');
             return {styled:c.querySelectorAll('[style]').length,handlers:c.querySelectorAll('[onclick]').length,scripts:c.querySelectorAll('script').length,
             ran:window.__articleScript===1,img:!!img,imgLoaded:!!(img&&img.complete&&img.naturalWidth>0)};})()`);
