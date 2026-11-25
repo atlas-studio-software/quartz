@@ -546,7 +546,12 @@ function create(deps) {
       return { mode };
     });
     on('watch-player:free', () => ({ freeGb: Math.round(freeGb() * 100) / 100, floorGb }));
-    on('watch-player:alive', (p) => ({ alive: !!(webContentsApi && Number.isInteger(p.wcId) && (() => { try { const c = webContentsApi.fromId(p.wcId); return !!c && !c.isDestroyed(); } catch { return false; } })()) }));
+    // adopted: main guards this player (its will-navigate and open handler are on). Until then a link the page
+    // follows is not seen here, so a test that clicks one waits for this first.
+    on('watch-player:alive', (p) => ({
+      alive: !!(webContentsApi && Number.isInteger(p.wcId) && (() => { try { const c = webContentsApi.fromId(p.wcId); return !!c && !c.isDestroyed(); } catch { return false; } })()),
+      adopted: Number.isInteger(p.wcId) && players.has(p.wcId),
+    }));
     on('watch-player:memory', () => memory());
     on('watch-player:escape', (p) => {
       // The chrome's own ways out (its "Open in a tab" and "Open in Edge" buttons): logged here.

@@ -244,7 +244,7 @@ run('watch-player-e2e', async ({ check, launch, say, profileDir }) => {
     const box = await chrome.ev('(() => { const a = document.querySelector(".wp-layer").getBoundingClientRect(); const b = findWatchTab().viewEl.getBoundingClientRect(); return [Math.round(a.left - b.left), Math.round(a.top - b.top), Math.round(a.width - b.width), Math.round(a.height - b.height)]; })()');
     check(box.every((n) => Math.abs(n) <= 1), 'the layer covers the Watch tab exactly', box);
     const wc1 = s1 && s1.slots[0].wcId;
-    check(wc1 && (await chrome.ev(`window.api.watchPlayer.alive(${wc1}).then((r) => r.alive)`)), 'main adopted a live player webContents');
+    check(wc1 && (await chrome.ev(`window.api.watchPlayer.alive(${wc1}).then((r) => r.alive && r.adopted)`)), 'main adopted a live player webContents');
     let pt = await targetWhere(q, (x) => String(x.url).indexOf(FY + '/watch?v=') === 0, 10000);
     let p = await cdpTo(pt);
     await p.waitFor('(() => { const v = document.getElementById("v"); return v && !v.paused && v.currentTime > 0.3; })()', 20000).catch(() => 0);
@@ -491,12 +491,20 @@ run('watch-player-e2e', async ({ check, launch, say, profileDir }) => {
 
     // A link to another site: a PAGE in the layer (a sheet), not a tab. The sheet's "Open in a tab" is
     // his way to a normal tab (counted in the leak log), and the layer waits behind the Watch tab.
+    // This is a NEW player (the Esc above closed the last one), so the click waits for two things first, as every
+    // other fresh-player block here does: main guarding it (adopt, after the view's dom-ready: before that main has
+    // no will-navigate on it and the link just loads in the layer) and the link itself in the page (the DevTools
+    // target is listed under the address it is GOING to, before that document exists). Without them the click raced
+    // the load and, on a run where it won, nothing happened: no sheet, no line, no tab.
     await chrome.ev(`openInLumen(${JSON.stringify(FY + '/__p/away-test')}, { service: 'youtube', title: 'Away test' }), 1`);
+    const awayWc = await chrome.waitFor(`(() => { const s = ${ST}; return s.open && s.slots[0] && s.slots[0].url === ${JSON.stringify(FY + '/__p/away-test')} && s.slots[0].wcId !== null ? s.slots[0].wcId : null; })()`, 10000).catch(() => null);
+    const awayGuarded = awayWc !== null && await chrome.waitFor(`window.api.watchPlayer.alive(${awayWc}).then((r) => (r.adopted ? 1 : 0))`, 5000).then(() => true, () => false);
     pt = await targetWhere(q, (x) => String(x.url) === FY + '/__p/away-test', 10000); p = await cdpTo(pt);
+    const awayReady = await p.waitFor('!!document.getElementById("away")', 8000).then(() => true, () => false);
     const nTabs = await chrome.ev('tabs.length');
-    await gesture(p, 'document.getElementById("away").click(), 1');
+    const awayClick = await gesture(p, 'document.getElementById("away").click(), 1');
     const awaySheet = await chrome.waitFor(`(() => { const s = ${ST}; return s.sheet && s.sheet.kind === 'page' && s.sheet.shown ? s.sheet : null; })()`, 8000).catch(() => null);
-    check(!!awaySheet && (await chrome.ev('tabs.length')) === nTabs, 'a link to another site opens as a page in the layer, not a tab', awaySheet);
+    check(!!awaySheet && (await chrome.ev('tabs.length')) === nTabs, 'a link to another site opens as a page in the layer, not a tab', { sheet: awaySheet, wcId: awayWc, guarded: awayGuarded, link: awayReady, clicked: awayClick === 1 });
     check(logHas(/a page from another site opened in the layer \(link to another site\): 127\.0\.0\.1:\d+/), 'quartz.log: the page sheet has its line');
     await chrome.ev('document.querySelector(".wp-sheet-tab").click(), 1');
     await chrome.waitFor(`tabs.length === ${nTabs + 1}`, 8000).catch(() => 0);

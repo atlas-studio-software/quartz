@@ -17,6 +17,9 @@
 //   4. Every 120ms opacity fade survives: any rule, in any root stylesheet, that
 //      times a transition or animation with var(--m-dur-rm) WITHOUT !important
 //      opts in with --rm-keep, or the catch-all would make it instant.
+//   5. No renderer script waits only on transitionend / animationend: each
+//      listener's work also runs from a timer (an element with no transition
+//      of its own fires none under reduced motion).
 //
 // What it cannot prove: how a contrast theme actually looks. That needs a
 // real Windows contrast theme on screen; see the lane notes.
@@ -134,5 +137,36 @@ for (const sheet of sheets) {
     ok(sheet + " keeps its fade: " + r.sel.slice(0, 80), important || optsIn, r.body.trim());
   }
 }
+
+/* ---- 5. no wait on an end event that may never come ---- */
+// Under reduced motion an element with no transition of its own has none (the :where(*) reset above), so
+// a style change on it fires no transitionend; a display: none (hidden) mid-way cancels one instead. Every
+// renderer listener for transitionend / animationend therefore has a timer that does the same work: the
+// function its handler calls also runs from a setTimeout in that file.
+function rendererScripts(dir, rel) {
+  const out = [];
+  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+    const r = rel ? rel + '/' + f.name : f.name;
+    if (f.isDirectory()) {
+      if (!/^(node_modules|tests|tools|looksync|docs|\..*)$/.test(f.name)) out.push(...rendererScripts(path.join(dir, f.name), r));
+    } else if (/\.js$/.test(f.name) && !/(-e2e|-harness|-test)\.js$/.test(f.name)) out.push(r);
+  }
+  return out;
+}
+const NOT_CALLS = new Set(['if', 'for', 'while', 'function', 'return', 'switch', 'catch']);
+let endWaits = 0;
+for (const f of rendererScripts(ROOT, '')) {
+  const src = read(f);
+  const re = /addEventListener\(\s*['"](transitionend|animationend)['"][^\n]*/g;
+  let m;
+  while ((m = re.exec(src))) {
+    endWaits++;
+    const line = src.slice(0, m.index).split('\n').length;
+    const calls = [...m[0].slice(m[0].indexOf(',')).matchAll(/([A-Za-z_$][\w$]*)\s*\(\s*\)/g)].map((c) => c[1]).filter((n) => !NOT_CALLS.has(n));
+    const timed = calls.filter((n) => new RegExp('setTimeout\\(\\s*(' + n + '\\b|function\\s*\\(\\)\\s*\\{[^}]*\\b' + n + '\\(|\\(\\)\\s*=>\\s*\\{?[^}]*\\b' + n + '\\()').test(src));
+    ok(f + ':' + line + ' ' + m[1] + ' has a timer fallback (the end event may never come)', timed.length > 0, m[0].trim().slice(0, 160) + (calls.length ? '\n  calls: ' + calls.join(', ') : ''));
+  }
+}
+ok('(setup) the renderer has end-event waits to check (watch-player.js, app.js)', endWaits >= 2, String(endWaits));
 
 console.log(`a11y-switch: ${pass} passed, ${fail} failed`);

@@ -142,7 +142,13 @@ async function playerTests() {
   const ipc = (ch, p) => handlers[ch]({}, p || {});
   const g = fakeContents(7, { hostWebContents: win.webContents });
   guests[7] = g;
+  // alive's adopted: whether main guards the player yet (the e2e waits on it before it clicks a link in a new one).
+  let al = ipc('watch-player:alive', { wcId: 7 });
+  check(al.alive === true && al.adopted === false && g.listenerCount('will-navigate') === 0, 'player: a live guest not adopted yet says so (adopted: false, no will-navigate on it)', al);
   check(ipc('watch-player:adopt', { wcId: 7, service: 'youtube', origin: 'https://www.youtube.com' }).ok === true, 'player: a YouTube guest is adopted');
+  al = ipc('watch-player:alive', { wcId: 7 });
+  check(al.alive === true && al.adopted === true && g.listenerCount('will-navigate') === 1, 'player: once adopted, alive says adopted and main has its will-navigate', al);
+  check(ipc('watch-player:alive', { wcId: 8 }).adopted === false && ipc('watch-player:alive', { wcId: 'x' }).adopted === false, 'player: an unknown or bad wcId is never adopted');
   const tabs = () => sent.filter((x) => x[0] === 'open-url').length;
   const sheetMsgs = () => sent.filter((x) => x[0] === 'watch-player:sheet');
 
@@ -249,7 +255,36 @@ async function mainTests() {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+/* ------------------------------------------------------------------ watch-player-e2e.js, read as text */
+// A link clicked in a player the e2e has JUST opened (openInLumen) races its load twice: main guards a player only
+// from adopt (after the view's dom-ready), and the DevTools target is listed under the address it is going to before
+// that document exists. One such click with no waits made "a link to another site opens as a page in the layer" fail
+// on a cloud run with nothing on screen to say why. Each link click after an openInLumen waits for both first.
+function e2eWaitTests() {
+  const src = fs.readFileSync(path.join(__dirname, 'watch-player-e2e.js'), 'utf8');
+  const opens = [];
+  const reOpen = /chrome\.ev\(`openInLumen\(/g;
+  let m;
+  while ((m = reOpen.exec(src))) opens.push(m.index);
+  check(opens.length >= 3, '(setup) the player e2e opens titles with openInLumen', opens.length);
+  let clicks = 0;
+  for (let i = 0; i < opens.length; i++) {
+    const block = src.slice(opens[i], i + 1 < opens.length ? opens[i + 1] : src.length);
+    const reClick = /gesture\(p, 'document\.getElementById\("([a-z]+)"\)\.click\(\)/g;
+    let c;
+    while ((c = reClick.exec(block))) {
+      clicks++;
+      const before = block.slice(0, c.index);
+      const id = c[1];
+      check(/watchPlayer\.alive\([^)]*\)\.then\(\(r\) => \(?r\.adopted/.test(before), 'e2e: the click on #' + id + ' in a new player waits for main to adopt it first');
+      check(before.indexOf("p.waitFor('!!document.getElementById(\"" + id + "\")'") !== -1, 'e2e: ...and for #' + id + ' in the page');
+    }
+  }
+  check(clicks >= 1, '(setup) the e2e clicks a link in a player it opened (the away link)', clicks);
+}
+
 (async () => {
+  try { e2eWaitTests(); } catch (err) { check(false, 'e2e wait tests threw', String(err && err.stack || err)); }
   try { await playerTests(); } catch (err) { check(false, 'player tests threw', String(err && err.stack || err)); }
   try { await mainTests(); } catch (err) { check(false, 'main tests threw', String(err && err.stack || err)); }
   console.log(`watch-leaks: ${pass} passed, ${fail} failed`);
