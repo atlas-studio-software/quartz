@@ -235,7 +235,7 @@ function exited(child, ms) {
     for (const s of order) {
       await ev(`createTab(${JSON.stringify(url(s))}, { background: false }) && true`);
       if (s === 'delta') {
-        await ev(`(() => { const t = tabs[tabs.length - 1]; window.__deltaLog = []; const log = () => window.__deltaLog.push({ s: t.favEl.dataset.state, w: t.favEl.getBoundingClientRect().width, tw: t.titleEl.getBoundingClientRect().left - t.chipEl.getBoundingClientRect().left });
+        await ev(`(() => { const t = tabs[tabs.length - 1]; window.__deltaLog = []; const log = () => window.__deltaLog.push({ s: t.favEl.dataset.state, w: t.favEl.getBoundingClientRect().width, tw: t.titleEl.getBoundingClientRect().left - t.chipEl.getBoundingClientRect().left, fit: (() => { const st = document.getElementById('tabstrip'); return (st.dataset.fit || 'natural') + ' ' + getComputedStyle(st).getPropertyValue('--tab-fit-w').trim(); })() });
           log(); new MutationObserver(log).observe(t.favEl, { attributes: true, subtree: true }); return true; })()`);
       }
     }
@@ -263,8 +263,18 @@ function exited(child, ms) {
     await waitFor(`(${CHIP})('delta').state === 'icon'`, 15000);
     const dlog = await ev('window.__deltaLog');
     const widths = new Set(dlog.map((x) => x.w)); const titleXs = new Set(dlog.map((x) => x.tw));
-    check(widths.size === 1 && [...widths][0] === 14 && titleXs.size === 1, 'delta (slow icon): box and title never moved while the icon arrived',
-      'states ' + dlog.map((x) => x.s).join('>') + ' widths ' + [...widths] + ' titleX ' + [...titleXs]);
+    // The title is compared only between entries under the SAME strip fit. Tabs echo..golf open
+    // while delta's icon is still coming; with the look's 12 px air (LOOK.md section 2) eight chips
+    // at this window no longer fit with titles, so the strip refits to icons-only and an inactive
+    // chip's title goes display:none (its box reads left 0). That is the strip making room, not the
+    // icon arriving: what must never move the title is the icon itself, so the step where the icon
+    // lands must sit inside one fit, and every step inside one fit keeps the title where it was.
+    const moved = dlog.filter((x, i) => i > 0 && x.fit === dlog[i - 1].fit && x.tw !== dlog[i - 1].tw);
+    const landed = dlog.findIndex((x) => x.s === 'icon');
+    const sameFitAtLanding = landed > 0 && dlog[landed].fit === dlog[landed - 1].fit;
+    check(widths.size === 1 && [...widths][0] === 14 && moved.length === 0 && sameFitAtLanding, 'delta (slow icon): box and title never moved while the icon arrived',
+      'states ' + dlog.map((x) => x.s).join('>') + ' widths ' + [...widths] + ' titleX ' + [...titleXs] + ' fits ' + [...new Set(dlog.map((x) => x.fit))].join(' | ') +
+      (sameFitAtLanding ? '' : ' (the strip refitted at the very step the icon landed, so this run cannot tell)'));
     check(dlog.some((x) => x.s === 'mono') && dlog[dlog.length - 1].s === 'icon', 'delta: the "D" monogram held the place until the slow icon came');
 
     await waitFor(`(${CHIP})('foxtrot').audible && (${CHIP})('foxtrot').state === 'icon'`, 15000).catch(() => null);
