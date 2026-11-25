@@ -456,6 +456,16 @@ html[data-theme="light"] [data-palette="mono"] {
   --m-dur-l-out: calc(var(--m-dur-l) * .45);
   --m-dur-rm: 120ms;                           /* prefers-reduced-motion: opacity only, this long */
   --m-fade-k: .4;                              /* the fade-in takes this share of the IN duration */
+  /* THE FLOATING LOOK's motion (LOOK.md section 10, 2026-11-24): its own numbers, named here so
+     no sheet writes them raw. Reduced motion cuts every one of them (the catch-all below). */
+  --m-ease-look: cubic-bezier(0.2, 0.8, 0.2, 1);   /* LOOK.md --ease */
+  --m-ease-lift: cubic-bezier(0.22, 1.12, 0.36, 1);/* --ease-lift: a hair of overshoot, things floating into place */
+  --m-sink-fade: 200ms;                        /* the leaving view: opacity 0 in 200 */
+  --m-sink-move: 300ms;                        /* ...translateY 12 + scale 0.955 in 300 */
+  --m-lift-fade: 240ms;                        /* the arriving view: opacity 240 ... */
+  --m-lift-fade-delay: 40ms;                   /* ... +40 */
+  --m-lift-move: 460ms;                        /* transform 460 ... */
+  --m-lift-move-delay: 20ms;                   /* ... +20 */
 
   /* the background layer (backdrop.js may override per the user's setting) */
   --bg-blur: 5px;                        /* the Helm setting (Helm settings.json background.blur) */

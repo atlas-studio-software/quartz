@@ -33,7 +33,7 @@
   --isl-r-s: 8px;
   --isl-float: var(--island-float);
   --isl-float-hi: var(--island-float-hi);
-  --isl-ease-lift: cubic-bezier(0.22, 1.12, 0.36, 1);
+  --isl-ease-lift: var(--m-ease-lift);
   --isl-fill-1: var(--island-fill-1);
   --isl-fill-2: var(--island-fill-2);
   --isl-fill-press: var(--island-fill-press);
@@ -181,18 +181,47 @@ html .navrow {
   box-shadow: var(--isl-float);
 }
 
-/* sink-and-lift: a tab body rises into place each time it comes to the
-   front (display none -> shown restarts the animation) */
-@keyframes isl-lift {
-  from { opacity: 0.35; transform: translateY(10px) scale(0.985); }
-}
+/* sink and lift (LOOK.md section 10): "the leaving view sinks (opacity 0 in
+   200, translateY 12 + scale 0.955 in 300, ease). The arriving one lifts from
+   translateY 28 + scale 0.965 (opacity 240 +40 delay, transform 460 +20,
+   ease-lift). Page to page swaps only the content, with a cross-fade."
+   The arriving body lifts each time it comes to the front (display none ->
+   shown restarts the animation). The leaving one keeps its display for the
+   sink, laid over the well under the arriving one (app.js activateTab marks
+   it .isl-leaving and hides it when the sink is over); it never leaves
+   #views. app.js sets #views[data-swap]: "lift" when Home is on either side,
+   "fade" page to page. Nothing runs at rest: both animations end. */
+#views { isolation: isolate; }
+@keyframes isl-lift-move { from { transform: translateY(28px) scale(0.965); } }
+@keyframes isl-fade-in { from { opacity: 0; } }
+@keyframes isl-sink-move { to { transform: translateY(12px) scale(0.955); } }
+@keyframes isl-fade-out { to { opacity: 0; } }
 #views > webview:not(.inactive):not(.hidden):not([hidden]),
 #views > .claude-view:not([hidden]) {
-  animation: isl-lift 320ms var(--isl-ease-lift) both;
+  animation: isl-lift-move var(--m-lift-move) var(--m-ease-lift) var(--m-lift-move-delay) backwards,
+             isl-fade-in var(--m-lift-fade) var(--m-ease-lift) var(--m-lift-fade-delay) backwards;
   transform-origin: 50% 30%;
+}
+#views[data-swap="fade"] > webview:not(.inactive):not(.hidden):not([hidden]),
+#views[data-swap="fade"] > .claude-view:not([hidden]) {
+  animation: isl-fade-in var(--m-lift-fade) var(--m-ease-look) var(--m-lift-fade-delay) backwards;
+}
+#views > webview.isl-leaving:not(.inactive):not(.hidden):not([hidden]),
+#views > .claude-view.isl-leaving:not([hidden]) {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: isl-sink-move var(--m-sink-move) var(--m-ease-look) both,
+             isl-fade-out var(--m-sink-fade) var(--m-ease-look) both;
+}
+#views[data-swap="fade"] > webview.isl-leaving:not(.inactive):not(.hidden):not([hidden]),
+#views[data-swap="fade"] > .claude-view.isl-leaving:not([hidden]) {
+  animation: isl-fade-out var(--m-sink-fade) var(--m-ease-look) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tab-ind, .tab-ul { transition: none; }
+  /* no travel: app.js hides the leaving body at once, the arriving one just shows */
   #views > webview, #views > .claude-view { animation: none !important; }
 }

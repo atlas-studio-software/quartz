@@ -10283,6 +10283,38 @@ function disposeClaudeTab(tab) {
   tab.live = false;
 }
 
+/*
+ * Sink and lift (LOOK.md section 10): the tab body leaving the screen keeps
+ * its display for SINK_MS while islands.css sinks it (or, page to page, fades
+ * it) under the arriving one, then it goes display:none as before. Transform
+ * and opacity only; the element never leaves #views (a moved <webview> stops
+ * painting). Skipped, so the old instant swap, under reduced motion, in a
+ * window nobody can see, and whenever a split is on either side.
+ */
+const SINK_MS = 300; // islands.css --m-sink-move (the longer of the two)
+let sinking = null;  // { tab, el, timer }
+function finishSink() {
+  if (!sinking) return;
+  const { tab, el, timer } = sinking;
+  sinking = null;
+  clearTimeout(timer);
+  el.classList.remove('isl-leaving');
+  if (tab.viewEl === el && !isTabOnScreen(tab)) el.style.display = 'none';
+}
+function sinkMotionOk(outgoing, target) {
+  if (!outgoing || outgoing === target || !outgoing.viewEl || !viewsEl) return false;
+  if (splitPartner(outgoing) || splitPartner(target)) return false;
+  // only a body islands.css can lay over the well (anything else would sit
+  // beside the arriving one in the flex row and squeeze it for the sink)
+  const el = outgoing.viewEl;
+  const drawn = el.tagName === 'WEBVIEW' ? !el.classList.contains('inactive') && !el.classList.contains('hidden')
+    : el.classList.contains('claude-view');
+  if (!drawn || el.hidden) return false;
+  if (document.hidden) return false;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  return true;
+}
+
 function activateTab(id) {
   const target = tabs.find((t) => t.id === id);
   if (!target) return;
@@ -10320,6 +10352,15 @@ function activateTab(id) {
     workspaceMoved = true;
   }
 
+  // A sink still running from the last switch ends now, before this one.
+  finishSink();
+  const sinkTab = sinkMotionOk(outgoing, target) ? outgoing : null;
+  if (sinkTab) {
+    // Home on either side: sink and lift; page to page: a cross-fade.
+    const home = isNewTabUrl(readCurrentUrl(outgoing)) || isNewTabUrl(readCurrentUrl(target));
+    viewsEl.dataset.swap = home ? 'lift' : 'fade';
+  }
+
   activeTabId = target.id;
   target.lastActive = Date.now();
   const ws = findWorkspace(currentWorkspaceId);
@@ -10334,7 +10375,15 @@ function activateTab(id) {
     // PTYs. The view itself always carries the display, split or not: it never
     // leaves #views, so there is no wrapper to toggle instead. refreshSplit()
     // below then gives the pair its side of the well.
-    if (tab.viewEl) tab.viewEl.style.display = shown ? 'flex' : 'none';
+    if (tab.viewEl) {
+      if (tab === sinkTab && !shown && tab.viewEl.style.display !== 'none') {
+        // stays drawn for the sink; finishSink() hides it
+        tab.viewEl.classList.add('isl-leaving');
+        sinking = { tab, el: tab.viewEl, timer: setTimeout(finishSink, SINK_MS) };
+      } else {
+        tab.viewEl.style.display = shown ? 'flex' : 'none';
+      }
+    }
     // A crash / failure card covers one tab's well, so it follows exactly the
     // same display swap as the view it sits over.
     if (tab.cardEl) tab.cardEl.style.display = shown ? 'flex' : 'none';

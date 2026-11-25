@@ -149,5 +149,31 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   }
 }
 
+/* ---- sink and lift (LOOK.md section 10) ---- */
+{
+  const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  const ms = (n) => { const m = tok.split('--' + n + ':')[1]; return m ? Number((/^\s*(\d+)ms/.exec(m) || [])[1]) : NaN; };
+  check(ms('m-sink-fade') === 200 && ms('m-sink-move') === 300, 'the leaving view: opacity 0 in 200, transform in 300', [ms('m-sink-fade'), ms('m-sink-move')]);
+  check(ms('m-lift-fade') === 240 && ms('m-lift-fade-delay') === 40 && ms('m-lift-move') === 460 && ms('m-lift-move-delay') === 20,
+    'the arriving view: opacity 240 +40, transform 460 +20');
+  check(tok.indexOf('--m-ease-look: cubic-bezier(0.2, 0.8, 0.2, 1);') >= 0 && tok.indexOf('--m-ease-lift: cubic-bezier(0.22, 1.12, 0.36, 1);') >= 0, 'the two easings, as tokens');
+  check(css.indexOf('@keyframes isl-sink-move { to { transform: translateY(12px) scale(0.955); } }') >= 0, 'sink: translateY 12 + scale 0.955');
+  check(css.indexOf('@keyframes isl-lift-move { from { transform: translateY(28px) scale(0.965); } }') >= 0, 'lift: from translateY 28 + scale 0.965');
+  const kf = css.match(/@keyframes [\w-]+ \{[^@]*?\} \}/g) || [];
+  check(kf.length >= 4 && kf.every((k) => !/\b(width|height|top|left|filter|blur)\b/.test(k.replace(/@keyframes [\w-]+/, ''))), 'every keyframe animates transform or opacity only', kf);
+  const leave = css.slice(css.indexOf('#views > webview.isl-leaving'), css.indexOf('}', css.indexOf('#views > webview.isl-leaving')));
+  check(/position: absolute;/.test(leave) && /inset: 0;/.test(leave) && /pointer-events: none;/.test(leave) && /z-index: -1;/.test(leave) && /#views \{ isolation: isolate; \}/.test(css),
+    'the leaving body lies over the well, under the arriving one, and takes no input', leave);
+  check(!/infinite/.test(css), 'islands.css: nothing loops (nothing runs at rest)');
+  const a = app.slice(app.indexOf('const SINK_MS'), app.indexOf('function activateTab(id)'));
+  check(/const SINK_MS = (\d+);/.exec(a) && Number(/const SINK_MS = (\d+);/.exec(a)[1]) === ms('m-sink-move'), 'app.js hides the leaving body when the 300 ms sink is over');
+  check(!/appendChild|insertBefore|\.remove\(\)|replaceWith/.test(a), 'the sink never moves or removes a view in the DOM');
+  check(/prefers-reduced-motion: reduce/.test(a) && /document\.hidden/.test(a) && /splitPartner\(outgoing\) \|\| splitPartner\(target\)/.test(a),
+    'reduced motion, an unseen window and a split keep the instant swap');
+  const act = app.slice(app.indexOf('function activateTab(id)'), app.indexOf('function activateTab(id)') + 6000);
+  check(act.indexOf('finishSink();') >= 0 && act.indexOf("viewsEl.dataset.swap = home ? 'lift' : 'fade';") >= 0 && act.indexOf("tab.viewEl.classList.add('isl-leaving');") >= 0,
+    'activateTab: Home on either side sinks and lifts, page to page cross-fades');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
