@@ -4,9 +4,10 @@
 //
 // settings.js is loaded as it ships into tests/fake-dom.js. The panel is pre-built as just the glass field
 // (#settings-panel > .set-body > [data-field="glass"]), so boot() adopts it instead of building every section.
-// Checked: the new seeds (sharp picture, lighter tint); normalizeGlass keeps a boolean dimAuto and drops
-// anything else; moving Dim stores dimAuto false + the value; Auto stores dimAuto true and keeps the value;
-// Blur and See-through keep dimAuto as it was (absent stays absent); the Dim drag previews dimAuto false;
+// Checked: the seeds; normalizeGlass keeps a boolean dimAuto and drops anything else; no Blur, See-through
+// or Auto control (CONTRACT v2); the pure glassPatch both UI paths use (Dim: only {dim}, 0.20..0.90, never
+// lower; the check: only {dimAuto}); a Dim drag/let-go writes no dimAuto; the brightness check switch writes
+// only dimAuto, a stored false reads as off and turns back on, absent reads as on; the off / not-running note;
 // the mode line shows backdrop.js's text, falls back to its own wording for an older backdrop.js, and says
 // so (never blank) when the background layer has not reported.
 const path = require('path');
@@ -79,73 +80,103 @@ const storedGlass = (b) => b.S.get('glass');
   ok('normalizeGlass: a Dim under 20% (an old 0-60% prototype value) is clamped to 0.20', low.dark.dim === 0.2 && low.light.dim === 0.2, low);
 }
 
-// ---- 2. Dim / Auto / Blur / See-through through the rendered rows -------------------------
+// ---- 2. glassPatch / glassEdit / glassCheckOn (pure; both UI paths use them) -------------------
 {
-  const b = boot({ dark: { blurPx: 0, dim: 0.3, panel: 0 }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' });
-  const auto = q(b.field, '[data-glass-auto]');
-  ok('Auto is drawn beside Dim', !!auto && auto.tagName === 'BUTTON' && auto.parentNode === q(b.field, '#set-glass-dim').parentNode, auto && auto.tagName);
-  ok('Auto: pressed while automatic (aria-pressed true), has an aria-label', auto.getAttribute('aria-pressed') === 'true' && /automatic/i.test(auto.getAttribute('aria-label') || ''), auto.attrs);
-  ok('Auto is a real button (keyboard reachable, not disabled)', auto.getAttribute('type') !== null || auto.type === 'button', auto.type);
+  const b = boot(undefined);
+  const P = b.S._glassPatch, E = b.S._glassEdit, C = b.S._glassCheckOn;
+  const keys = (o) => Object.keys(o || {}).sort().join(',');
+  ok('glassPatch dim: only {dim}, no dimAuto key', keys(P('dim', 0.45)) === 'dim' && P('dim', 0.45).dim === 0.45, P('dim', 0.45));
+  ok('glassPatch dim: below 0.20 clamps to 0.20 (never written lower)', P('dim', 0.05).dim === 0.2 && P('dim', 0).dim === 0.2 && P('dim', -1).dim === 0.2, [P('dim', 0.05), P('dim', 0)]);
+  ok('glassPatch dim: above 0.90 clamps to 0.90', P('dim', 0.95).dim === 0.9 && P('dim', 5).dim === 0.9, P('dim', 0.95));
+  ok('glassPatch dim: not a number writes the floor, never NaN', P('dim', 'x').dim === 0.2 && P('dim', NaN).dim === 0.2, P('dim', 'x'));
+  ok('glassPatch check: only {dimAuto}', keys(P('check', true)) === 'dimAuto' && P('check', true).dimAuto === true && P('check', false).dimAuto === false, [P('check', true), P('check', false)]);
+  ok('glassPatch: no blur or see-through kind', P('blur', 6) === null && P('see', 10) === null && P('auto') === null);
+  ok('glassCheckOn: absent = on, true = on, false = off', C({}) === true && C({ dimAuto: true }) === true && C({ dimAuto: false }) === false && C(null) === true);
+  const st = { dark: { blurPx: 7, dim: 0.3, panel: -0.1, dimAuto: false }, light: { blurPx: 3, dim: 0.5, panel: 0.05 }, render: 'picture' };
+  const e1 = E(st, 'dark', P('dim', 0.4));
+  ok('glassEdit dim: keeps blurPx, panel and a stored dimAuto false', e1.dark.dim === 0.4 && e1.dark.blurPx === 7 && e1.dark.panel === -0.1 && e1.dark.dimAuto === false, e1.dark);
+  const e2 = E(st, 'light', P('dim', 0.1));
+  ok('glassEdit dim: absent dimAuto stays absent; clamped 0.20', !('dimAuto' in e2.light) && e2.light.dim === 0.2 && e2.light.blurPx === 3 && e2.light.panel === 0.05, e2.light);
+  ok('glassEdit: the other theme untouched', JSON.stringify(e2.dark) === JSON.stringify(b.S._normalizeGlass(st).dark), e2.dark);
+  const e3 = E(st, 'dark', P('check', true));
+  ok('glassEdit check: dimAuto true, Dim/blur/panel kept', e3.dark.dimAuto === true && e3.dark.dim === 0.3 && e3.dark.blurPx === 7 && e3.dark.panel === -0.1, e3.dark);
+  const T = b.S._glassCheckText;
+  ok('check note: on (dark) says what it does', /^On: /.test(T(true, 'dark', 'on')), T(true, 'dark', 'on'));
+  ok('check note: off says the panels show the Dim only', /^Off: .*under the Dim only/.test(T(false, 'dark', 'on')), T(false, 'dark', 'on'));
+  ok('check note: on but brightcheck missing says not running and why', /^On, but not running: brightcheck\.js did not load/.test(T(true, 'dark', 'off: brightcheck.js did not load, so x')), T(true, 'dark', 'off: brightcheck.js did not load, so x'));
+  ok('check note: light says it does not run there yet', /not running in the light theme/.test(T(true, 'light', 'on')) && /light theme yet/.test(T(false, 'light', 'on')), [T(true, 'light'), T(false, 'light')]);
+}
 
-  // Blur while automatic (dimAuto absent): stays absent
-  const blur = q(b.field, '#set-glass-blur');
-  drag(blur, 6); letGo(blur);
-  ok('Blur change: value stored', storedGlass(b).dark.blurPx === 6, storedGlass(b).dark);
-  ok('Blur change while automatic (absent): dimAuto stays absent', !('dimAuto' in storedGlass(b).dark), storedGlass(b).dark);
+// ---- 3. the rendered rows: Dim slider, the brightness check, no Blur / See-through ------------
+{
+  const b = boot({ dark: { blurPx: 5, dim: 0.3, panel: -0.1 }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' });
+  ok('no Blur row', !q(b.field, '#set-glass-blur') && !b.field.querySelectorAll('label').some((l) => /^Blur$/.test(l.textContent)), b.field.querySelectorAll('label').map((l) => l.textContent));
+  ok('no See-through row', !q(b.field, '#set-glass-see') && !b.field.querySelectorAll('label').some((l) => /See-through/.test(l.textContent)));
+  ok('no Auto button', !q(b.field, '[data-glass-auto]'));
+  const allText = () => b.field.querySelectorAll('*').map((n) => n.textContent).join(' ');
+  ok('no Blur or See-through wording in the section', !/\bBlur\b|See-through/.test(allText()), allText().slice(0, 300));
 
-  // Dim drag: preview says manual; let go: stored manual + value
   let dim = q(b.field, '#set-glass-dim');
   ok('the Dim slider runs 20% to 90% (floor 20%, decision 2026-11-24)', dim && String(dim.min) === '20' && String(dim.max) === '90', dim && [dim.min, dim.max]);
+  const sw = () => q(b.field, '[data-glass-check]');
+  ok('brightness check: a switch labelled "Brightness check"', sw() && sw().getAttribute('role') === 'switch' && /Brightness check/.test(sw().textContent), sw() && sw().attrs);
+  ok('absent dimAuto reads as on', sw().getAttribute('aria-checked') === 'true', sw().attrs);
+  ok('absent: the note says on', /^On: /.test(q(b.field, '[data-glass-check-note]').textContent), q(b.field, '[data-glass-check-note]').textContent);
+
   b.previews.length = 0;
   drag(dim, 24);
   const p = b.previews.filter((x) => x.g).pop();
-  ok('Dim drag: preview carries dimAuto false and the dragged value', p && p.t === 'dark' && p.g.dimAuto === false && p.g.dim === 0.24, b.previews);
+  ok('Dim drag: preview has the value and no dimAuto key', p && p.t === 'dark' && p.g.dim === 0.24 && !('dimAuto' in p.g), b.previews);
   letGo(dim);
-  ok('Dim change: stores dimAuto false + the value', storedGlass(b).dark.dimAuto === false && storedGlass(b).dark.dim === 0.24, storedGlass(b).dark);
+  let g = storedGlass(b).dark;
+  ok('Dim change: stores the value, writes no dimAuto (absent stays absent)', g.dim === 0.24 && !('dimAuto' in g), g);
+  ok('Dim change: blurPx and panel kept as stored', g.blurPx === 5 && g.panel === -0.1, g);
   ok('Dim change: the other theme untouched', !('dimAuto' in storedGlass(b).light) && storedGlass(b).light.dim === 0.3, storedGlass(b).light);
   ok('Dim change: preview cleared on let go', b.previews[b.previews.length - 1].g === null, b.previews.slice(-1));
+  ok('after a Dim change the check is still on', sw().getAttribute('aria-checked') === 'true', sw().attrs);
 
-  // re-rendered from the store: Auto now not pressed
-  const auto2 = q(b.field, '[data-glass-auto]');
-  ok('After a Dim change: Auto shows not pressed (manual)', auto2 && auto2.getAttribute('aria-pressed') === 'false', auto2 && auto2.attrs);
-
-  // Blur and See-through while manual: stay manual
-  q(b.field, '#set-glass-blur').value = '2'; letGo(q(b.field, '#set-glass-blur'));
-  ok('Blur change while manual: dimAuto stays false', storedGlass(b).dark.dimAuto === false && storedGlass(b).dark.blurPx === 2, storedGlass(b).dark);
-  const see = q(b.field, '#set-glass-see');
-  drag(see, 10);
-  const ps = b.previews.filter((x) => x.g).pop();
-  ok('See-through drag while manual: preview keeps dimAuto false', ps && ps.g.dimAuto === false && ps.g.panel === -0.1, ps);
-  letGo(see);
-  ok('See-through change while manual: dimAuto stays false, value stored', storedGlass(b).dark.dimAuto === false && storedGlass(b).dark.panel === -0.1, storedGlass(b).dark);
-
-  // Auto: dimAuto true, value unchanged
-  q(b.field, '[data-glass-auto]').click();
-  const g = storedGlass(b).dark;
-  ok('Auto: stores dimAuto true and keeps the value (dim 0.24, blur 2, panel -0.1)', g.dimAuto === true && g.dim === 0.24 && g.blurPx === 2 && g.panel === -0.1, g);
-  const auto3 = q(b.field, '[data-glass-auto]');
-  ok('After Auto: pressed again', auto3.getAttribute('aria-pressed') === 'true', auto3.attrs);
-  // Auto while already automatic: no write
-  let wrote = 0; b.S.on(() => { wrote++; });
-  auto3.click();
-  ok('Auto while already automatic: nothing written', wrote === 0, wrote);
-  // Blur while dimAuto true: stays true
-  q(b.field, '#set-glass-blur').value = '3'; letGo(q(b.field, '#set-glass-blur'));
-  ok('Blur change while dimAuto true: stays true', storedGlass(b).dark.dimAuto === true, storedGlass(b).dark);
+  sw().click();
+  g = storedGlass(b).dark;
+  ok('check off: writes dimAuto false only (Dim, blur, panel kept)', g.dimAuto === false && g.dim === 0.24 && g.blurPx === 5 && g.panel === -0.1, g);
+  ok('check off: the switch reads off', sw().getAttribute('aria-checked') === 'false', sw().attrs);
+  const note = q(b.field, '[data-glass-check-note]');
+  ok('check off: the note says the panels show the Dim only, in the warn colour', /^Off: .*Dim only/.test(note.textContent) && /set-look-warn/.test(note.className), [note.textContent, note.className]);
+  dim = q(b.field, '#set-glass-dim');
+  dim.value = '10'; letGo(dim);
+  g = storedGlass(b).dark;
+  ok('Dim change while off: dimAuto stays false (the slider never touches it)', g.dimAuto === false && g.dim === 0.2, g);
+  ok('Dim set to 10% (out of range) is written as 0.20', g.dim === 0.2, g);
 }
 
-// ---- 3. light theme edits glass.light only -------------------------------------------------
+// ---- 4. a stored dimAuto false (an older Dim drag) reads as off and turns back on -------------
+{
+  const b = boot({ dark: { blurPx: 0, dim: 0.45, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' });
+  const sw = () => q(b.field, '[data-glass-check]');
+  ok('stored false reads as off', sw().getAttribute('aria-checked') === 'false', sw().attrs);
+  ok('stored false: the note says off', /^Off: /.test(q(b.field, '[data-glass-check-note]').textContent));
+  sw().click();
+  const g = storedGlass(b).dark;
+  ok('toggling a stored false writes dimAuto true, Dim kept', g.dimAuto === true && g.dim === 0.45, g);
+  ok('then it reads as on', sw().getAttribute('aria-checked') === 'true', sw().attrs);
+  ok('a stored Dim wins (0.45 shown as 45)', String(q(b.field, '#set-glass-dim').value) === '45', q(b.field, '#set-glass-dim').value);
+  const b2 = boot({ dark: { dim: 0.05 } });
+  ok('a stored Dim under 20% shows as 20', String(q(b2.field, '#set-glass-dim').value) === '20', q(b2.field, '#set-glass-dim').value);
+}
+
+// ---- 5. light theme edits glass.light only -------------------------------------------------
 {
   const b = boot({ dark: { blurPx: 0, dim: 0.3, panel: 0, dimAuto: false }, light: { blurPx: 0, dim: 0.3, panel: 0 }, render: 'picture' }, { light: true });
   const dim = q(b.field, '#set-glass-dim');
   dim.value = '40'; letGo(dim);
-  ok('light: Dim change writes glass.light (manual, 0.40)', storedGlass(b).light.dimAuto === false && storedGlass(b).light.dim === 0.4, storedGlass(b).light);
-  ok('light: glass.dark keeps its own Manual choice', storedGlass(b).dark.dimAuto === false && storedGlass(b).dark.dim === 0.3, storedGlass(b).dark);
+  ok('light: Dim change writes glass.light dim 0.40, no dimAuto', !('dimAuto' in storedGlass(b).light) && storedGlass(b).light.dim === 0.4, storedGlass(b).light);
+  ok('light: glass.dark keeps its own choice', storedGlass(b).dark.dimAuto === false && storedGlass(b).dark.dim === 0.3, storedGlass(b).dark);
+  q(b.field, '[data-glass-check]').click();
+  ok('light: the check writes glass.light.dimAuto only', storedGlass(b).light.dimAuto === false && storedGlass(b).dark.dimAuto === false && storedGlass(b).light.dim === 0.4, storedGlass(b));
   const hint = b.field.querySelectorAll('.set-hint').map((n) => n.textContent).join(' ');
-  ok('light hint: sharp picture, white tint, Auto', /paints the picture sharp/.test(hint) && /white tint/.test(hint) && /Auto raises it/.test(hint), hint);
+  ok('light hint: white tint, 20% to 90%, check not running in light yet', /white tint/.test(hint) && /20% to 90%/.test(hint) && /light theme yet/.test(hint), hint);
 }
 
-// ---- 4. the mode line -----------------------------------------------------------------------
+// ---- 6. the mode line -----------------------------------------------------------------------
 {
   const text = 'Automatic: 0.30, raised to 0.46 so text stays readable over this picture';
   const b = boot(undefined, { state: { glass: { theme: 'dark', mode: 'auto', text, reason: 'raised', floor: 0.3, alpha: 0.46, raised: true, source: 'shared' } } });

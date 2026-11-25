@@ -238,9 +238,10 @@
     lookSync: true,
     /* The glass over the background, per theme: blurPx 0..64 (integer),
        dim 0.20..0.90, panel -0.30..+0.15 (added to the surfaces' alpha),
-       and an optional dimAuto (absent = true): automatic raises the wash
-       over a bright picture, false uses exactly dim. The picture is painted
-       sharp whatever blurPx says (Mantle's guard and surfaces still use it).
+       and an optional dimAuto (absent = true): the brightness check switch
+       (CONTRACT v2), set only by its own control, never by the Dim slider.
+       Settings has no Blur or See-through control (v2): blurPx and panel
+       stay stored and synced as they are, for the apps still on v1.
        backdrop.js reads the effective value through LookSync.glassFor(theme). */
     glass: {
       dark: { blurPx: 0, dim: 0.3, panel: 0 },
@@ -2863,7 +2864,11 @@
       'System is not offered: this window’s theme module (QuartzTheme) did not load, and the theme is not shared with Helm and Mantle.'));
   }
 
-  /* ---- Glass: Blur / Dim / See-through for the current theme --------- */
+  /* ---- Glass: Dim and the brightness check for the current theme ----- */
+  /* CONTRACT "2026-11-24: the islands look (v2)": no Blur or See-through
+     control (blur is the fixed two-level frost; there is no panel fill).
+     glass.<theme>.blurPx and .panel stay stored and synced exactly as they
+     are: every write spreads the stored entry (glassEdit). */
 
   /** One labelled range with a readout; input previews, change stores. */
   function glassSlider(label, id, min, max, value, format, onInput, onChange) {
@@ -2902,96 +2907,107 @@
   }
 
   /**
-   * The whole glass group after one edit to `theme` (pure; the caller sets it).
-   * `values` is { blurPx, dim, panel } from the sliders, or null to keep the
-   * stored ones. kind 'dim': the user moved Dim, so it turns Manual
-   * (dimAuto false). 'auto': back to Automatic (dimAuto true), values as they
-   * are. Anything else (Blur, See-through) keeps dimAuto exactly as stored,
-   * absent included.
+   * The one change a glass control makes to its theme's entry (pure; both UI
+   * paths use it). 'dim': { dim } only, the fraction clamped to 0.20..0.90
+   * (never written lower); the brightness check is not touched. 'check':
+   * { dimAuto } only, true or false. Anything else: null (nothing to write).
    */
-  function glassEdit(all, theme, values, kind) {
+  function glassPatch(kind, value) {
+    if (kind === 'dim') return { dim: glassNumber(value, GLASS_RANGE.dim, GLASS_RANGE.dim[0], false) };
+    if (kind === 'check') return { dimAuto: value === true };
+    return null;
+  }
+
+  /** The brightness check as stored for one theme (pure): absent or true = on. */
+  function glassCheckOn(g) {
+    return !(g && g.dimAuto === false);
+  }
+
+  /**
+   * The whole glass group after one patch (glassPatch) to `theme` (pure; the
+   * caller sets it). The stored entry is spread, so every other key (blurPx,
+   * panel, a dimAuto the patch does not name, absent included) stays as it is.
+   */
+  function glassEdit(all, theme, patch) {
     var out = normalizeGlass(all);
-    var prev = out[theme];
-    var next = values ? { blurPx: values.blurPx, dim: values.dim, panel: values.panel }
-      : { blurPx: prev.blurPx, dim: prev.dim, panel: prev.panel };
-    if (kind === 'dim') next.dimAuto = false;
-    else if (kind === 'auto') next.dimAuto = true;
-    else if (typeof prev.dimAuto === 'boolean') next.dimAuto = prev.dimAuto;
+    var next = {};
+    Object.keys(out[theme]).forEach(function (k) { next[k] = out[theme][k]; });
+    if (patch) Object.keys(patch).forEach(function (k) { next[k] = patch[k]; });
     out[theme] = next;
     return normalizeGlass(out);
+  }
+
+  /**
+   * The line under the brightness check (pure): what it does for this theme
+   * right now. frostCheck is frost.js's own word on the check ('on' or
+   * 'off: <why>'), when it has one. Off, or not running, always says so.
+   */
+  function glassCheckText(on, theme, frostCheck) {
+    var dimOnly = 'the panels show the blurred picture under the Dim only, with no film over bright parts, so text over a bright picture can be hard to read';
+    if (!on) {
+      return 'Off: ' + dimOnly + (theme === 'light' ? ' (the check does not run in the light theme yet in any case).' : '.');
+    }
+    if (theme === 'light') {
+      return 'On, but not running in the light theme yet: the light look keeps its design until it has its own check, so the panels show the Dim only.';
+    }
+    if (typeof frostCheck === 'string' && /^off/i.test(frostCheck)) {
+      return 'On, but not running: ' + frostCheck.replace(/^off:\s*/i, '') + '. Until then ' + dimOnly + '.';
+    }
+    return 'On: a panel over a bright part of the picture gets a dark film, just enough for its text to stay readable.';
   }
 
   function renderGlass() {
     var field = bodyEl && bodyEl.querySelector('[data-field="glass"]');
     if (!field) return;
     field.textContent = '';
-    /* CONTRACT "Light look": the sliders edit glass.light while Quartz is
+    /* CONTRACT "Light look": the controls edit glass.light while Quartz is
        light and glass.dark while it is dark; the title says which. */
     var theme = isLight() ? 'light' : 'dark';
     field.setAttribute('data-glass-theme', theme);
     var g = glass()[theme];
-    var auto = g.dimAuto !== false;
+    var checkOn = glassCheckOn(g);
     var ls = lookSyncApi();
     var canPreview = !!(ls && typeof ls.previewGlass === 'function');
 
-    var blur, dim, see;
-    function current() {
-      return {
-        blurPx: Number(blur.slider.value),
-        dim: Number(dim.slider.value) / 100,
-        /* See-through is the panel alpha turned around: more = clearer. */
-        panel: -Number(see.slider.value) / 100
-      };
-    }
-    function inputFor(kind) {
-      return function () {
-        if (!canPreview) return;
-        try { ls.previewGlass(theme, glassEdit(glass(), theme, current(), kind)[theme]); } catch (err) { /* glue's problem; change still saves */ }
-      };
-    }
-    function changeFor(kind) {
-      return function () {
-        set({ glass: glassEdit(glass(), theme, current(), kind) });
-        if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
-      };
-    }
+    var dim;
+    function dimEdit() { return glassEdit(glass(), theme, glassPatch('dim', Number(dim.slider.value) / 100)); }
 
     field.appendChild(el('p', 'set-hint set-glass-title',
       'Glass for the ' + (theme === 'light' ? 'Light' : 'Dark') + ' theme (switch theme to set the other):'));
-    blur = glassSlider('Blur', 'set-glass-blur', GLASS_RANGE.blurPx[0], GLASS_RANGE.blurPx[1], g.blurPx,
-      function (v) { return v + ' px'; }, inputFor('blur'), changeFor('blur'));
-    field.appendChild(blur.row);
     dim = glassSlider('Dim', 'set-glass-dim', Math.round(GLASS_RANGE.dim[0] * 100), Math.round(GLASS_RANGE.dim[1] * 100),
-      Math.round(g.dim * 100), function (v) { return v + '%'; }, inputFor('dim'), changeFor('dim'));
-    /* Auto: back to the automatic wash (the Dim, raised over a bright
-       picture). Pressed while it already is; still focusable, so the
-       keyboard can find it and a screen reader hears its state. */
-    var autoBtn = el('button', 'set-btn set-glass-auto', 'Auto');
-    autoBtn.type = 'button';
-    autoBtn.setAttribute('data-glass-auto', '');
-    autoBtn.setAttribute('aria-pressed', auto ? 'true' : 'false');
-    autoBtn.setAttribute('aria-disabled', auto ? 'true' : 'false');
-    autoBtn.setAttribute('aria-label', auto
-      ? 'Auto: Dim is automatic, raised over bright pictures so text stays readable'
-      : 'Auto: make Dim automatic, raised over bright pictures so text stays readable');
-    autoBtn.title = auto ? 'Dim is automatic' : 'Make Dim automatic';
-    autoBtn.addEventListener('click', function () {
-      if (glass()[theme].dimAuto !== false) return;   // already automatic
-      set({ glass: glassEdit(glass(), theme, null, 'auto') });
-      if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
-    });
-    dim.wrap.appendChild(autoBtn);
+      Math.round(g.dim * 100), function (v) { return v + '%'; },
+      function () {
+        if (!canPreview) return;
+        try { ls.previewGlass(theme, dimEdit()[theme]); } catch (err) { /* glue's problem; change still saves */ }
+      },
+      function () {
+        set({ glass: dimEdit() });
+        if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
+      });
     field.appendChild(dim.row);
     var guard = el('p', 'set-note set-glass-guard');
     guard.setAttribute('data-glass-guard', '');
     guard.setAttribute('role', 'status');
     field.appendChild(guard);
-    see = glassSlider('See-through', 'set-glass-see', Math.round(-GLASS_RANGE.panel[1] * 100), Math.round(-GLASS_RANGE.panel[0] * 100),
-      Math.round(-g.panel * 100), function (v) { return (v > 0 ? '+' : '') + v; }, inputFor('see'), changeFor('see'));
-    field.appendChild(see.row);
-    field.appendChild(el('p', 'set-hint', 'Quartz paints the picture sharp; Blur is shared with Mantle (its bars and the top-band check). '
-      + (theme === 'light' ? 'Dim lays a white tint over the picture' : 'Dim lays a tint over the picture')
-      + ' so text stays readable; Auto raises it over bright pictures. See-through makes the panels clearer (+) or more solid (−).'));
+    field.appendChild(el('p', 'set-hint',
+      (theme === 'light' ? 'Dim lays a white tint over the picture' : 'Dim lays a tint over the picture')
+      + ' so text stays readable, from 20% to 90%.'));
+
+    /* The brightness check: its own switch, writing only glass.<theme>.dimAuto
+       (CONTRACT v2). A dimAuto false left by an older Dim drag reads as off. */
+    var check = switchRow('Brightness check', checkOn, function (want) {
+      set({ glass: glassEdit(glass(), theme, glassPatch('check', want)) });
+      if (canPreview) { try { ls.previewGlass(theme, null); } catch (err) { /* fine */ } }
+    });
+    check.id = 'set-glass-check';
+    check.setAttribute('data-glass-check', '');
+    field.appendChild(check);
+    var F = window.Frost;
+    var checkNote = el('p', 'set-hint set-glass-check-note' + (checkOn && theme !== 'light' ? '' : ' set-look-warn'),
+      glassCheckText(checkOn, theme, F && typeof F.check === 'string' ? F.check : null));
+    checkNote.setAttribute('data-glass-check-note', '');
+    field.appendChild(checkNote);
+
     if (!ls) {
       field.appendChild(el('p', 'set-note set-look-warn', LOOK_MISSING
         + '. These values are saved, but nothing in this window applies them until it loads.'));
@@ -9559,6 +9575,9 @@
     _renderLookSync: renderLookSync,
     _renderGlass: renderGlass,
     _glassEdit: glassEdit,
+    _glassPatch: glassPatch,
+    _glassCheckOn: glassCheckOn,
+    _glassCheckText: glassCheckText,
     _glassGuardText: glassGuardText,
     _renderGlassGuard: renderGlassGuard,
     _renderDesktopLine: renderDesktopLine,
