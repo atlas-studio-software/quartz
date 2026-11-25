@@ -110,6 +110,9 @@
     gridPos: null,          // { r, c } of the grid's tab stop
     popFor: '',
     popFrom: null,
+    // a press on the strip / popover holds their redraw until its click has run (watch/presshold.js)
+    hold: window.LumenPressHold ? window.LumenPressHold.create({ later: function (fn, ms) { return setTimeout(fn, ms); }, cancel: function (h) { clearTimeout(h); } })
+      : { press: function () { }, release: function () { }, draw: function (fn) { fn(); return true; }, held: function () { return false; } },
     tickTimer: 0,
     bootTimer: 0,
     failure: null,          // { title, why } on screen now
@@ -907,6 +910,8 @@
     var s = svcOf(S.popFor);
     if (!s) { closePop(false); return; }
     var p = $.pop;
+    // A refill (a snapshot while it is open) keeps the keyboard where it was: the same button again.
+    var had = document.activeElement && document.activeElement !== p && p.contains(document.activeElement) ? document.activeElement.textContent : null;
     p.replaceChildren();
     var h = el('h3', '', s.name);
     h.id = 'pop-title';
@@ -973,6 +978,10 @@
     if (window.LumenProfiles) window.LumenProfiles.popActs(acts, s, send, closePop, null);
     acts.appendChild(button('btn sm ghost', 'Settings', function () { send('settings', {}); closePop(true); }));
     p.appendChild(acts);
+    if (had !== null) {
+      var again = Array.prototype.find.call(p.querySelectorAll('button'), function (b) { return b.textContent === had && !b.disabled; });
+      if (again) again.focus({ preventScroll: true });
+    }
   }
 
   /* ------------------------------------------------------------ the model */
@@ -1060,11 +1069,18 @@
     S.skew = snap.now - Date.now();
     if (Math.abs(S.skew) < 5000) S.skew = 0;
     document.body.classList.remove('is-boot');
-    renderStrip();
+    S.hold.draw(drawStripPop);
     renderLens();
     if (S.q) renderResults();
-    if (!$.pop.hidden) { fillPop(); placePop(); }
     scheduleTick();
+  }
+
+  /* The strip and the open popover, redrawn from S.snap. Through S.hold (watch/presshold.js): a
+     redraw that arrives while a press is down on either waits until that press's click has run,
+     or the button pressed would be gone at the release and the click (Read now, Retry) lost. */
+  function drawStripPop() {
+    renderStrip();
+    if (!$.pop.hidden) { fillPop(); placePop(); }
   }
 
   function renderBoot() {
@@ -2616,13 +2632,12 @@
   }
   function refreshAgo() {
     if (!S.snap) return;
-    renderStrip();
     var list = document.querySelectorAll('[data-at]');
     for (var i = 0; i < list.length; i++) {
       var e = list[i];
       e.textContent = (e.dataset.pre || '') + ago(+e.dataset.at) + (e.dataset.post || '');
     }
-    if (!$.pop.hidden) fillPop();
+    S.hold.draw(drawStripPop);
   }
 
   /* ------------------------------------------------------------------ input */
@@ -2833,6 +2848,13 @@
         front: function () { return S.front !== false; }, reduced: reduced });
     }
     window.addEventListener('resize', onResize);
+    // Capture phase: the hold is on before the press's own handlers run (watch/presshold.js).
+    document.addEventListener('pointerdown', function (e) {
+      if (e.button === 0 && e.target && ($.pills.contains(e.target) || $.pop.contains(e.target))) S.hold.press();
+    }, true);
+    document.addEventListener('pointerup', function () { S.hold.release(); }, true);
+    document.addEventListener('pointercancel', function () { S.hold.release(); }, true);
+    window.addEventListener('blur', function () { S.hold.release(); });
     document.addEventListener('pointerdown', function (e) {
       if ($.pop.hidden) return;
       if ($.pop.contains(e.target) || (e.target.closest && e.target.closest('.sp'))) return;

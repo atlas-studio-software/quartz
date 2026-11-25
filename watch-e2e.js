@@ -396,7 +396,12 @@ async function retry(g, id) {
     console.log('[e2e] retry diag ' + id + ': ' + JSON.stringify({ at, st, svc: sv }));
     if (st && st.disabled) console.log('[e2e] read trace (ms mod 1e6, R reading, Q queued, then Hulu state): ' + JSON.stringify(await g.ev('(window.__e2eTrace || []).slice(-30)').catch(() => null)) + ' now ' + (Date.now() % 1e6));
   }
-  return click(g, '#pop [data-e2e-retry="1"]');
+  // Say so when the press fired no click on the button (it was rebuilt under the press: watch/presshold.js).
+  await g.ev(`(() => { const b = document.querySelector('#pop [data-e2e-retry="1"]'); window.__e2eRetryHit = 0;
+    if (b) b.addEventListener('click', () => { window.__e2eRetryHit++; }, { once: true }); return 1; })()`).catch(() => 0);
+  const pressed = await click(g, '#pop [data-e2e-retry="1"]');
+  if (pressed && !(await g.ev('window.__e2eRetryHit || 0').catch(() => 1))) console.log('[e2e] retry ' + id + ': the press fired no click on the popover\'s button (rebuilt under the press?)');
+  return pressed;
 }
 
 async function shot(g, name, w, h, caption, say, chrome) {
