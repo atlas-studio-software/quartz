@@ -152,8 +152,11 @@ run('motion-e2e', async ({ check, launch, say }) => {
     const ids = []; for (let i = 3; i < 7; i++) ids.push(createTab(${JSON.stringify(B + '/p/')} + i + '.html', { background: true }).id);
     await new Promise((r) => setTimeout(r, 700));
     const later = ids.slice(1).map((id) => tabs.find((t) => t.id === id).chipEl);
+    const st = document.getElementById('tabstrip');
+    const was = { at: later.map((ch) => Math.round(ch.getBoundingClientRect().left)), scroll: Math.round(st.scrollLeft), max: st.scrollWidth - st.clientWidth, fit: st.dataset.fit || 'natural' };
     closeTab(ids[0]);
     await new Promise((r) => requestAnimationFrame(() => r()));
+    const now = { at: later.map((ch) => Math.round(ch.getBoundingClientRect().left)), scroll: Math.round(st.scrollLeft), max: st.scrollWidth - st.clientWidth, fit: st.dataset.fit || 'natural' };
     const anims = later.map((ch) => ch.getAnimations().filter((a) => a.id === 'q-strip-glide'));
     const kinds = anims.flat().map((a) => Object.keys(a.effect.getKeyframes()[0]).filter((k) => !['offset', 'easing', 'composite', 'computedOffset'].includes(k)).join('+'));
     await new Promise((r) => setTimeout(r, 500));
@@ -164,7 +167,7 @@ run('motion-e2e', async ({ check, launch, say }) => {
     for (const ch of later) ch.style.translate = '';
     for (const id of ids.slice(1)) closeTab(id);
     closeTab(${JSON.stringify(born.id)});
-    return { gliding: anims.filter((a) => a.length).length, kinds, still, drawn, laid };
+    return { gliding: anims.filter((a) => a.length).length, which: anims.map((a) => a.length > 0), kinds, still, drawn, laid, was, now };
   })()`);
   check(glide.gliding === 3 && glide.kinds.every((k) => k === 'translate'), 'closing a tab: the three chips after it glide, on translate only', glide);
   check(glide.still && JSON.stringify(glide.drawn) === JSON.stringify(glide.laid), 'the glide ends exactly where the layout puts each chip', glide);

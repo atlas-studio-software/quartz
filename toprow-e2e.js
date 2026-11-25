@@ -179,9 +179,12 @@ async function topRowActual(n) {
 }
 
 function errOf(pred, act) {
-  let max = 0, sum = 0, k = 0;
-  for (let i = 0; i < pred.length; i++) for (let c = 0; c < 3; c++) { const e = Math.abs(pred[i][c] - act[i][c]); max = Math.max(max, e); sum += e; k++; }
-  return { max: Math.round(max * 10) / 10, mean: Math.round(sum / k * 10) / 10 };
+  let max = 0, sum = 0, k = 0, worst = -1;
+  for (let i = 0; i < pred.length; i++) for (let c = 0; c < 3; c++) { const e = Math.abs(pred[i][c] - act[i][c]); if (e > max) { max = e; worst = i; } sum += e; k++; }
+  // where the worst column is, so a failure names the spot (diagnostic only; the limits are unchanged)
+  const over = []; for (let i = 0; i < pred.length; i++) if (Math.max(...[0, 1, 2].map((c) => Math.abs(pred[i][c] - act[i][c]))) > 10) over.push(i);
+  return { max: Math.round(max * 10) / 10, mean: Math.round(sum / k * 10) / 10, worst, n: pred.length,
+    worstPred: worst >= 0 ? pred[worst].map((v) => Math.round(v)) : null, worstReal: worst >= 0 ? act[worst].map((v) => Math.round(v)) : null, over };
 }
 
 /** The hint the window states now, checked against its real top row. */
@@ -229,7 +232,8 @@ async function pixels(name, limit) {
   if (top.kind === 'cols') limit = Math.max(limit, 10);
   check(e.max <= limit && e.mean <= meanLimit, 'pixels ' + name + ': ' + top.kind + (top.alpha !== undefined ? ' ' + top.alpha : '') +
     ' vs the real top row: max ' + e.max + ', mean ' + e.mean + ' levels (limit ' + limit + (meanLimit < Infinity ? ', mean ' + meanLimit : '') + ')',
-    'col0 pred ' + sample(pred[0]) + ' real ' + sample(act.cols[0]) + '; mid pred ' + sample(pred[N >> 1]) + ' real ' + sample(act.cols[N >> 1]));
+    'col0 pred ' + sample(pred[0]) + ' real ' + sample(act.cols[0]) + '; mid pred ' + sample(pred[N >> 1]) + ' real ' + sample(act.cols[N >> 1]) +
+    '; worst col ' + e.worst + ' of ' + e.n + ' pred ' + e.worstPred + ' real ' + e.worstReal + '; cols over 10 levels: ' + (e.over.slice(0, 24).join(',') || 'none'));
   return e;
 }
 
