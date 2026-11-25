@@ -798,50 +798,59 @@ html.home-measure .home { grid-template-rows: 100vh; }
 .module[hidden] { display: none; }
 
 /* --- the clock ----------------------------------------------- */
-/* Helm's greeting voice, bare over the picture: no card, and the one
-   text shadow on the page (Helm's own, for legibility over a photo). */
+/* The approved design's clock: BARE over the picture, never an island
+   (newtab.js frostHome leaves it out), padded so its text lines up with the
+   text inside the cards. Light ink with the design's text lift in both
+   themes: the picture does not change with the theme, so neither does
+   bare text on it. */
 .module-clock {
   width: auto;
-  padding: 4px 0 0;
+  padding: 8px 16px 4px;
   border: 0;
   background: none;
   box-shadow: none;
 }
+.module-clock.frost { background: none; box-shadow: none; text-shadow: none; }
 
 .mod-time {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 0;
   margin: 0;
+  color: var(--look-text);
+  font: 300 var(--look-fs-hero)/0.95 var(--font-display);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--text-lift);
 }
 
-.mod-time-value {
-  color: var(--text);
-  font: 600 44px/1.1 var(--font-display);   /* the clock: a display readout, off the text scale on purpose */
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.015em;
-  text-shadow: var(--home-shadow);
-}
+.mod-time-value { color: inherit; }
 
 /* AM/PM, and empty in a 24-hour locale — newtab.js asks Intl which it is. */
 .mod-time-period {
-  color: var(--text);
-  font-size: var(--fs-l);
-  font-weight: 600;
-  opacity: 0.86;
-  text-shadow: var(--home-shadow);
+  margin-left: 8px;
+  color: var(--look-text-2);
+  font-size: var(--look-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0;
 }
+.mod-time-period:empty { margin-left: 0; }
 
 .mod-date {
   margin: 8px 0 0;
-  color: var(--text);
-  font-size: var(--fs-l);
+  color: var(--look-text-2);
+  font-size: var(--look-fs-l);
   font-variant-numeric: tabular-nums;
-  opacity: 0.86;
-  text-shadow: var(--home-shadow);
+  text-shadow: var(--text-lift);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The design's narrower windows (1024-1279): the clock drops to 76px so
+   "12:48 PM" fits the 280px column. */
+@media (max-width: 1279px) {
+  :root { --look-fs-hero: 76px; }
 }
 
 /* --- the session readout ------------------------------------- */
@@ -2769,7 +2778,7 @@ body.home-unfold { --home-fold: 0; }
   .module-clock {
     order: 0;
     flex: 0 0 100%;
-    padding-top: 24px;
+    padding-top: 16px;                 /* the design's folded clock */
     text-align: center;
   }
 

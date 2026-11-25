@@ -119,7 +119,9 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   const tail = ncss.slice(ncss.indexOf('The floating islands on the Home'));
   check(has(tail, '.module.frost') && /\.search\.frost \.search-input \{[^}]*backdrop-filter: none/.test(tail), 'Home cards and the search box are islands; the search field has no live blur');
   const njs = fs.readFileSync(path.join(__dirname, 'newtab.js'), 'utf8');
-  check(has(njs, 'function frostHome()') && has(njs, '.module[data-kind="card"], #search'), 'newtab.js marks every card and the search box');
+  check(has(njs, 'function frostHome()') && has(njs, '.module[data-kind="card"]:not(.module-clock), #search'), 'newtab.js marks every card and the search box');
+  // The approved design has the clock bare over the picture: never an island.
+  check(has(njs, "clock.classList.remove('frost')") && /.module-clock {[^}]*padding: 8px 16px 4px/.test(ncss), 'the clock is bare over the picture, padded 8 16 4 (the design)');
 }
 
 /* ---- the Home's chips and Saved tiles: islands by selector, no live blur ---- */

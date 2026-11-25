@@ -126,9 +126,38 @@
   --wash-rgb: 9 10 11;
 
   /* the floating islands (islands.css, newtab.css; the look, 2026-11-24):
-     soft shadows only, no hairline; the brightness check's neutral film */
-  --island-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
-  --island-float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+     soft shadows only, no hairline; the brightness check's neutral film.
+     --float / --float-hi / --text-lift carry the approved design's own names
+     and values (its "the lift"); the --island-* names are aliases onto them.
+     Theme-free: the shadows fall on the picture, which never changes with the theme. */
+  --float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
+  --float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+  --text-lift: 0 1px 2px rgba(0, 14, 18, 0.35), 0 2px 18px rgba(0, 14, 18, 0.28);   /* bare text on the picture */
+  --island-float: var(--float);
+  --island-float-hi: var(--float-hi);
+  /* Ink over the picture (the design's --text .. --text-4 in dark). Theme-free: bare text on the
+     picture (the clock, the Saved caption) keeps this light ink in both themes, as the design's
+     light notes say; in dark the Home's islands read it too (newtab.css). */
+  --look-text: #eef6f7;
+  --look-text-2: rgba(230, 242, 244, 0.76);
+  --look-text-3: rgba(230, 242, 244, 0.54);
+  --look-text-4: rgba(230, 242, 244, 0.34);
+  /* The design's ink ON an island in the light theme (its light.css, set on islands only). */
+  --look-ink: #0f1e21;
+  --look-ink-2: rgba(15, 30, 33, 0.76);
+  --look-ink-3: rgba(15, 30, 33, 0.56);
+  --look-ink-4: rgba(15, 30, 33, 0.36);
+  /* The design's type scale. Its names are --fs-xs .. --fs-hero, but those names here are the app's
+     own scale one step apart (its --fs-s is 12, Quartz's 13), so the look's steps carry a prefix and
+     only the look's surfaces (the Home) use them. */
+  --look-fs-xs: 11px;
+  --look-fs-s: 12px;
+  --look-fs-m: 13px;
+  --look-fs-l: 15px;
+  --look-fs-xl: 20px;
+  --look-fs-2xl: 28px;
+  --look-fs-hero: 84px;
+  --look-r-l: 16px;                                  /* the design's --r-l: a card's corners */
   /* LOOK.md section 6: "A floating web page / content sheet" (the well, #views) */
   --island-float-sheet: 0 2px 4px rgba(0, 12, 16, 0.18), 0 24px 48px -12px rgba(0, 12, 16, 0.45), 0 60px 100px -40px rgba(0, 12, 16, 0.6);
   --island-film-rgb: 10 12 14;
@@ -142,7 +171,7 @@
   /* the caption close button's hover (LOOK.md section 2: the Windows red) */
   --caption-close: #C42B1C;
   --caption-close-press: rgba(196, 43, 28, 0.8);
-  --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);   /* the design's .frost text-shadow */
   /* Markets: the box chart, its rows, the big chart's scrim */
   --chart-box: rgba(255, 255, 255, 0.05);
   --chart-box-hover: rgba(255, 255, 255, 0.08);

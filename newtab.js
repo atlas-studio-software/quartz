@@ -4901,10 +4901,13 @@ function frostHome() {
     window.Frost.watch('.rtile');
     frostChipsWatched = true;
   }
-  const marks = document.querySelectorAll('.module[data-kind="card"], #search');
+  // The clock is never an island: the design has it bare over the picture.
+  const marks = document.querySelectorAll('.module[data-kind="card"]:not(.module-clock), #search');
   for (let i = 0; i < marks.length; i += 1) {
     if (!marks[i].classList.contains('frost')) marks[i].classList.add('frost');
   }
+  const clock = document.getElementById('mod-clock');
+  if (clock && clock.classList.contains('frost')) clock.classList.remove('frost');
   if (window.Frost && typeof window.Frost.refresh === 'function') window.Frost.refresh();
 }
 
