@@ -26,13 +26,18 @@
      into every panel too, the same colour as the wash under it, so a
      panel is the blurred version of what is around it.
 
-   Brightness check (LEGIBILITY_FLOOR, on): a panel samples the blurred
-   picture behind it on an 8 x 5 grid (luminance, before the Dim) and
-   brightcheck.js alphaFor(grid, dim) says how much neutral rgb(10,12,14)
-   (--film) it needs: just enough to bring the brightest tenth, dimmed, to
-   luminance TARGET or less, in FILM_STEP steps up to FILM_MAX; 0 over a
-   dark area. That rule lives only in brightcheck.js, so look-sync v2's
-   vendored check can replace it without touching this file.
+   Brightness check (LEGIBILITY_FLOOR; v2.1): a panel samples the blurred
+   picture behind it at look-sync's 8 x 5 liftPoints, in full colour
+   ([r, g, b], before the Dim), and brightcheck.js filmFor(samples, dim,
+   checkOn), which is look-sync's own liftAlpha, says how much neutral
+   rgb(10,12,14) it needs: each sample dimmed per channel, the brightest
+   tenth brought to luminance TARGET (.066) or less, in FILM_STEP steps up
+   to FILM_MAX (.72); 0 over a dark area. The alpha goes on the panel as
+   --film; the CSS lays rgb(var(--island-film-rgb)) at that alpha, which
+   the compositor mixes per channel (tokens.css --island-film-rgb is the
+   check's film, LIFT.rgb). The switch is glass.dark.dimAuto (absent or
+   true = on): backdrop.js marks :root [data-check-off] when it is false,
+   and then every panel's film is 0 (pure blur over the dimmed picture).
    Light theme: no film (decision 2026-11-24: light keeps today's look
    until it has its own design). The check is for white text over a wash
    towards black; light's wash is white and its text dark ink, where a
@@ -43,7 +48,7 @@
    decides what Quartz paints.
 
    Pure parts (frost-harness.js): isBig, kindFor, coverGeometry, lumOf,
-   gridFromPixels, filmFromPixels, effectiveDim. The DOM part runs only in the chrome
+   samplesFromPixels, liftFromPixels, filmFromPixels, effectiveDim. The DOM part runs only in the chrome
    window.
 
    Public surface: window.Frost = { refresh(), state(), ...pure }.
@@ -61,13 +66,15 @@
   var BLURS = { light: 6, soft: 15 };     // px on the 512 px bitmap
   var BIG_MIN = 48;
   var BIG_AREA = 20000;
-  // The brightness check's numbers are brightcheck.js's (shown here for Settings and the harness).
-  var TARGET = BC ? BC.TARGET : 0.163;
+  // The brightness check's numbers are look-sync's LIFT, via brightcheck.js (shown here for Settings and the harness).
+  var TARGET = BC ? BC.TARGET : 0.066;
   var FILM_RGB = BC ? BC.FILM_RGB : [10, 12, 14];
-  var FILM_MAX = BC ? BC.FILM_MAX : 0.56;
+  var FILM_MAX = BC ? BC.FILM_MAX : 0.72;
   var FILM_STEP = BC ? BC.FILM_STEP : 0.04;
   var GRID = { cols: BC ? BC.COLS : 8, rows: BC ? BC.ROWS : 5 };
-  var CHECK_MISSING = 'brightcheck.js did not load, so no panel is darkened over a bright picture';
+  var CHECK_MISSING = !BC ? 'brightcheck.js did not load, so no panel is darkened over a bright picture'
+    : !BC.ok ? BC.missing : '';
+  var CHECK_OFF = 'off: the brightness check is switched off in Settings, so the panels show the Dim only';
   var LEGIBILITY_FLOOR = true;
   var DIM_DEFAULT = 0.20;
   var SEED_DIM = 0.30;                    // looksync.js's seed (DEFAULT_GLASS dim)
@@ -101,32 +108,38 @@
   }
 
   /**
-   * The 8 x 5 luminance grid behind one panel, before the Dim: the input
-   * brightcheck.js takes. lum = { w, h, px } (RGBA bytes of the blurred copy
-   * it shows); geo = coverGeometry of the picture on screen; rect = the
-   * panel {x, y, w, h} in the same px. -> { cols, rows, lum: [..] } or null.
+   * The samples behind one panel, before the Dim: the input look-sync's
+   * liftAlpha takes. lum = { w, h, px } (RGBA bytes of the blurred copy it
+   * shows); geo = coverGeometry of the picture on screen; rect = the panel
+   * {x, y, w, h} in the same px. -> [[r, g, b], ...] at the panel's
+   * liftPoints (look-sync's order), full colour, or null.
    */
-  function gridFromPixels(lum, geo, rect) {
-    if (!lum || !lum.px || !geo || !rect || !(rect.w > 0) || !(rect.h > 0)) return null;
+  function samplesFromPixels(lum, geo, rect) {
+    if (!BC || !lum || !lum.px || !geo || !rect || !(rect.w > 0) || !(rect.h > 0) || !(geo.cw > 0) || !(geo.ch > 0)) return null;
+    var pts = BC.points(rect.x, rect.y, rect.w, rect.h);
     var out = [];
-    for (var j = 0; j < GRID.rows; j++) {
-      for (var i = 0; i < GRID.cols; i++) {
-        var sx = rect.x + ((i + 0.5) / GRID.cols) * rect.w;
-        var sy = rect.y + ((j + 0.5) / GRID.rows) * rect.h;
-        var bx = Math.min(lum.w - 1, Math.max(0, Math.floor(((sx - geo.ox) / geo.cw) * lum.w)));
-        var by = Math.min(lum.h - 1, Math.max(0, Math.floor(((sy - geo.oy) / geo.ch) * lum.h)));
-        var k = (by * lum.w + bx) * 4;
-        out.push(lumOf([lum.px[k], lum.px[k + 1], lum.px[k + 2]], 0));
-      }
+    for (var n = 0; n < pts.length; n++) {
+      var bx = Math.min(lum.w - 1, Math.max(0, Math.floor(((pts[n].x - geo.ox) / geo.cw) * lum.w)));
+      var by = Math.min(lum.h - 1, Math.max(0, Math.floor(((pts[n].y - geo.oy) / geo.ch) * lum.h)));
+      var k = (by * lum.w + bx) * 4;
+      out.push([lum.px[k], lum.px[k + 1], lum.px[k + 2]]);
     }
-    return { cols: GRID.cols, rows: GRID.rows, lum: out };
+    return out;
   }
 
-  /** The film one panel needs: brightcheck.js on its grid. dim = the wash alpha (towards black). */
-  function filmFromPixels(lum, geo, rect, dim) {
-    if (!LEGIBILITY_FLOOR || !BC) return 0;
-    var grid = gridFromPixels(lum, geo, rect);
-    return grid ? BC.alphaFor(grid, dim) : 0;
+  /**
+   * One panel's film in the dark theme: brightcheck.js filmFor on its
+   * samples. dim = the wash alpha (towards black); checkOn false =
+   * glass.dark.dimAuto false. -> { alpha, film, check, text }.
+   */
+  function liftFromPixels(lum, geo, rect, dim, checkOn) {
+    if (!LEGIBILITY_FLOOR || !BC) return { alpha: 0, film: FILM_RGB.slice(), check: 'off', text: 'Brightness check off: ' + CHECK_MISSING };
+    return BC.filmFor(samplesFromPixels(lum, geo, rect) || [], dim, checkOn);
+  }
+
+  /** The film alpha one panel needs (dark): liftFromPixels(...).alpha. */
+  function filmFromPixels(lum, geo, rect, dim, checkOn) {
+    return liftFromPixels(lum, geo, rect, dim, checkOn).alpha;
   }
 
   /**
@@ -152,8 +165,9 @@
     FILM_MAX: FILM_MAX, FILM_STEP: FILM_STEP, GRID: GRID, LEGIBILITY_FLOOR: LEGIBILITY_FLOOR,
     DIM_DEFAULT: DIM_DEFAULT, SEED_DIM: SEED_DIM,
     isBig: isBig, kindFor: kindFor, coverGeometry: coverGeometry, lumOf: lumOf,
-    gridFromPixels: gridFromPixels, filmFromPixels: filmFromPixels, effectiveDim: effectiveDim,
-    check: BC ? 'on' : 'off: ' + CHECK_MISSING,
+    samplesFromPixels: samplesFromPixels, liftFromPixels: liftFromPixels, filmFromPixels: filmFromPixels,
+    effectiveDim: effectiveDim,
+    check: CHECK_MISSING ? 'off: ' + CHECK_MISSING : 'on',
   };
   if (typeof document === 'undefined' || typeof window === 'undefined') return pure;
 
@@ -292,7 +306,7 @@
     var now = pictureNow();
     var r = now.el ? now.el.getBoundingClientRect() : null;
     return { rev: rev, iw: img.w, ih: img.h, light: copies.light.dataUrl, soft: copies.soft.dataUrl,
-             dim: dimNow(), washRgb: getComputedStyle(docEl).getPropertyValue('--wash-rgb').trim(),
+             dim: dimNow(), check: checkOnNow(), washRgb: getComputedStyle(docEl).getPropertyValue('--wash-rgb').trim(),
              picture: r && r.width ? { left: r.left, top: r.top, width: r.width, height: r.height } : null };
   }
 
@@ -306,6 +320,10 @@
     if (typeof p.dim === 'number' && isFinite(p.dim)) {
       guestDim = Math.max(0, Math.min(1, p.dim));
       docEl.style.setProperty('--chrome-glass-a', String(guestDim));
+    }
+    // the brightness check's switch (glass.dark.dimAuto), as the chrome has it
+    if (typeof p.check === 'boolean') {
+      if (p.check) docEl.removeAttribute('data-check-off'); else docEl.setAttribute('data-check-off', '');
     }
     if (typeof p.washRgb === 'string' && /^\d{1,3} \d{1,3} \d{1,3}$/.test(p.washRgb)) docEl.style.setProperty('--wash-rgb', p.washRgb);
     // where the chrome's picture sits, in this page's px (null = cover on the page)
@@ -348,6 +366,9 @@
     return isFinite(v) ? v : (guestDim == null ? DIM_DEFAULT : guestDim);
   }
 
+  /** The brightness check's switch: off while :root has [data-check-off] (backdrop.js, or the chrome's push). */
+  function checkOnNow() { return !docEl.hasAttribute('data-check-off'); }
+
   function geometryNow() {
     if (chromeMode) {
       var now = pictureNow();
@@ -366,6 +387,7 @@
     }
     var dim = dimNow();
     var light = docEl.getAttribute('data-theme') === 'light';
+    var checkOn = checkOnNow();
     var panels = document.querySelectorAll(selector);
     var films = 0, count = 0;
     for (var i = 0; i < panels.length; i++) {
@@ -381,7 +403,7 @@
         if (f.style.getPropertyValue('--fy') !== fy) f.style.setProperty('--fy', fy);
       }
       var copy = copies[kind];
-      var a = copy && geo && !light ? filmFromPixels(copy.lum, geo, { x: r.left, y: r.top, w: f.offsetWidth, h: f.offsetHeight }, dim) : 0;
+      var a = copy && geo && !light && checkOn ? filmFromPixels(copy.lum, geo, { x: r.left, y: r.top, w: f.offsetWidth, h: f.offsetHeight }, dim, checkOn) : 0;
       if (a > 0) films++;
       var s = a.toFixed(2);
       if (f.style.getPropertyValue('--film') !== s) f.style.setProperty('--film', s);
@@ -404,9 +426,10 @@
   // All of it is coalesced into one frame. Style changes are not watched: a
   // progress bar ticking would re-place every panel for nothing.
   var mo = typeof MutationObserver === 'function' && chromeMode ? new MutationObserver(function () { refresh(); }) : null;
-  // A theme flip re-places (light paints no film), in the chrome and the Home.
+  // A theme flip re-places (light paints no film), as does the check being
+  // switched on or off, in the chrome and the Home.
   var themeMo = typeof MutationObserver === 'function' ? new MutationObserver(function () { queue(); }) : null;
-  if (themeMo) themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme'] });
+  if (themeMo) themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme', 'data-check-off'] });
   if (mo) {
     mo.observe(photoEl, { attributes: true, attributeFilter: ['style', 'data-ready'] });
     if (clearImgEl) mo.observe(clearImgEl, { attributes: true, attributeFilter: ['style'] });
@@ -441,7 +464,11 @@
     watchPanels();
     queue();
   };
-  if (!BC) console.warn('[frost] ' + CHECK_MISSING);
-  pure.state = function () { return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source, mode: st.mode, check: docEl.getAttribute('data-theme') === 'light' ? 'off in the light theme: it keeps its look until it has its own design' : pure.check }; };
+  if (CHECK_MISSING) console.warn('[frost] ' + CHECK_MISSING);
+  pure.state = function () {
+    var check = docEl.getAttribute('data-theme') === 'light' ? 'off in the light theme: it keeps its look until it has its own design'
+      : CHECK_MISSING ? pure.check : checkOnNow() ? 'on' : CHECK_OFF;
+    return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source, mode: st.mode, check: check };
+  };
   return pure;
 });

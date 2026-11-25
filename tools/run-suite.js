@@ -140,8 +140,10 @@ const TESTS = [
   { name: 'backdrop', file: 'backdrop-harness.js' },
   // The floating islands' glass (frost.js): blur kind, cover geometry, the brightness check, the 20% Dim default.
   { name: 'frost', file: 'frost-harness.js' },
-  // The brightness check as one pure function (brightcheck.js), swappable for look-sync v2's.
+  // The brightness check (brightcheck.js): look-sync's own v2.1 liftAlpha, full colour, the check's switch.
   { name: 'brightcheck', file: 'brightcheck-harness.js' },
+  // look-sync's shared v2.1 vectors: lift-v2 (dark) through Quartz's dark path; lift-light through the vendored liftAlpha.
+  { name: 'lift-vectors', file: 'tests/lift-vectors-test.js' },
   // The preview launcher (tools/newlook-preview.js): its command, refusals, environment and seeded picture.
   { name: 'newlook-preview', file: 'tests/newlook-preview-test.js' },
   // The islands (islands.js / islands.css): plates, the underline under the title's words, the look's rules.

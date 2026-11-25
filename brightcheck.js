@@ -1,80 +1,83 @@
 /* ============================================================
-   brightcheck.js - the islands' brightness check, as one pure function.
+   brightcheck.js - the islands' brightness check (dark theme), as a thin
+   adapter over look-sync's own v2.1 check: liftAlpha / panelLift from the
+   vendored pure block (looksync/look-sync.js in node, window.LookWash from
+   looksync/wash.browser.js in a page). Nothing here re-implements the rule,
+   so Quartz and every other app give one panel the same film.
 
-   How much neutral film a floating panel needs so white text on it stays
-   readable over the picture behind it:
+     filmFor(samples, dim, checkOn) -> { alpha, film, check, text }
+     alphaFor(samples, dim)         -> alpha (the check on)
 
-     alphaFor(grid, dim) -> alpha, 0 .. 0.56 in steps of 0.04
+   samples = [[r, g, b], ...] 0..255: the panel's liftPoints read from the
+             blurred copy it shows, BEFORE the Dim (full colour, not a grey).
+   dim     = the wash alpha over the picture (0..1, towards black).
+   The rule (CONTRACT "2026-11-24: the islands look (v2)", v2.1): each
+   sample is dimmed per channel, its relative luminance taken, the samples
+   sorted brightest first and the one at floor(n x 0.1) picked; film
+   rgb(10,12,14) is laid over it per channel in steps of .04, at most .72,
+   until its luminance is .066 or less. Over a dark area that is 0. Check
+   off (glass.dark.dimAuto false) = 0.
 
-   grid = { cols: 8, rows: 5, lum: [40 numbers] }: the relative luminance
-          (0..1, WCAG) of the picture behind the panel, sampled at the
-          centres of an 8 x 5 grid over it, row by row, BEFORE the Dim.
-   dim  = the wash alpha over the picture (0..1, towards black).
+   Light theme: never called. Quartz keeps today's light look until it has
+   its own design, so no film is ever laid in light (frost.js).
 
-   The rule (the shared v2 brightness check as decided 2026-11-24): take the
-   brightest tenth of the samples (the 5th brightest of 40) as dimmed, then
-   add rgb(10,12,14) in steps of .04, at most .56, until its luminance is
-   .163 or less; over a dark area that is 0. The check is always on
-   ("automatic").
-
-   Mixing happens where the screen composites: in sRGB, so a sample is
-   taken as the grey of its luminance, dimmed and filmed per channel, then
-   measured again.
-
-   This file stands alone on purpose: when look-sync v2 ships its own
-   check, the vendored one replaces this file and its callers (frost.js)
-   stay as they are. No DOM, no state, never throws.
+   When the shared check did not load (an old wash.browser.js, a page that
+   forgot the script), ok is false, every answer is 0 and `missing` says
+   why, so frost.js can say so instead of quietly showing no film.
+   No DOM, no state, never throws.
    ============================================================ */
 (function (root, factory) {
-  var api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  var node = typeof module === 'object' && module.exports;
+  var ls = null;
+  if (node) { try { ls = require('./looksync/look-sync'); } catch (e) { ls = null; } }
+  else ls = root.LookWash || null;
+  var api = factory(ls);
+  if (node) module.exports = api;
   else root.BrightCheck = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (LS) {
   'use strict';
 
-  var COLS = 8;
-  var ROWS = 5;
-  var TARGET = 0.163;                    // white text 4.5:1 over it
-  var FILM_RGB = [10, 12, 14];
-  var FILM_STEP = 0.04;
-  var FILM_MAX = 0.56;
-  var TENTH = 0.1;
+  var ok = !!(LS && typeof LS.liftAlpha === 'function' && typeof LS.liftPoints === 'function' &&
+              LS.LIFT && typeof LS.LIFT.target === 'number');
+  var MISSING = ok ? '' : "the shared brightness check (look-sync's liftAlpha, looksync/wash.browser.js) did not load, " +
+    'so no panel is darkened over a bright picture';
+  // Shown when the shared one is missing: the v2.1 numbers, for Settings' wording only.
+  var L = ok ? LS.LIFT : { cols: 8, rows: 5, quantile: 0.1, rgb: [10, 12, 14], target: 0.066, step: 0.04, max: 0.72 };
 
-  function lin(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-  function enc(l) { return l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055; }
-  function clamp01(n) { n = Number(n); return isFinite(n) ? Math.max(0, Math.min(1, n)) : 0; }
-
-  /** Luminance of sRGB channels (0..1 each). */
-  function lumOfRgb(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); }
-
-  /** Luminance of a picture sample of luminance l, dimmed by dim, under a film of alpha a. */
-  function lumUnder(l, dim, a) {
-    var v = enc(clamp01(l)) * (1 - clamp01(dim));
-    a = clamp01(a);
-    return lumOfRgb(v * (1 - a) + (FILM_RGB[0] / 255) * a,
-                    v * (1 - a) + (FILM_RGB[1] / 255) * a,
-                    v * (1 - a) + (FILM_RGB[2] / 255) * a);
+  /** The cols x rows sample points of a panel at x, y, size w x h (look-sync's order). */
+  function points(x, y, w, h) {
+    if (ok) return LS.liftPoints(x, y, w, h);
+    var pts = [];
+    for (var i = 0; i < L.cols; i++) for (var j = 0; j < L.rows; j++) pts.push({ x: x + ((i + 0.5) / L.cols) * w, y: y + ((j + 0.5) / L.rows) * h });
+    return pts;
   }
 
-  /** The film one panel needs. A grid that isn't 8 x 5 numbers -> 0 (nothing to go on). */
-  function alphaFor(grid, dim) {
-    var lum = grid && grid.lum;
-    if (!grid || grid.cols !== COLS || grid.rows !== ROWS || !lum || lum.length !== COLS * ROWS) return 0;
-    var s = [];
-    for (var i = 0; i < lum.length; i++) {
-      var n = Number(lum[i]);
-      if (!isFinite(n)) return 0;
-      s.push(clamp01(n));
-    }
-    s.sort(function (p, q) { return q - p; });
-    var bright = s[Math.floor(s.length * TENTH)];
-    var a = 0;
-    while (a < FILM_MAX - 1e-9 && lumUnder(bright, dim, a) > TARGET) a = Math.round((a + FILM_STEP) * 100) / 100;
-    return Math.min(FILM_MAX, a);
+  /** The dark film one panel needs, with the check on. */
+  function alphaFor(samples, dim) {
+    if (!ok) return 0;
+    try { return LS.liftAlpha(samples, dim, 'dark'); } catch (e) { return 0; }
+  }
+
+  /**
+   * panelLift's answer for the dark theme, at the Dim Quartz paints:
+   * checkOn false (glass.dark.dimAuto false) = 0, the panel is pure blur.
+   */
+  function filmFor(samples, dim, checkOn) {
+    var film = L.rgb.slice();
+    var d = typeof dim === 'number' && isFinite(dim) ? Math.round(dim * 100) / 100 : null;
+    var dimWords = d == null ? '?' : d.toFixed(2);
+    if (!ok) return { alpha: 0, film: film, check: 'off', text: 'Brightness check off: ' + MISSING };
+    if (checkOn === false) return { alpha: 0, film: film, check: 'off', text: 'Brightness check off: Dim ' + dimWords + ' only' };
+    var a = alphaFor(samples, dim);
+    return { alpha: a, film: film, check: 'on',
+      text: a > 0 ? 'Brightness check on: Dim ' + dimWords + ', darkened ' + a.toFixed(2) + ' where the picture is bright'
+        : 'Brightness check on: Dim ' + dimWords + ', nothing to darken here' };
   }
 
   return {
-    COLS: COLS, ROWS: ROWS, TARGET: TARGET, FILM_RGB: FILM_RGB, FILM_STEP: FILM_STEP, FILM_MAX: FILM_MAX,
-    alphaFor: alphaFor, lumUnder: lumUnder, lumOfRgb: lumOfRgb,
+    ok: ok, missing: MISSING,
+    COLS: L.cols, ROWS: L.rows, QUANTILE: L.quantile, TARGET: L.target,
+    FILM_RGB: L.rgb.slice(), FILM_STEP: L.step, FILM_MAX: L.max,
+    points: points, alphaFor: alphaFor, filmFor: filmFor,
   };
 });

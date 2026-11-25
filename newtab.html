@@ -489,7 +489,9 @@
 <!-- Site logos from the tab strip's own store, via the chrome (no third-party service). -->
 <script src="tabicons.js"></script>
 <script src="pagefavicons.js"></script>
-<!-- The islands' glass (frost.js): the chrome's blurred picture, pushed in by app.js (__applyFrost). -->
+<!-- The islands' glass (frost.js): the chrome's blurred picture, pushed in by app.js (__applyFrost).
+     wash.browser.js carries look-sync's shared brightness check (liftAlpha), which brightcheck.js uses. -->
+<script src="looksync/wash.browser.js"></script>
 <script src="brightcheck.js"></script>
 <script src="frost.js"></script>
 <!-- Markets' charts (the box chart and the big one): one drawing, pure, tested by stockchart-harness.js. -->

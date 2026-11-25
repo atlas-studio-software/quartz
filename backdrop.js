@@ -927,7 +927,19 @@
     refreshLightGuard();
     refreshDarkGuard();
     applyGlass(themeNow() === 'light' ? guardLight.alpha : guard.alpha);
+    applyCheck(glassFor(themeNow()).dimAuto !== false);
     if (booted && !quiet) announceGlass();
+  }
+
+  /**
+   * The islands' brightness check switch (CONTRACT v2: glass.<theme>.dimAuto,
+   * absent or true = on): :root [data-check-off] while it is off, which
+   * frost.js reads (no film on any panel) and hands to the Home guest.
+   */
+  function applyCheck(on) {
+    var root = document.documentElement;
+    if (on) root.removeAttribute('data-check-off');
+    else if (!root.hasAttribute('data-check-off')) root.setAttribute('data-check-off', '');
   }
 
   /**

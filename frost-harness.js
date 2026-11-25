@@ -15,7 +15,7 @@ function check(ok, what, detail) {
 /* ---- the knobs are the approved ones ---- */
 check(F.BLURS.light === 6 && F.BLURS.soft === 15 && F.BITMAP_W === 512, 'blurs: light 6, soft 15 on a 512 px bitmap', F.BLURS);
 check(F.BIG_MIN === 48 && F.BIG_AREA === 20000, 'big panel: short side 48, area 20000');
-check(F.TARGET === 0.163 && F.FILM_STEP === 0.04 && F.FILM_MAX === 0.56 && F.FILM_RGB.join() === '10,12,14', 'brightness check: target .163, steps .04 to .56, rgb(10,12,14)');
+check(F.TARGET === 0.066 && F.FILM_STEP === 0.04 && F.FILM_MAX === 0.72 && F.FILM_RGB.join() === '10,12,14', 'brightness check v2.1: target .066, steps .04 to .72, rgb(10,12,14)');
 check(F.GRID.cols === 8 && F.GRID.rows === 5 && F.LEGIBILITY_FLOOR === true, 'brightness check: on, 8 x 5 grid');
 check(F.DIM_DEFAULT === 0.2, 'dim default 20%');
 
@@ -54,11 +54,11 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(F.filmFromPixels(dark, geo, { x: 10, y: 10, w: 400, h: 40 }, 0) === 0, 'over a dark area: no film at all');
   const white = bitmap(64, 32, () => [255, 255, 255]);
   const a = F.filmFromPixels(white, geo, { x: 10, y: 10, w: 400, h: 40 }, 0);
-  check(a === F.FILM_MAX, 'over pure white: the most it may add (.56)', a);
+  check(a === F.FILM_MAX, 'over pure white: the most it may add (.72)', a);
   const sky = bitmap(64, 32, () => [170, 190, 200]);
   const b = F.filmFromPixels(sky, geo, { x: 10, y: 10, w: 400, h: 40 }, 0);
   check(b > 0 && b < F.FILM_MAX && F.lumOf([170, 190, 200], b) <= F.TARGET + 1e-9 && F.lumOf([170, 190, 200], b - F.FILM_STEP) > F.TARGET,
-    'over a bright sky: just enough, in .04 steps, to reach .163', b);
+    'over a bright sky: just enough, in .04 steps, to reach .066', b);
   check(Math.abs(b / F.FILM_STEP - Math.round(b / F.FILM_STEP)) < 1e-9, 'the film is a whole number of steps', b);
   const dimmed = F.filmFromPixels(sky, geo, { x: 10, y: 10, w: 400, h: 40 }, 0.5);
   check(dimmed < b, 'the Dim counts: a dimmed picture needs less film', { b, dimmed });
@@ -130,9 +130,21 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
 /* ---- light theme keeps today's look: no brightness film (decision 2026-11-24) ---- */
 {
   const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
-  check(fjs.indexOf("var light = docEl.getAttribute('data-theme') === 'light';") >= 0 && fjs.indexOf('copy && geo && !light ? filmFromPixels(') >= 0, 'light theme: panels get no film');
-  check(fjs.indexOf("themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme'] })") >= 0, 'a theme flip re-places the panels');
+  check(fjs.indexOf("var light = docEl.getAttribute('data-theme') === 'light';") >= 0 && fjs.indexOf('copy && geo && !light && checkOn ? filmFromPixels(') >= 0, 'light theme: panels get no film; nor with the check off');
+  check(fjs.indexOf("themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme', 'data-check-off'] })") >= 0, 'a theme flip or the check switching re-places the panels');
   check(fjs.indexOf("'off in the light theme: it keeps its look until it has its own design'") >= 0, 'Frost.state().check says the film is off in light, and why');
+}
+
+/* ---- the check's switch: glass.<theme>.dimAuto -> :root [data-check-off] -> no film, said ---- */
+{
+  const bjs = fs.readFileSync(path.join(__dirname, 'backdrop.js'), 'utf8');
+  check(bjs.indexOf('applyCheck(glassFor(themeNow()).dimAuto !== false);') >= 0 && bjs.indexOf("root.setAttribute('data-check-off', '')") >= 0, "backdrop.js marks :root [data-check-off] from the theme's dimAuto");
+  const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
+  check(fjs.indexOf("function checkOnNow() { return !docEl.hasAttribute('data-check-off'); }") >= 0 && fjs.indexOf('check: checkOnNow(), washRgb:') >= 0, 'frost.js reads the switch and hands it to the Home guest');
+  check(fjs.indexOf("if (typeof p.check === 'boolean')") >= 0, 'the Home guest takes the switch from the chrome');
+  check(/switched off in Settings/.test(fjs), 'Frost.state().check says when the check is switched off');
+  const white = { w: 8, h: 8, px: new Uint8ClampedArray(256).fill(255) };
+  check(F.filmFromPixels(white, { ox: 0, oy: 0, cw: 100, ch: 100 }, { x: 0, y: 0, w: 100, h: 100 }, 0.2, false) === 0, 'check off: no film even over white');
 }
 
 /* ---- no silent default: Settings says when Quartz paints 20% over the shared seed ---- */
