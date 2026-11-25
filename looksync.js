@@ -29,9 +29,11 @@
   var api = window.api && window.api.lookSync ? window.api.lookSync : null;
   var READY_TIMEOUT_MS = 4000;
   var APP_NAMES = { helm: 'Helm', quartz: 'Quartz', mantle: 'Mantle' };
+  /* Seed Dim .20 in both themes since 2026-11-24 (CONTRACT): fills a missing
+     value only; a stored Dim keeps its value. */
   var SEED_GLASS = {
-    dark: { blurPx: 0, dim: 0.3, panel: 0 },
-    light: { blurPx: 0, dim: 0.3, panel: 0 },
+    dark: { blurPx: 0, dim: 0.2, panel: 0 },
+    light: { blurPx: 0, dim: 0.2, panel: 0 },
     render: 'picture'
   };
   var OLD_WINDOW = 'this window predates Look Sync; restart Quartz';

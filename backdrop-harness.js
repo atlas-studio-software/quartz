@@ -101,8 +101,8 @@ try {
     'index.html loads wash.browser.js before backdrop.js');
   const { washFrom, deskForWashFrom, normGlass, SEED_GLASS, BITMAP_BLUR_PX } = B;
   ok(typeof washFrom === 'function' && typeof deskForWashFrom === 'function', 'backdrop.js exports washFrom and deskForWashFrom in node');
-  ok(SEED_GLASS.dark.dim === 0.3 && SEED_GLASS.light.dim === 0.3 && SEED_GLASS.dark.blurPx === 0 && SEED_GLASS.light.blurPx === 0,
-    'seeds: Dim .30 and blur 0 in both themes', SEED_GLASS);
+  ok(SEED_GLASS.dark.dim === 0.2 && SEED_GLASS.light.dim === 0.2 && SEED_GLASS.dark.blurPx === 0 && SEED_GLASS.light.blurPx === 0,
+    'seeds: Dim .20 (CONTRACT, 2026-11-24) and blur 0 in both themes', SEED_GLASS);
   ok(normGlass({ dim: 0.4, dimAuto: false }, 'dark').dimAuto === false && !('dimAuto' in normGlass({ dim: 0.4, dimAuto: 'no' }, 'dark')),
     'normGlass keeps a boolean dimAuto and drops anything else');
 
@@ -167,8 +167,8 @@ try {
   const cssCode = bcss.replace(/\/\*[\s\S]*?\*\//g, '');
   ok(!/::after/.test(cssCode) && !/96px/.test(cssCode), 'backdrop.css: no Home-only scrim (::after) left');
   ok(!/saturate\(/.test(cssCode), 'backdrop.css: no saturate()');
-  ok(/var\(--chrome-glass-a, 0\.3\)\)/.test(cssCode) && !/var\(--chrome-glass-a, 0\.(5|45)\)/.test(cssCode),
-    'backdrop.css: the wash fallback is the seed Dim .30 in both themes');
+  ok(/var\(--chrome-glass-a, 0\.2\)\)/.test(cssCode) && !/var\(--chrome-glass-a, 0\.(5|45|3)\)/.test(cssCode),
+    'backdrop.css: the wash fallback is the seed Dim .20 in both themes (CONTRACT, 2026-11-24)');
 } catch (e) {
   fail++;
   fails.push('HARNESS ERROR ' + (e && e.stack || e));

@@ -105,10 +105,11 @@
   /* Look Sync: the blur is the shared glass.<theme>.blurPx (0..64) instead
      of a fixed HELM_BLUR_PX; dark's seed 5 is exactly the old value, so the
      bitmap blur stays round(5 * SCALE, .1) = 1.5 px. Seeds = LS.SEED glass,
-     used when neither LookSync nor Settings answers. */
+     used when neither LookSync nor Settings answers (Dim .20 in both
+     themes since 2026-11-24, CONTRACT). */
   var SEED_GLASS = {
-    dark: { blurPx: 0, dim: 0.3, panel: 0 },
-    light: { blurPx: 0, dim: 0.3, panel: 0 }
+    dark: { blurPx: 0, dim: 0.2, panel: 0 },
+    light: { blurPx: 0, dim: 0.2, panel: 0 }
   };
   /* Light (CONTRACT "Light look", 2026-10-14, un-held): glass.light is
      applied in light exactly as glass.dark is in dark. Since 2026-11-11
@@ -116,7 +117,7 @@
      in both themes: no blur and no saturate (light used to add
      saturate(150%)). LIGHT_WASH_DIM = backdrop.css's fallback for the
      white wash when nothing has set --chrome-glass-a (= the seed Dim). */
-  var LIGHT_WASH_DIM = 0.3;
+  var LIGHT_WASH_DIM = 0.2;
   var BITMAP_BLUR_PX = 0;        // the bitmap's blur, both themes: sharp
   var SCALE = 0.3;
   /* Overscan, in blur radii: Helm's .bg-photo sits at
@@ -157,7 +158,7 @@
   if (typeof document === 'undefined') {
     if (typeof module === 'object' && module && module.exports) {
       module.exports = { homeReason: homeReason, washFrom: washFrom, deskForWashFrom: deskForWashFrom,
-                         normGlass: normGlass, SEED_GLASS: SEED_GLASS, BITMAP_BLUR_PX: BITMAP_BLUR_PX };
+                         normGlass: normGlass, paintGlass: paintGlass, SEED_GLASS: SEED_GLASS, BITMAP_BLUR_PX: BITMAP_BLUR_PX };
     }
     return;
   }
@@ -225,36 +226,46 @@
     return out;
   }
 
-  /** The glass in effect for theme: LookSync's (a live preview included);
-      without LookSync, Settings' stored glass; else the seed. */
-  function glassFor(theme) {
-    var t = theme === 'light' ? 'light' : 'dark';
-    var g = null;
-    var ls = window.LookSync;
-    if (ls && typeof ls.glassFor === 'function') {
-      try { g = ls.glassFor(t); } catch (err) { g = null; }
-    }
-    if (!g || typeof g !== 'object') {
-      var s = settings();
-      try {
-        var all = s && typeof s.get === 'function' ? s.get('glass') : null;
-        g = all && typeof all === 'object' ? all[t] : null;
-      } catch (err) { g = null; }
-    }
-    var n = normGlass(g, t);
-    // The Dim Quartz PAINTS (frost.js effectiveDim): Look Sync's untouched seed
-    // reads as Quartz's default 20%; a Dim set by hand (dimAuto false) or any
-    // other shared value wins. Nothing here is written back: look.json and the
-    // shared glass stay exactly as they are.
-    var F = window.Frost;
+  /**
+   * The glass Quartz PAINTS from the stored glass g (pure; F = frost.js).
+   * The Dim comes from F.effectiveDim on the STORED value: nothing stored
+   * paints the default 20%, a stored number paints itself (0.20..0.90),
+   * 0.30 included (CONTRACT: a seed only fills a missing value). Nothing
+   * here is written back: look.json and the shared glass stay as they are.
+   */
+  function paintGlass(g, theme, F, shared) {
+    var n = normGlass(g, theme);
     if (F && typeof F.effectiveDim === 'function') {
-      var e = F.effectiveDim(n, n.dimAuto === false);
+      var raw = g && typeof g === 'object' && typeof g.dim === 'number' && isFinite(g.dim) ? { dim: g.dim } : null;
+      var e = F.effectiveDim(raw, !!shared);
       n.dimShared = n.dim;
       n.dim = e.dim;
       n.dimSource = e.source;
       n.dimReason = e.reason;
     }
     return n;
+  }
+
+  /** The glass in effect for theme: LookSync's (a live preview included);
+      without LookSync, Settings' stored glass; else the seed. */
+  function glassFor(theme) {
+    var t = theme === 'light' ? 'light' : 'dark';
+    var g = null;
+    var shared = false;
+    var ls = window.LookSync;
+    if (ls && typeof ls.glassFor === 'function') {
+      try { g = ls.glassFor(t); } catch (err) { g = null; }
+      try { shared = !!g && typeof ls.enabled === 'function' && ls.enabled() === true; } catch (err) { shared = false; }
+    }
+    if (!g || typeof g !== 'object') {
+      shared = false;
+      var s = settings();
+      try {
+        var all = s && typeof s.get === 'function' ? s.get('glass') : null;
+        g = all && typeof all === 'object' ? all[t] : null;
+      } catch (err) { g = null; }
+    }
+    return paintGlass(g, t, window.Frost, shared);
   }
 
   /* --- LookSync: the desktop record and this window's place ------------ */
@@ -412,8 +423,8 @@
       saturate: 100,                 // sharp: no saturate in either theme
       blurPx: g.blurPx,              // the SYNCED blur (Mantle's); the picture is painted sharp
       dimAuto: g.dimAuto !== false,
-      // The Dim Quartz paints, when it is not the shared one (frost.js
-      // effectiveDim): 'default' = Look Sync's starting value, painted as 20%.
+      // Where the painted Dim came from (frost.js effectiveDim): 'default' =
+      // nothing stored, painted as 20%; 'saved' / 'shared' = the stored value.
       dimSource: g.dimSource || null,
       dimReason: g.dimReason || null,
       dimShared: typeof g.dimShared === 'number' ? g.dimShared : g.dim,

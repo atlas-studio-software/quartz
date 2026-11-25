@@ -66,8 +66,8 @@ const storedGlass = (b) => b.S.get('glass');
   ok('settings.js loads and renders the glass field in the fake DOM', !!b.S && !b.err, b.err && String(b.err.stack || b.err).slice(0, 400));
   if (!b.S || b.err) { console.log('settings-glass: ' + pass + ' passed, ' + fail + ' failed'); process.exit(1); }
   const d = b.S._defaults.glass;
-  ok('seed dark: blur 0, dim 0.30, panel 0', d.dark.blurPx === 0 && d.dark.dim === 0.3 && d.dark.panel === 0, d.dark);
-  ok('seed light: blur 0, dim 0.30, panel 0', d.light.blurPx === 0 && d.light.dim === 0.3 && d.light.panel === 0, d.light);
+  ok('seed dark: blur 0, dim 0.20 (CONTRACT, 2026-11-24), panel 0', d.dark.blurPx === 0 && d.dark.dim === 0.2 && d.dark.panel === 0, d.dark);
+  ok('seed light: blur 0, dim 0.20 (CONTRACT, 2026-11-24), panel 0', d.light.blurPx === 0 && d.light.dim === 0.2 && d.light.panel === 0, d.light);
   ok('seeds name no dimAuto (absent = automatic)', !('dimAuto' in d.dark) && !('dimAuto' in d.light), d);
   const n = b.S._normalizeGlass({ dark: { blurPx: 4, dim: 0.4, panel: 0, dimAuto: false }, light: { dim: 0.5, dimAuto: true } });
   ok('normalizeGlass keeps dimAuto false', n.dark.dimAuto === false, n.dark);
@@ -198,13 +198,71 @@ const storedGlass = (b) => b.S.get('glass');
   ok('older backdrop.js, light: old wording', b.S._glassGuardText({ theme: 'light', alpha: 0.45, source: 'own', sourceReason: 'light top band is stale' }, 'light', {}) === 'Light wash .45 (the Dim, not raised): light top band is stale.');
   b.backdrop.state = null;
   b.w.doc.dispatchEvent({ type: 'backdropchange' });
-  ok('no backdrop state: says so, not blank', /^Automatic: 0\.30, the background layer has not reported yet\.$/.test(note().textContent) && !note().hidden, note().textContent);
+  ok('no backdrop state: says so, not blank', /^Automatic: 0\.20, the background layer has not reported yet\.$/.test(note().textContent) && !note().hidden, note().textContent);
   b.backdrop.state = { glass: { theme: 'dark', text: '   ' } };
   b.w.doc.dispatchEvent({ type: 'backdropchange' });
   ok('empty text: not shown blank', note().textContent.trim().length > 0, note().textContent);
   // pure: a state for the other theme is not this theme's line
   const other = b.S._glassGuardText({ theme: 'light', text: 'Automatic: 0.30' }, 'dark', { dim: 0.25, dimAuto: false });
   ok('state for the other theme: not shown as this one; says manual + not reported', other === 'Manual: 0.25, the background layer has not reported yet.', other);
+}
+
+// ---- 7. the Dim on the slider = the Dim painted (CONTRACT: a stored Dim keeps its value) ----------
+// The slider is settings.js's; the paint is backdrop.js paintGlass + frost.js effectiveDim over the same
+// stored glass (glassFor's path when Look Sync does not answer).
+{
+  const B = require(path.join(__dirname, 'backdrop.js'));
+  const F = require(path.join(__dirname, 'frost.js'));
+  const src = require('fs').readFileSync(path.join(__dirname, 'settings.js'), 'utf8');
+  ok("settings.js seeds the Dim from Look Sync's SEED (window.LookWash), 0.20 without it",
+    /W\.SEED\.glass/.test(src) && /dim: seedDim\('dark'\)/.test(src) && /dim: seedDim\('light'\)/.test(src));
+  {
+    const w = makeWindow({ localStorage: fakeStorage({}), LookWash: { SEED: { glass: { dark: { dim: 0.35 }, light: { dim: 0.25 } } } } });
+    w.load(path.join(__dirname, 'settings.js'));
+    const d = w.win.Settings._defaults.glass;
+    ok('the seed follows window.LookWash.SEED when it is loaded', d.dark.dim === 0.35 && d.light.dim === 0.25, d);
+  }
+  const cases = [
+    ['nothing stored', undefined, 20, 0.2],
+    ['stored 0.30', 0.3, 30, 0.3],
+    ['stored 0.55', 0.55, 55, 0.55],
+    ['stored 0.10', 0.1, 20, 0.2]
+  ];
+  for (const [name, v, slider, paint] of cases) {
+    for (const theme of ['dark', 'light']) {
+      const stored = v === undefined ? undefined
+        : { dark: { blurPx: 0, dim: v, panel: 0 }, light: { blurPx: 0, dim: v, panel: 0 }, render: 'picture' };
+      const b = boot(stored, theme === 'light' ? { light: true } : undefined);
+      const el = q(b.field, '#set-glass-dim');
+      const painted = B.paintGlass(b.S.get('glass')[theme], theme, F, false);
+      ok(name + ' (' + theme + '): the slider shows ' + slider, el && Number(el.value) === slider, el && el.value);
+      ok(name + ' (' + theme + '): the window paints ' + paint, painted.dim === paint, painted);
+    }
+  }
+  // stored 0.10: a let-go of the slider never writes lower than 0.20
+  {
+    const b = boot({ dark: { blurPx: 0, dim: 0.1, panel: 0 }, light: { blurPx: 0, dim: 0.1, panel: 0 }, render: 'picture' });
+    const el = q(b.field, '#set-glass-dim');
+    drag(el, 10); letGo(el);
+    ok('stored 0.10: a slider write is 0.20, never lower', storedGlass(b).dark.dim === 0.2, storedGlass(b).dark);
+  }
+  // the raw stored value counts: a stored 0.30 stays 0.30; a glass with no Dim paints the default
+  {
+    const p30 = B.paintGlass({ dim: 0.3 }, 'dark', F, true);
+    ok('stored 0.30 through Look Sync: paints 0.30, labelled shared', p30.dim === 0.3 && p30.dimSource === 'shared', p30);
+    const pNone = B.paintGlass({ blurPx: 0, panel: 0 }, 'dark', F, true);
+    ok('no Dim in the stored glass: paints 0.20, labelled default', pNone.dim === 0.2 && pNone.dimSource === 'default' && /20%/.test(pNone.dimReason), pNone);
+  }
+  // the mode line under Dim: the default says why; a stored value is not called a default
+  {
+    const b = boot(undefined, { state: { glass: { theme: 'dark', text: 'Automatic: 0.20', dimSource: 'default', dimReason: 'no Dim is set, so Quartz uses its default 20%' } } });
+    const note = q(b.field, '[data-glass-guard]');
+    ok('mode line, nothing stored: names the default 20%', note.textContent === 'Automatic: 0.20 no Dim is set, so Quartz uses its default 20%.', note.textContent);
+    const p = B.paintGlass({ dim: 0.3 }, 'dark', F, false);
+    b.backdrop.state = { glass: { theme: 'dark', text: 'Automatic: 0.30', dimSource: p.dimSource, dimReason: p.dimReason } };
+    b.w.doc.dispatchEvent({ type: 'backdropchange' });
+    ok('mode line, stored 0.30: shows 0.30, no default or starting-Dim claim', note.textContent === 'Automatic: 0.30', note.textContent);
+  }
 }
 
 console.log('settings-glass: ' + pass + ' passed, ' + fail + ' failed');

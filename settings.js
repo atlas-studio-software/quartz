@@ -138,6 +138,17 @@
   /* theme-boot.js reads this one, before anything else runs. */
   var PALETTE_KEY = 'palette';
 
+  /* The seed Dim per theme: Look Sync's agreed SEED (looksync/wash.browser.js,
+     loaded before this file; CONTRACT: seed Dim is .20 in both themes since
+     2026-11-24, and a seed only fills a missing value: a stored Dim keeps its
+     value until the user changes it). 0.20 if that script did not load. */
+  function seedDim(theme) {
+    var W = typeof window !== 'undefined' ? window.LookWash : null;
+    var g = W && W.SEED && W.SEED.glass ? W.SEED.glass[theme] : null;
+    var d = g ? g.dim : null;
+    return typeof d === 'number' && isFinite(d) && d >= 0.2 && d <= 0.9 ? d : 0.2;
+  }
+
   var DEFAULTS = {
     searchEngine: 'google',
     siteTheme: 'system',
@@ -244,8 +255,8 @@
        stay stored and synced as they are, for the apps still on v1.
        backdrop.js reads the effective value through LookSync.glassFor(theme). */
     glass: {
-      dark: { blurPx: 0, dim: 0.3, panel: 0 },
-      light: { blurPx: 0, dim: 0.3, panel: 0 },
+      dark: { blurPx: 0, dim: seedDim('dark'), panel: 0 },
+      light: { blurPx: 0, dim: seedDim('light'), panel: 0 },
       render: 'picture'
     },
     /* The apps pinned to the new tab page's dock: apps.js ids, webapps.js
@@ -3066,8 +3077,9 @@
     try { st = (layer && typeof layer.state === 'function') ? layer.state() : null; } catch (err) { st = null; }
     var theme = isLight() ? 'light' : 'dark';
     var text = glassGuardText(st && st.glass, theme, glass()[theme]);
-    // Quartz paints its own 20% default while Look Sync still has its
-    // starting Dim; the slider shows the shared value, so say which is on screen.
+    // Nothing stored: Quartz paints its default 20% (frost.js effectiveDim),
+    // so say why. A stored Dim (0.30 included) paints itself, which the
+    // wash text above already names.
     var gl = st && st.glass;
     if (gl && gl.dimSource === 'default' && gl.dimReason) text = (text ? text + ' ' : '') + gl.dimReason + '.';
     note.textContent = text;

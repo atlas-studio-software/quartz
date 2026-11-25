@@ -116,8 +116,8 @@ async function glueChecks() {
   {
     const g = await bootGlue(undefined);
     const dark = g.LS.glassFor('dark'), light = g.LS.glassFor('light');
-    ok('glue: seed dark = blur 0, dim 0.30, panel 0, no dimAuto', JSON.stringify(dark) === JSON.stringify({ blurPx: 0, dim: 0.3, panel: 0 }), dark);
-    ok('glue: seed light = blur 0, dim 0.30, panel 0, no dimAuto', JSON.stringify(light) === JSON.stringify({ blurPx: 0, dim: 0.3, panel: 0 }), light);
+    ok('glue: seed dark = blur 0, dim 0.20, panel 0, no dimAuto', JSON.stringify(dark) === JSON.stringify({ blurPx: 0, dim: 0.2, panel: 0 }), dark);
+    ok('glue: seed light = blur 0, dim 0.20, panel 0, no dimAuto', JSON.stringify(light) === JSON.stringify({ blurPx: 0, dim: 0.2, panel: 0 }), light);
   }
   // dimAuto false kept through storedGlass -> glassFor; non-boolean dropped
   {

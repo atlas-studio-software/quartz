@@ -77,7 +77,7 @@
   var CHECK_OFF = 'off: the brightness check is switched off in Settings, so the panels show the Dim only';
   var LEGIBILITY_FLOOR = true;
   var DIM_DEFAULT = 0.20;
-  var SEED_DIM = 0.30;                    // looksync.js's seed (DEFAULT_GLASS dim)
+  var DIM_MIN = 0.20, DIM_MAX = 0.90;     // the Dim's range (Settings, Look Sync)
 
   /* ---- pure ---- */
 
@@ -144,26 +144,26 @@
 
   /**
    * The Dim Quartz paints (Look Sync untouched). g = the glass in effect
-   * ({ dim, dimSet? }); `userSet` = the user moved Quartz's own Dim slider
-   * (a saved value). The shared seed (0.30) is Look Sync's starting point,
-   * not a choice, so it reads as Quartz's default 20%; any other shared
-   * value was somebody's choice and wins, as does a saved slider value.
+   * ({ dim }); `shared` = it came through Look Sync rather than Quartz's own
+   * saved settings. CONTRACT (seed Dim .20 since 2026-11-24): a seed only
+   * fills a missing value and a stored Dim keeps its value until the user
+   * changes it, so no stored number is special: nothing stored paints the
+   * default 20%, a stored number paints itself, held to 0.20..0.90.
    * -> { dim, source: 'saved' | 'shared' | 'default', reason }
    */
-  function effectiveDim(g, userSet) {
+  function effectiveDim(g, shared) {
     var d = g && typeof g.dim === 'number' && isFinite(g.dim) ? g.dim : null;
     if (d == null) return { dim: DIM_DEFAULT, source: 'default', reason: 'no Dim is set, so Quartz uses its default 20%' };
-    if (userSet) return { dim: d, source: 'saved', reason: 'your Dim' };
-    if (Math.abs(d - SEED_DIM) < 1e-6) {
-      return { dim: DIM_DEFAULT, source: 'default', reason: "Look Sync still has its starting Dim (30%), so Quartz uses its default 20%" };
-    }
-    return { dim: d, source: 'shared', reason: 'the Dim shared through Look Sync' };
+    d = Math.round(Math.min(DIM_MAX, Math.max(DIM_MIN, d)) * 100) / 100;
+    return shared
+      ? { dim: d, source: 'shared', reason: 'the Dim shared through Look Sync' }
+      : { dim: d, source: 'saved', reason: 'your saved Dim' };
   }
 
   var pure = {
     BITMAP_W: BITMAP_W, BLURS: BLURS, BIG_MIN: BIG_MIN, BIG_AREA: BIG_AREA, TARGET: TARGET, FILM_RGB: FILM_RGB,
     FILM_MAX: FILM_MAX, FILM_STEP: FILM_STEP, GRID: GRID, LEGIBILITY_FLOOR: LEGIBILITY_FLOOR,
-    DIM_DEFAULT: DIM_DEFAULT, SEED_DIM: SEED_DIM,
+    DIM_DEFAULT: DIM_DEFAULT, DIM_MIN: DIM_MIN, DIM_MAX: DIM_MAX,
     isBig: isBig, kindFor: kindFor, coverGeometry: coverGeometry, lumOf: lumOf,
     samplesFromPixels: samplesFromPixels, liftFromPixels: liftFromPixels, filmFromPixels: filmFromPixels,
     effectiveDim: effectiveDim,

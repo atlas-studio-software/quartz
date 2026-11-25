@@ -73,16 +73,21 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
     'no bitmap or no geometry yet: no film');
 }
 
-/* ---- the Dim Quartz paints ---- */
+/* ---- the Dim Quartz paints (CONTRACT: seed .20, a stored Dim keeps its value) ---- */
 {
-  const seed = F.effectiveDim({ dim: 0.3 }, false);
-  check(seed.dim === 0.2 && seed.source === 'default', "Look Sync's untouched seed (.30) paints as 20%", seed);
-  const mine = F.effectiveDim({ dim: 0.3 }, true);
-  check(mine.dim === 0.3 && mine.source === 'saved', 'a Dim the user set by hand wins, even at .30', mine);
-  const shared = F.effectiveDim({ dim: 0.45 }, false);
-  check(shared.dim === 0.45 && shared.source === 'shared', 'any other shared Dim was a choice and wins', shared);
-  check(F.effectiveDim(null, false).dim === 0.2 && F.effectiveDim({}, false).source === 'default', 'no Dim at all: 20%');
-  check(typeof seed.reason === 'string' && /20%/.test(seed.reason), 'the reason says so in words', seed.reason);
+  check(!('SEED_DIM' in F), 'no seed special case: frost.js has no SEED_DIM');
+  const none = F.effectiveDim(null);
+  check(none.dim === 0.2 && none.source === 'default' && F.effectiveDim({}).source === 'default' && F.effectiveDim({ dim: 'x' }).dim === 0.2,
+    'nothing stored: the default 20%', none);
+  check(typeof none.reason === 'string' && /20%/.test(none.reason), 'the default says so in words', none.reason);
+  const old = F.effectiveDim({ dim: 0.3 });
+  check(old.dim === 0.3 && old.source === 'saved', 'a stored .30 paints .30 like any stored value', old);
+  const oldShared = F.effectiveDim({ dim: 0.3 }, true);
+  check(oldShared.dim === 0.3 && oldShared.source === 'shared', 'a stored .30 through Look Sync paints .30, labelled shared', oldShared);
+  check(F.effectiveDim({ dim: 0.55 }).dim === 0.55 && F.effectiveDim({ dim: 0.55 }, true).dim === 0.55, 'a stored .55 paints .55');
+  check(F.effectiveDim({ dim: 0.1 }).dim === 0.2 && F.effectiveDim({ dim: 0 }, true).dim === 0.2, 'a stored .10 clamps to the .20 floor');
+  check(F.effectiveDim({ dim: 0.95 }).dim === 0.9, 'a stored .95 clamps to the .90 ceiling');
+  check(!/30%|starting Dim/.test(old.reason + oldShared.reason), 'a stored value is never called the starting Dim', [old.reason, oldShared.reason]);
 }
 
 /* ---- wiring: index.html loads frost.js before backdrop.js; backdrop reads effectiveDim ---- */
@@ -91,7 +96,8 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   const fi = html.indexOf('<script src="frost.js"></script>'), bi = html.indexOf('<script src="backdrop.js"></script>');
   check(fi > 0 && bi > fi, 'index.html: frost.js loads before backdrop.js', { fi, bi });
   const bjs = fs.readFileSync(path.join(__dirname, 'backdrop.js'), 'utf8');
-  check(/F\.effectiveDim\(n, n\.dimAuto === false\)/.test(bjs), 'backdrop.js: the painted Dim comes from effectiveDim, a hand-set Dim counts as saved');
+  check(/F\.effectiveDim\(raw, !!shared\)/.test(bjs) && !/dimAuto === false\)/.test(bjs.slice(bjs.indexOf('function paintGlass'), bjs.indexOf('function glassFor'))),
+    'backdrop.js: the painted Dim comes from effectiveDim on the stored value, not from dimAuto');
   const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
   check(!/backdrop-filter/.test(fjs.replace(/\/\*[\s\S]*?\*\//g, '')), 'frost.js: no live backdrop-filter');
   check(!/LookSync\.(set|write|publish)/.test(fjs) && !/look\.json/.test(fjs.replace(/\/\*[\s\S]*?\*\//g, '')), 'frost.js never writes Look Sync');

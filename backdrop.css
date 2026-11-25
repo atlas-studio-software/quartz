@@ -105,20 +105,20 @@
    see-through over it, so there is one picture and one wash from the top
    of the window to the bottom. */
 html:not([data-theme="light"]) .backdrop > .bg-wash {
-  background: rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.3));
+  background: rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2));
   opacity: 1;
 }
 
 /* Light (CONTRACT "Light look"): the same stack in white. The wash is
    rgb(255 255 255 / A) over the SHARP picture (no saturate since
    2026-11-11); backdrop.js sets A (--chrome-glass-a) by the shared tint
-   rule, washAlpha: the Dim (.30 by default), raised to Mantle's
+   rule, washAlpha: the Dim (.20 by default), raised to Mantle's
    desktop.guard.light while following the desktop when the user leaves
    Dim on Auto, exactly the Dim on Manual, the reason in Settings. The
    strip and toolbar paint nothing more (chrome.css), so they ARE this
    wash; panels lay white .76 on it (~.87 net). */
 html[data-theme="light"] .backdrop > .bg-wash {
-  background: rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.3));
+  background: rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2));
   opacity: 1;
 }
 
