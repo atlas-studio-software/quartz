@@ -37,13 +37,18 @@ class Cdp {
     return new Promise((resolve) => {
       // ws DROPS a send() on a closed socket (no callback, no throw): answer now, or the caller waits for ever.
       if (!this.ws || this.ws.readyState !== WS.OPEN) { resolve({ error: { message: 'connection closed' } }); return; }
-      this.pending.set(id, resolve);
-      try { this.ws.send(JSON.stringify({ id, method, params: params || {} })); } catch (e) { this.pending.delete(id); resolve({ error: { message: String(e.message || e) } }); }
+      // callMs (opt-in, set by a harness): a call with no answer by then fails with its method instead
+      // of waiting for ever, so a stuck page reads as a FAIL with a reason, not as the suite's timeout.
+      let timer = null;
+      const done = (m) => { if (timer) clearTimeout(timer); resolve(m); };
+      this.pending.set(id, done);
+      if (this.callMs > 0) timer = setTimeout(() => { if (this.pending.delete(id)) resolve({ error: { message: 'no answer in ' + this.callMs + ' ms to ' + method } }); }, this.callMs);
+      try { this.ws.send(JSON.stringify({ id, method, params: params || {} })); } catch (e) { this.pending.delete(id); done({ error: { message: String(e.message || e) } }); }
     });
   }
   async ev(expr) {
     const m = await this.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
-    if (m.error) throw new Error(JSON.stringify(m.error));
+    if (m.error) throw new Error(JSON.stringify(m.error) + (/^no answer in/.test(m.error.message || '') ? ' evaluating: ' + String(expr).slice(0, 160) : ''));
     if (m.result.exceptionDetails) throw new Error('threw: ' + ((m.result.exceptionDetails.exception || {}).description || m.result.exceptionDetails.text));
     return m.result.result.value;
   }

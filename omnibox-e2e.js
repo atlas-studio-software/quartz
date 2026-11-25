@@ -23,7 +23,7 @@ const { run, serve, html, KEYS, sleep } = require('./tests/e2e-kit');
 const CDP = Number(process.env.QUARTZ_E2E_CDP) || 9435; // a lane's own port when it has to share the machine
 const TITLES = { start: 'Start Page', typed: 'Typed Page', local: 'Localhost Page', full: 'Full Url Page', alpha: 'Alpha Field Guide', beta: 'Beta Notebook', gamma: 'Gamma Workbench' };
 
-run('omnibox-e2e', async ({ check, launch }) => {
+run('omnibox-e2e', async ({ check, launch, say }) => {
   const srv = await serve((req, res, p) => {
     const m = /^\/([a-z]+)\.html$/.exec(p);
     if (!m || !TITLES[m[1]]) return false;
@@ -33,6 +33,9 @@ run('omnibox-e2e', async ({ check, launch }) => {
   const B = 'http://127.0.0.1:' + P;
   const q = await launch({ cdp: CDP });
   const c = q.chrome;
+  // A chrome call with no answer in 45 s fails the run with the expression it was stuck on, instead of
+  // the suite's 300 s kill with no output to go on.
+  c.callMs = 45000;
 
   await c.ev(`(() => { const t = createTab(${JSON.stringify(B + '/start.html')}); window.__main = t; activateTab(t.id); return 1; })()`);
   await c.waitFor('window.__main.ready === true', 15000);
@@ -59,6 +62,7 @@ run('omnibox-e2e', async ({ check, launch }) => {
     return f;
   };
 
+  say('step: typed addresses');
   // ---- typed addresses -------------------------------------------------------------------------
   const id0 = (await front()).id;
   const n0 = await tabCount();
@@ -77,6 +81,7 @@ run('omnibox-e2e', async ({ check, launch }) => {
   f = await waitFront((x) => x.ready && x.title === TITLES.full);
   check(f.url === B + '/full.html?x=1#y' && f.title === TITLES.full, 'a full URL (with spaces around it) goes as typed', f);
 
+  say('step: searches');
   // ---- addresses and searches that leave the machine --------------------------------------------
   // Judged by the FIRST url the tab starts navigating to (the guest's did-start-navigation), and
   // then stopped: a search engine redirects (Google adds &sei=...) and a .test name never resolves,
@@ -112,6 +117,7 @@ run('omnibox-e2e', async ({ check, launch }) => {
   sentUrl = await sent('C++ & "quotes"?');
   check(sentUrl === s3 && /C%2B%2B%20%26%20%22quotes%22%3F/.test(sentUrl), 'symbols in a search are encoded, not lost', sentUrl);
 
+  say('step: autocomplete, history');
   // ---- autocomplete: history ------------------------------------------------------------------------
   // Visit two pages in a tab, then close it: they are history now, not open tabs.
   await c.ev(`(() => { const t = createTab(${JSON.stringify(B + '/alpha.html')}); window.__h = t; activateTab(t.id); return 1; })()`);
@@ -151,6 +157,7 @@ run('omnibox-e2e', async ({ check, launch }) => {
   f = await front();
   check(f.url === B + '/alpha.html', 'and nothing navigated', f.url);
 
+  say('step: autocomplete, an open tab');
   // ---- autocomplete: an open tab ------------------------------------------------------------------
   await c.ev(`(() => { const t = createTab(${JSON.stringify(B + '/gamma.html')}, { background: true }); window.__g = t; return 1; })()`);
   await c.waitFor(`window.__g.ready === true && window.__g.title === ${JSON.stringify(TITLES.gamma)}`, 15000);
@@ -168,6 +175,7 @@ run('omnibox-e2e', async ({ check, launch }) => {
   check(await tabCount() === n1 && srv.hits('/gamma.html') === gammaHits, 'no new tab and no second load', { tabs: await tabCount(), n1, loads: srv.hits('/gamma.html') - gammaHits });
   check(await c.ev('window.__main.url') === B + '/alpha.html', 'the tab that was in front was left where it was', await c.ev('window.__main.url'));
 
+  say('step: quit');
   check(await q.quit(), 'closing the window quit Quartz');
   srv.close();
 });
