@@ -307,7 +307,8 @@ body.booted .navrow {
 
 @media (prefers-reduced-motion: reduce) {
   .tab-ind, .tab-ul { transition: none; }
-  .navrow > button:active, #newtab:active, #workspace-pill:active { scale: none; }
+  /* no press scale: the same selectors as the press itself, so none of them outranks this */
+  .navrow > button:active:not(:disabled), #newtab:active, #workspace-pill:active { scale: none; }
   /* the first load: a 120 ms fade, no rise */
   body:not(.booted) #titlebar, body:not(.booted) .navrow { translate: none; }
   body.booted #titlebar, body.booted .navrow {

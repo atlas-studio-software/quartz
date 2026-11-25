@@ -281,5 +281,140 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     { groupTop, groupH, glyphPx, glyphTop, lineH1, centred });
 }
 
+/* ---- reduced motion covers every motion of the look (LOOK.md section 10: only quick fades) ----
+   Read from the sheets, not a list: every rule in islands.css that MOVES something (a non-none
+   translate / scale / rotate / transform, a keyframes animation that is not opacity-only, a
+   view-transition snapshot of newtab.css's) must be undone under prefers-reduced-motion by a rule
+   that really wins the cascade there: the same element set or wider, and !important or at least
+   as specific and later. Whatever still runs under reduced motion must be an opacity fade of at
+   most --m-dur-rm (120 ms); a transition or animation marked !important outside the reduced-
+   motion blocks would outrank tokens.css's catch-all, so there must be none. newtab.css's press
+   scales and big-chart snapshots are held to the same rule. */
+{
+  /** Flat list of { sel, body, rm, starting, kf, pos } from a sheet (comments stripped). */
+  function rulesOf(src, sheet) {
+    const out = [];
+    const stack = [];
+    let i = 0, start = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '{') {
+        const prelude = src.slice(start, i).trim();
+        if (prelude.startsWith('@')) { stack.push(prelude); start = i + 1; i++; continue; }
+        const end = src.indexOf('}', i);
+        out.push({ sheet, sel: prelude.replace(/\s+/g, ' '), body: src.slice(i + 1, end), pos: out.length,
+          rm: stack.some((a) => /prefers-reduced-motion:\s*reduce/.test(a)),
+          starting: stack.some((a) => /^@starting-style/.test(a)),
+          kf: (stack.find((a) => /^@keyframes/.test(a)) || '').replace(/^@keyframes\s+/, '') || null });
+        i = end + 1; start = i; continue;
+      }
+      if (c === '}') { stack.pop(); start = i + 1; }
+      else if (c === ';' && !stack.length) start = i + 1;   // @import / @charset at the top
+      i++;
+    }
+    return out;
+  }
+  const splitSel = (s) => { const out = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
+  /** Compounds of a selector, each a set of simple tokens, with the combinators between. */
+  function compounds(sel) {
+    const parts = sel.replace(/\s*([>+~])\s*/g, ' $1 ').trim().split(/\s+/);
+    const cs = [];
+    for (const p of parts) {
+      if (/^[>+~]$/.test(p)) { cs.push(p); continue; }
+      const toks = [];
+      const re = /(:not\([^)]*\)|:[\w-]+\([^)]*\)|::?[\w-]+|#[\w-]+|\.[\w-]+|\[[^\]]*\]|\*|[a-zA-Z][\w-]*)/g;
+      let m; while ((m = re.exec(p))) if (m[1] !== '*') toks.push(m[1]);
+      cs.push(toks);
+    }
+    return cs;
+  }
+  function specificity(sel) {
+    let a = 0, b = 0, c = 0;
+    for (const comp of compounds(sel)) {
+      if (typeof comp === 'string') continue;
+      for (const t of comp) {
+        if (/^:where\(/.test(t)) continue;
+        if (/^:(not|is)\(/.test(t)) { const s = specificity(t.replace(/^:\w+\(|\)$/g, '')); a += s[0]; b += s[1]; c += s[2]; continue; }
+        if (t[0] === '#') a++;
+        else if (t[0] === '.' || t[0] === '[' || (t[0] === ':' && t[1] !== ':')) b++;
+        else c++;
+      }
+    }
+    return [a, b, c];
+  }
+  const geq = (x, y) => x[0] !== y[0] ? x[0] > y[0] : x[1] !== y[1] ? x[1] > y[1] : x[2] >= y[2];
+  /** Does `wide` match every element `narrow` matches? (same chain, each compound a subset) */
+  function covers(wide, narrow) {
+    const w = compounds(wide), n = compounds(narrow);
+    if (w.length !== n.length) return false;
+    return w.every((cw, k) => typeof cw === 'string' ? cw === n[k] : typeof n[k] !== 'string' && cw.every((t) => n[k].includes(t)));
+  }
+  const decl = (body, prop) => { const m = body.match(new RegExp('(?:^|;)\\s*' + prop + '\\s*:\\s*([^;]*)')); return m ? m[1].trim() : null; };
+  const SHEETS = ['chrome.css', 'newtab.css', 'islands.css'];   // index.html's order for the chrome ones
+  const all = [];
+  for (const f of SHEETS) all.push(...rulesOf(strip(fs.readFileSync(path.join(__dirname, f), 'utf8')), f));
+  const order = (r) => SHEETS.indexOf(r.sheet) * 1e6 + r.pos;
+  const rmRules = all.filter((r) => r.rm && !r.kf);
+  /** A reduced-motion rule that turns `prop` off for selector `sel` (of rule `r`) and wins. */
+  function undone(r, sel, prop, isOff) {
+    const sameDoc = (x) => (r.sheet === 'newtab.css') === (x.sheet === 'newtab.css');   // newtab.css is the Home's own document
+    return rmRules.some((x) => sameDoc(x) && splitSel(x.sel).some((s) => {
+      const v = decl(x.body, prop);
+      if (v === null || !isOff(v.replace(/\s*!important$/, ''))) return false;
+      if (!covers(s, sel)) return false;
+      return /!important$/.test(v) || (geq(specificity(s), specificity(sel)) && order(x) > order(r));
+    }));
+  }
+  const MOVE = ['translate', 'scale', 'rotate', 'transform'];
+  const off = (v) => v === 'none' || v === 'initial' || v === 'unset';
+  const kfMoves = {};
+  for (const r of all) if (r.kf) kfMoves[r.kf] = kfMoves[r.kf] || MOVE.some((p) => decl(r.body, p) !== null);
+  const missing = [];
+  let movers = 0;
+  // 1. islands.css: every non-none move, in any state (an :active press, the unbooted rise, a
+  // [hidden] or @starting-style pop-over origin)
+  for (const r of all.filter((x) => x.sheet === 'islands.css' && !x.rm && !x.kf)) {
+    for (const p of MOVE) {
+      const v = decl(r.body, p);
+      if (v === null || off(v)) continue;
+      for (const s of splitSel(r.sel)) { movers++; if (!undone(r, s, p, off)) missing.push(r.sheet + ' ' + s + ' { ' + p + ': ' + v + ' }'); }
+    }
+  }
+  // 2. newtab.css: the look's press scales (the shared --m-press-* tokens)
+  for (const r of all.filter((x) => x.sheet === 'newtab.css' && !x.rm && !x.kf)) {
+    const v = decl(r.body, 'scale');
+    if (!v || !/var\(--m-press/.test(v)) continue;
+    for (const s of splitSel(r.sel)) { movers++; if (!undone(r, s, 'scale', off)) missing.push(r.sheet + ' ' + s + ' { scale: ' + v + ' }'); }
+  }
+  // 3. every keyframes animation in islands.css that moves, and every view-transition snapshot
+  // newtab.css times, is switched off (animation: none)
+  const animOff = (v) => /^none\b/.test(v);
+  for (const r of all.filter((x) => !x.rm && !x.kf)) {
+    const v = decl(r.body, 'animation');
+    if (!v) continue;
+    const vt = r.sheet === 'newtab.css' && /::view-transition-(group|old|new)\(stk-/.test(r.sel);
+    const moving = r.sheet === 'islands.css' && Object.keys(kfMoves).some((k) => kfMoves[k] && new RegExp('(^|[\\s,])' + k + '\\b').test(v));
+    if (!vt && !moving) continue;
+    for (const s of splitSel(r.sel)) { movers++; if (!undone(r, s, 'animation', animOff)) missing.push(r.sheet + ' ' + s + ' { animation: ' + v.slice(0, 60) + ' }'); }
+  }
+  for (const r of all.filter((x) => x.sheet === 'newtab.css' && !x.rm && /::view-transition-(group|old|new)\(stk-/.test(x.sel) && decl(x.body, 'animation-duration'))) {
+    for (const s of splitSel(r.sel)) { movers++; if (!undone(r, s, 'animation', animOff)) missing.push(r.sheet + ' ' + s + ' { animation-duration }'); }
+  }
+  check(movers >= 15 && missing.length === 0, 'reduced motion: every look motion (' + movers + ' moves: presses, the rise, pop-over origins, sink / lift, the chart snapshots) is undone by a rule that wins', missing);
+  // 4. what still runs under reduced motion in islands.css is an opacity fade of at most --m-dur-rm
+  const kept = all.filter((r) => r.sheet === 'islands.css' && r.rm && !r.kf && (/(transition|animation)[^;]*!important/.test(r.body) || /--rm-keep\s*:/.test(r.body)));
+  const notFade = kept.filter((r) => {
+    const t = decl(r.body, 'transition'), a = decl(r.body, 'animation');
+    const tOk = !t || t.replace(/\s*!important$/, '').split(',').every((x) => /^\s*(opacity|display)\s+var\(--m-dur-rm\)/.test(x) || /^\s*none\s*$/.test(x));
+    const aOk = !a || /^none\b/.test(a);
+    const keep = decl(r.body, '--rm-keep');
+    return !tOk || !aOk || (keep !== null && keep !== 'var(--m-dur-rm)');
+  });
+  check(kept.length > 0 && notFade.length === 0, 'reduced motion: whatever islands.css keeps running is an opacity fade of --m-dur-rm (120 ms), nothing longer, nothing moving', notFade.map((r) => r.sel + ' { ' + r.body.trim().slice(0, 120) + ' }'));
+  // 5. no look motion outranks the catch-all from outside a reduced-motion block
+  const loud = all.filter((r) => r.sheet === 'islands.css' && !r.rm && /(transition|animation)[^:;]*:[^;]*!important/.test(r.body));
+  check(loud.length === 0, 'islands.css: no transition or animation says !important outside reduced motion (it would outrank tokens.css\'s catch-all)', loud.map((r) => r.sel));
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
