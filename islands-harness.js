@@ -239,5 +239,47 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(/#win-min \.glyph, #win-max \.glyph, #win-close \.glyph \{ font-size: 10px; \}/.test(ccss), 'caption glyphs 10 px');
 }
 
+/* ---- the caption buttons at rest paint nothing in the window's row 0 (toprow-e2e) ----
+   The top-row hint (toprow.js) says what row 0 is: the picture under the wash, the caption corner
+   included. LOOK.md: "Bare over the picture", so at rest neither the group nor a button has a fill,
+   and the 10 px glyphs sit in the middle of the 44 px row, clear of row 0. Collapsed to their
+   glyph's height (no definite height on the lifted group), the buttons put the maximise square's
+   top edge and the close X's tips into row 0: cols 37-39 of 40 read up to 68 levels lighter. */
+{
+  const ccss = strip(fs.readFileSync(path.join(__dirname, 'chrome.css'), 'utf8'));
+  const both = ccss + '\n' + css;
+  const CAP = /#win-(min|max|close)\b|\.wincontrols\b/;
+  const AT_REST_ONLY = /:(hover|active|focus-visible|focus)\b/;
+  const fills = [];
+  for (const m of both.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sels = m[1].split(',').map((s) => s.trim()).filter((s) => CAP.test(s) && !AT_REST_ONLY.test(s));
+    if (!sels.length) continue;
+    for (const d of m[2].split(';')) {
+      const kv = d.split(':'); if (kv.length < 2) continue;
+      const prop = kv[0].trim(), val = kv.slice(1).join(':').trim();
+      if (/^(background|background-color|background-image|box-shadow|border|border-top|border-color|outline)$/.test(prop) && !/^(none|transparent|0)$/.test(val)) fills.push(sels.join(', ') + ' { ' + prop + ': ' + val + ' }');
+    }
+  }
+  check(fills.length === 0, 'caption buttons at rest: no fill, shadow or edge on the group or a button (hover / press only)', fills);
+  check(/(^|\n)button \{[^}]*\bbackground: none;/.test(ccss), 'the shared button reset paints no background');
+
+  // Where the glyph sits: the group's top in the window, the row it fills, the glyph centred in it.
+  const px = (re, src) => { const m = src.match(re); return m ? Number(m[1]) : NaN; };
+  const titlebarH = px(/--titlebar-h:\s*(\d+)px/, ccss);
+  const rowH = /--tab-row-h:\s*calc\(var\(--titlebar-h\) \+ 4px\)/.test(css) ? titlebarH + 4 : NaN;
+  const tb = css.match(/#titlebar \{[^}]*\bpadding:\s*(\d+)px/);
+  const wc = css.match(/\.wincontrols \{([^}]*)\}/);
+  const groupTop = (tb ? Number(tb[1]) : NaN) + (wc && /margin-top:\s*(-?\d+)px/.test(wc[1]) ? Number(wc[1].match(/margin-top:\s*(-?\d+)px/)[1]) : 0);
+  const glyphPx = px(/#win-min \.glyph, #win-max \.glyph, #win-close \.glyph \{ font-size: (\d+)px; \}/, ccss);
+  const lineH1 = /(^|\n)\.glyph \{[^}]*line-height: 1;/.test(ccss);
+  // a lifted (flex-start) group with no height of its own: the buttons' 100% falls to their glyph
+  const groupH = wc && /height:\s*var\(--tab-row-h\)/.test(wc[1]) ? rowH : (lineH1 ? glyphPx : NaN);
+  const centred = /(^|\n)button \{[^}]*align-items: center;/.test(ccss);
+  const glyphTop = groupTop + (centred ? (groupH - glyphPx) / 2 : 0);
+  // drop-shadow(0 1px 1px): it reaches 2 px from the glyph, downward; the glyph itself must leave row 0
+  check(groupTop === 0 && groupH === 44 && glyphTop >= 2, 'caption buttons: the group starts at the window top and fills the 44 px row, so the 10 px glyph sits ' + glyphTop + ' px down, clear of row 0',
+    { groupTop, groupH, glyphPx, glyphTop, lineH1, centred });
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
