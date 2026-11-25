@@ -98,6 +98,8 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(ncss.indexOf('::view-transition-group(stk-chart) { animation-duration: 480ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }') >= 0
     && ncss.indexOf('::view-transition-old(stk-chart) { animation-duration: 200ms; }') >= 0
     && ncss.indexOf('::view-transition-new(stk-chart) { animation-duration: 300ms; animation-delay: 90ms;') >= 0, 'the Markets morph: 480 group, old out 200, new in 300 after 90');
+  check(ncss.indexOf('.stk-big { view-transition-name: stk-scrim; }') >= 0
+    && ncss.indexOf('::view-transition-old(stk-scrim), ::view-transition-new(stk-scrim) { animation-duration: 360ms;') >= 0, 'the Markets morph: the scrim fades in 360 (its own snapshot)');
   check(ncss.indexOf('.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }') >= 0, 'chips and tiles: a .07 sheen on hover only');
 }
 

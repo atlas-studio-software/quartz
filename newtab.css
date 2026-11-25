@@ -3271,8 +3271,16 @@ body.home-unfold { --home-fold: 0; }
 ::view-transition-group(stk-chart) { animation-duration: 480ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
 ::view-transition-old(stk-chart) { animation-duration: 200ms; }
 ::view-transition-new(stk-chart) { animation-duration: 300ms; animation-delay: 90ms; animation-fill-mode: both; }
+/* "...scrim fades in 360": the big chart's scrim is its own snapshot (the
+   panel inside it carries stk-chart, so it is not in this one). LOOK.md gives
+   the scrim no out number; the prototype's group is 360 both ways, so it is.
+   A hidden .stk-big is never captured, so the name costs nothing at rest. */
+.stk-big { view-transition-name: stk-scrim; }
+::view-transition-group(stk-scrim) { animation-duration: 360ms; }
+::view-transition-old(stk-scrim), ::view-transition-new(stk-scrim) { animation-duration: 360ms; animation-timing-function: var(--m-ease-look); }
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(stk-chart), ::view-transition-old(stk-chart), ::view-transition-new(stk-chart) { animation: none; }
+  ::view-transition-group(stk-chart), ::view-transition-old(stk-chart), ::view-transition-new(stk-chart),
+  ::view-transition-group(stk-scrim), ::view-transition-old(stk-scrim), ::view-transition-new(stk-scrim) { animation: none; }
 }
 
 /* ==============================================================
