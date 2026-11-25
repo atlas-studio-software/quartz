@@ -526,7 +526,18 @@ html[data-theme="light"] [data-palette="mono"] {
 
    --rm-keep is registered with inherits: false, so a panel that keeps
    its 120ms fade does not hand 120ms to every child under it: each
-   element that does not set it reads the initial 0.01ms. */
+   element that does not set it reads the initial 0.01ms.
+
+   3. An element with NO transition of its own gets none. Its
+      transition-property is the initial `all`, so the catch-all's
+      0.01ms alone would turn every style change on it (a src landing,
+      a class flip, a script setting opacity) into a one-frame
+      transition of every property: the old value holds until the next
+      frame (a logo decoded but still visibility: hidden, its letter
+      already display: none, so nothing shows) and getAnimations()
+      lists it. The :where() reset has no specificity, so any sheet
+      that declares a transition for the element still wins and keeps
+      its 0.01ms (and its transitionend). */
 @property --rm-keep {
   syntax: "<time>";
   inherits: false;
@@ -540,6 +551,7 @@ html[data-theme="light"] [data-palette="mono"] {
     --m-dur-m: 0.01ms;
     --m-dur-l: 0.01ms;
   }
+  :where(*), :where(*)::before, :where(*)::after { transition-property: none; }
   *, *::before, *::after {
     animation-duration: var(--rm-keep) !important;
     animation-iteration-count: 1 !important;

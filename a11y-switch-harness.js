@@ -68,6 +68,15 @@ ok('catch-all: transition-duration var(--rm-keep) !important', !!star && /transi
 ok('catch-all: animation-duration var(--rm-keep) !important', !!star && /animation-duration:\s*var\(--rm-keep\)\s*!important/.test(star), star);
 ok('catch-all: infinite animations run once', !!star && /animation-iteration-count:\s*1\s*!important/.test(star), star);
 ok('catch-all leaves delays alone (a delay moves nothing)', !!star && !/delay/.test(star), star);
+// Without this the catch-all's 0.01ms turns an element with no transition of its own (property
+// `all`) into a one-frame transition of every property on every style change: a decoded logo
+// stays visibility: hidden for that frame with its letter already gone, and getAnimations()
+// counts it under reduced motion.
+const ownOnly = rm ? (rm.match(/:where\(\*\),\s*:where\(\*\)::before,\s*:where\(\*\)::after\s*\{([^}]*)\}/) || [])[1] : null;
+ok('an element with no transition of its own gets none (a zero-specificity transition-property: none)',
+  !!ownOnly && /^\s*transition-property:\s*none;?\s*$/.test(ownOnly), ownOnly);
+ok('the zero-specificity reset comes before the catch-all and outranks no sheet (no !important)',
+  !!ownOnly && rm.indexOf(':where(*)') < rm.indexOf('*, *::before') && !/!important/.test(ownOnly));
 
 /* ---- 2. forced colours ---- */
 const fc = blockAfter(tokens, '@media (forced-colors: active)');

@@ -410,7 +410,8 @@
     if (!el || !el.querySelector) return;
     var img = el.querySelector('img.qfav-img');
     if (!img) return;
-    if (typeof data === 'string' && isDataImage(data)) {
+    // An empty payload ("data:image/png;base64,") is no icon: the letter, never a blank box.
+    if (typeof data === 'string' && isDataImage(data) && /,./.test(data)) {
       if (img.getAttribute('src') === data) return;
       // Pending stays pending (no letter flash) while it decodes; a letter
       // already up stays up until the logo is ready to replace it.

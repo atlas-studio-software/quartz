@@ -1954,7 +1954,12 @@ classic script so it leaves a global `Readability`. `ws` is a devDependency, for
   one catch-all collapses the shared `--m-dur-xs/s/m/l` to 0.01ms and cuts every transition and
   animation on every element and pseudo-element to `var(--rm-keep)` with `!important`; infinite
   animations run once. 0.01ms, not 0, because a 0s transition never fires `transitionend` and
-  teardown code waits for it. Delays are left alone. The one motion the preference still allows is
+  teardown code waits for it. Delays are left alone. An element with no transition of its own
+  gets none: a zero-specificity `:where(*)` rule (and its `::before` / `::after`) sets
+  `transition-property: none` first, which any sheet's own transition outranks. Without it the
+  initial `all` plus the 0.01ms made every style change a one-frame transition of every property:
+  the old value held until the next frame (a decoded logo still `visibility: hidden` with its
+  letter already gone) and `getAnimations()` counted it. The one motion the preference still allows is
   a short opacity fade at `--m-dur-rm` (120ms): a rule that already says `!important` on an id or
   class outranks the bare `*` and keeps it, and any other rule keeps it by setting
   `--rm-keep: var(--m-dur-rm)` on itself (the six such fades in chrome.css, settings.css,
