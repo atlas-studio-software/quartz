@@ -43,14 +43,21 @@
 }
 
 /* ---------- the frosted island ---------- */
-.frost {
+/* The design's .frost: the hover sheen on top (0 at rest), the film, the
+   wash, the blurred picture. The island buttons (the workspace pill, the
+   new-tab button) keep it under their own hover and press. */
+.frost,
+#workspace-pill.frost:hover, #workspace-pill.frost:active, #workspace-pill.frost.is-open,
+#newtab.frost:hover, #newtab.frost:active {
   background:
+    linear-gradient(rgb(var(--sheen-rgb) / var(--sheen, 0)), rgb(var(--sheen-rgb) / var(--sheen, 0))),
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
     linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
     var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
     var(--bg);
   box-shadow: var(--isl-float);
   border: 0;
+  text-shadow: var(--island-text-lift);   /* the design's ink shadow on an island */
 }
 .frost.soft { --frost: var(--frost-soft); }
 .island { border-radius: var(--isl-r); }
@@ -63,11 +70,13 @@ html .navrow {
   box-shadow: none;
 }
 
+/* The design's tab row: every island 6 below the window's top, 32 tall. */
 #titlebar {
   position: relative;
   height: var(--tab-row-h);
   padding: 6px 0 0 var(--isl-gap);
-  align-items: center;
+  align-items: flex-start;
+  --tab-min: 72px;                 /* the design's tab: 208 wide, 72 at the least */
 }
 /* Over the plate and the highlight. Only the row's own flex items: the
    absolutely placed children (the plate, the highlight, its underline and
@@ -75,8 +84,10 @@ html .navrow {
    of the row, or they take width from it and the edge buttons land after
    the caption buttons instead of in their fades (taboverflow-e2e). */
 #titlebar > :not(.isl-plate, .tab-ind, .tab-ul, .strip-edge) { position: relative; z-index: 2; }
-/* the chips' air inside the tabs plate; tabfit.js takes it off the room it plans with */
-#tabstrip { padding: 0 4px; }
+/* The design's tabs island: 32 tall, 3 of air round 26px chips 2 apart. The
+   plate is the strip's own box (islands.js); tabfit.js takes the padding
+   off the room it plans with. */
+#tabstrip { height: 32px; padding: 3px; gap: 2px; }
 
 .navrow {
   position: relative;
@@ -129,6 +140,17 @@ html .navrow {
 .tab-ind[hidden], .tab-ul[hidden] { display: none; }
 
 .tab { border-color: transparent !important; }
+/* the design's tab: 26 tall, radius 8, 0 4 0 10, 8 between its parts, the island's ink shadow */
+.tab {
+  height: 26px;
+  max-width: 208px;
+  padding: 0 4px 0 10px;
+  gap: 8px;
+  border-width: 0;
+  border-radius: var(--isl-r-s);
+  text-shadow: var(--island-text-lift);
+}
+.tab-close { width: 20px; height: 20px; border-radius: var(--radius-s); }
 .tab:hover { background: var(--isl-fill-1); }
 .tab:active { background: var(--isl-fill-press); }
 .tab.active { background: transparent; box-shadow: none; }
@@ -136,11 +158,18 @@ html .navrow {
 .tab::after, .tab.active::after { opacity: 0 !important; }
 .tab-title { mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent); }
 
+/* the new-tab button: an island of its own, 32 round, 6 after the tabs (the design's .new-tab) */
 #newtab { border-radius: var(--radius-pill); }
-#newtab:hover { background: var(--isl-fill-2); }
+#newtab.frost { width: 32px; height: 32px; margin-left: 6px; }
+#newtab:not(.frost):hover { background: var(--isl-fill-2); }
+#newtab.frost:hover { --sheen: 0.07; color: var(--text); }
 
 /* the workspace pill: its own island before the tabs */
 #workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }
+/* the design's .ws-pill: 32 tall, 0 8 0 12, 8 between the dot, the name and the chevron, 12px 600 */
+#workspace-pill.frost { height: 32px; padding: 0 8px 0 12px; gap: 8px; border: 0; color: var(--text); font-weight: 600; }
+#workspace-pill.frost:hover { --sheen: 0.07; }
+#workspace-pill.frost.is-open { --sheen: 0.1; }
 
 /* Windows' caption buttons stay at the window's real corner (a maximised
    window still closes from the corner), bare over the picture. LOOK.md

@@ -7,7 +7,7 @@
    islands are not wrappers: each group gets a PLATE, an empty .frost
    element placed behind it (frost.js paints the blurred picture into it):
 
-     tabs   #tabstrip .. #newtab          (the workspace pill is its own island)
+     tabs   #tabstrip itself              (the workspace pill and the + are islands of their own)
      nav    #back .. #reload
      tools  the first shown control after #omnibox .. the last one
 
@@ -177,10 +177,10 @@
     omnibox.style.marginRight = 'auto';
   }
 
-  function putPlate(p, container, first, last) {
+  function putPlate(p, container, first, last, pad) {
     if (!p) return;
     var box = first && last && shown(first) && shown(last)
-      ? span(container.getBoundingClientRect(), first.getBoundingClientRect(), last.getBoundingClientRect())
+      ? span(container.getBoundingClientRect(), first.getBoundingClientRect(), last.getBoundingClientRect(), pad)
       : null;
     if (!box) { p.hidden = true; return; }
     p.hidden = false;
@@ -222,7 +222,7 @@
       ux = underlineX(cr, title.getBoundingClientRect(), rg.getBoundingClientRect().width);
     }
     if (ux == null) ux = Math.round(cr.width / 2 - UL_W / 2);
-    var ulEnd = 'translate(' + px(to.x + ux) + ', ' + px(to.y + cr.height - 5) + ')';
+    var ulEnd = 'translate(' + px(to.x + ux) + ', ' + px(to.y + cr.height - 4) + ')';   // the design: 2 above the chip's foot
     if (instant) ul.style.transform = ulEnd;
     void ind.offsetWidth;                 // commit the start with no transition
     ind.classList.remove('instant');
@@ -238,8 +238,12 @@
     var ws = document.getElementById('workspace-pill');
     if (ws && !ws.classList.contains('frost')) ws.classList.add('frost', 'island');
     if (omnibox && !omnibox.classList.contains('frost')) omnibox.classList.add('frost', 'island');
+    // the new-tab button is an island of its own (the design's .new-tab)
+    var nt = document.getElementById('newtab');
+    if (nt && !nt.classList.contains('frost')) nt.classList.add('frost', 'island');
     placeBar();
-    putPlate(plates.tabs, titlebar, tabstrip, document.getElementById('newtab'));
+    // the tabs island is the strip's own box: its 3px padding is the island's air (islands.css)
+    putPlate(plates.tabs, titlebar, tabstrip, tabstrip, 0);
     putPlate(plates.nav, navrow, document.getElementById('back'), document.getElementById('reload'));
     var t = toolsRange();
     putPlate(plates.tools, navrow, t && t[0], t && t[1]);

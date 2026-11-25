@@ -173,7 +173,7 @@
   --island-fill-2: rgba(255, 255, 255, 0.12);
   --island-fill-press: rgba(255, 255, 255, 0.05);
   --island-sheen-big: rgba(255, 255, 255, 0.05);   /* LOOK.md section 3: hover sheen .05 on big panels */
-  --island-ind: rgba(255, 255, 255, 0.18);          /* LOOK.md section 8: the selected fill, .18 */
+  --island-ind: rgba(255, 255, 255, 0.16);          /* the design's .tab-ind (style.css); LOOK.md section 8 names .18 */
   --island-ind-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 3px rgba(0, 12, 16, 0.25);
   --island-glyph-lift: drop-shadow(0 1px 1px rgba(0, 12, 16, 0.4));
   /* the caption close button's hover (LOOK.md section 2: the Windows red) */

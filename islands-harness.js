@@ -195,8 +195,12 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     && /#well:has\(> #views\[data-home-front\]\)[^{]*\{ margin: var\(--isl-gap\) 0 0; \}/.test(css)
     && /viewsEl\.toggleAttribute\('data-home-front', shown === 1 && homeShown\)/.test(appJs), 'Home alone in front: no sheet round it');
   check(tok.indexOf('--island-fill-1: rgba(255, 255, 255, 0.07);') >= 0 && tok.indexOf('--island-fill-2: rgba(255, 255, 255, 0.12);') >= 0
-    && tok.indexOf('--island-ind: rgba(255, 255, 255, 0.18);') >= 0 && tok.indexOf('--island-fill-press: rgba(255, 255, 255, 0.05);') >= 0
-    && tok.indexOf('--island-sheen-big: rgba(255, 255, 255, 0.05);') >= 0, 'fills .07 / .12 / .18, pressed .05, big-panel sheen .05');
+    && tok.indexOf('--island-ind: rgba(255, 255, 255, 0.16);') >= 0 && tok.indexOf('--island-fill-press: rgba(255, 255, 255, 0.05);') >= 0
+    && tok.indexOf('--island-sheen-big: rgba(255, 255, 255, 0.05);') >= 0, "fills .07 / .12, the tab highlight .16 (the design's .tab-ind), pressed .05, big-panel sheen .05");
+  // The design's tab row: a 32px tabs island round 26px chips, the + its own 32px island.
+  check(/#tabstrip \{ height: 32px; padding: 3px; gap: 2px; \}/.test(css) && /\.tab \{\s*height: 26px;/.test(css)
+    && /#newtab\.frost \{ width: 32px; height: 32px; margin-left: 6px; \}/.test(css)
+    && js.indexOf('putPlate(plates.tabs, titlebar, tabstrip, tabstrip, 0);') >= 0, 'the tab row: tabs island 32 round 26px chips, the + its own island');
   check(tok.indexOf('--m-press: 160ms;') >= 0 && tok.indexOf('--m-press-small: 0.94;') >= 0 && tok.indexOf('--m-press-pill: 0.97;') >= 0 && tok.indexOf('--m-press-tile: 0.985;') >= 0,
     'hover / press 160; press 0.94 / 0.97 / 0.985');
   check(/\.navrow > button:active:not\(:disabled\), #newtab:active \{ scale: var\(--m-press-small\); \}/.test(css) && /#workspace-pill:active \{ scale: var\(--m-press-pill\); \}/.test(css),
