@@ -324,7 +324,8 @@ WATCHDOG.unref();
     byHost = judgeTiles('new tab', nt, 0);
     expectKnown('new tab', byHost, { alpha: 'icon', bravo: 'mono', charlie: 'icon', echo: 'icon', kilo: 'mono' });
     const ntChips = (await inGuest(IS_NEWTAB, TILES('.chip .qfav'))) || [];
-    check(ntChips.length >= 5 && ntChips.every((t) => t.w === 16 && t.h === 16), 'new tab: shortcut chip logos are 16x16 (unchanged)', JSON.stringify(ntChips.map((t) => [hostOfOrigin(t.origin), t.w])));
+    // the design's chip plate is 18x18 (design style.css:367), and the logo fills it
+    check(ntChips.length >= 5 && ntChips.every((t) => t.w === 18 && t.h === 18), 'new tab: shortcut chip logos are 18x18 (the design chip plate)', JSON.stringify(ntChips.map((t) => [hostOfOrigin(t.origin), t.w])));
     const ntOld = (await inGuest(IS_NEWTAB, `document.querySelectorAll(${JSON.stringify(NT_SEL)}).length`)) || 0;
     console.log('[e2e] new tab icon nodes (any kind): ' + ntOld + ', PageFavicons ' + JSON.stringify(await inGuest(IS_NEWTAB, 'window.PageFavicons && window.PageFavicons.describe()')));
     await guestShot(IS_NEWTAB, 'newtab-dark');

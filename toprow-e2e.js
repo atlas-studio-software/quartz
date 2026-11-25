@@ -334,11 +334,14 @@ async function step(name, src, expectKind, settleMs) {
     await sleep(500);
     const ntId = await ev('getActiveTab().id');
     const home1 = await ev('Toprow.status()');
-    // No scrim: the row is the picture under the shared wash alone, at the wash's alpha (dark: the strip
-    // has no fill), the same alpha the backdrop reports.
+    // No scrim: the row is the picture under the shared wash and the design's top shade (backdrop.css
+    // .backdrop::after, design style.css:105-108: .28 at row 0), nothing else (dark: the strip has no
+    // fill). Row 0 is then 1 - (1 - the wash alpha the backdrop reports) x (1 - .28).
     const glass1 = await ev('Backdrop.state().glass');
-    check(home1.top.kind === 'wash' && typeof glass1.alpha === 'number' && Math.abs(home1.top.alpha - glass1.alpha) < 0.011,
-      'new tab in front, dark, blur 0: wash at the wash alpha alone (no scrim)', JSON.stringify(home1.top) + ' vs glass alpha ' + glass1.alpha + ', blurPx ' + glass1.blurPx);
+    const SHADE = 0.28;
+    const want1 = typeof glass1.alpha === 'number' ? 1 - (1 - glass1.alpha) * (1 - SHADE) : NaN;
+    check(home1.top.kind === 'wash' && Math.abs(home1.top.alpha - want1) < 0.011,
+      'new tab in front, dark, blur 0: the wash and the design top shade alone (no scrim)', JSON.stringify(home1.top) + ' vs ' + (Number.isFinite(want1) ? want1.toFixed(3) : 'no glass alpha') + ' (glass alpha ' + glass1.alpha + ' under the .28 shade), blurPx ' + glass1.blurPx);
     check(glass1.blurPx === 0 && /blur 0/.test(home1.why), 'dark, blur 0: the why says Mantle draws the same sharp still', home1.why);
     await pixels('dark, new tab in front', 12);
 
