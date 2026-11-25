@@ -16,6 +16,10 @@
 
 :root {
   --isl-gap: 12px;          /* LOOK.md section 2: air to the window edge and between big panels */
+  /* LOOK.md section 2, Chrome rows: "tool row 40 tall, 4 below it; content (Home, a page)
+     starts at 100, 12 below the tool row". Tab row 44 (#titlebar) + 4 + 40 + 12 = 100.
+     chrome.css's 44 stays the old look's; the panels placed under the chrome follow it. */
+  --nav-h: 40px;
   --isl-r: 12px;
   --isl-r-s: 8px;
   --isl-float: var(--island-float);

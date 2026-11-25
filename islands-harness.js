@@ -116,5 +116,19 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(js.indexOf("ul.className = 'tab-ul';") >= 0 && js.indexOf("ind.className = 'tab-ind';") >= 0, 'the highlight and the underline islands.js builds carry the classes that rule leaves out');
 }
 
+// LOOK.md section 2, Chrome rows: tab row 44, tool row 40 four below it, content 12 below = 100.
+{
+  const ccss = strip(fs.readFileSync(path.join(__dirname, 'chrome.css'), 'utf8'));
+  const num = (re, src) => { const m = re.exec(src); return m ? Number(m[1]) : NaN; };
+  const titlebarH = num(/--titlebar-h:\s*(\d+)px/, ccss);
+  const tabRow = /#titlebar\s*\{[^}]*height:\s*calc\(var\(--titlebar-h\)\s*\+\s*4px\)/.test(css) ? titlebarH + 4 : NaN;
+  const navH = num(/--nav-h:\s*(\d+)px/, css);
+  const navTop = num(/\.navrow\s*\{[^}]*margin:\s*(\d+)px var\(--isl-gap\) 0/, css);
+  const gap = num(/--isl-gap:\s*(\d+)px/, css);
+  const wellGap = /#well\s*\{[^}]*margin:\s*var\(--isl-gap\)/.test(css) ? gap : NaN;
+  check(tabRow === 44 && navTop === 4 && navH === 40 && wellGap === 12 && tabRow + navTop + navH + wellGap === 100,
+    'the chrome rows: tab row 44 + 4 + tool row 40 + 12 = content at 100 (LOOK.md section 2)', [tabRow, navTop, navH, wellGap].join(' + '));
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
