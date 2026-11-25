@@ -101,5 +101,20 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(ncss.indexOf('.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }') >= 0, 'chips and tiles: a .07 sheen on hover only');
 }
 
+/* ---- the tab row's layers stay out of its flex row (taboverflow-e2e) ---- */
+{
+  // Every rule in islands.css that sets `position` on the titlebar's direct children: none of them
+  // may reach the absolutely placed ones (the plate, the highlight, its underline, tabfit.js's edge
+  // buttons); a relative one there puts them in the row, after the caption buttons.
+  const absKids = ['isl-plate', 'tab-ind', 'tab-ul', 'strip-edge'];
+  const rules = css.match(/#titlebar\s*>[^{]*\{[^}]*\bposition:\s*relative[^}]*\}/g) || [];
+  check(rules.length >= 1, 'islands.css lifts the titlebar\'s flex items over the plate', rules.length);
+  const leaks = rules.filter((r) => { const sel = r.slice(0, r.indexOf('{')); return absKids.some((k) => sel.indexOf('.' + k) < 0); });
+  check(!leaks.length, 'that rule leaves the plate, the highlight, the underline and the edge buttons absolutely placed', leaks);
+  const tabfitSrc = fs.readFileSync(path.join(__dirname, 'tabfit.js'), 'utf8');
+  check(tabfitSrc.indexOf("b.className = 'strip-edge no-drag';") >= 0, 'the edge buttons tabfit.js builds still carry .strip-edge (the class that rule leaves out)');
+  check(js.indexOf("ul.className = 'tab-ul';") >= 0 && js.indexOf("ind.className = 'tab-ind';") >= 0, 'the highlight and the underline islands.js builds carry the classes that rule leaves out');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

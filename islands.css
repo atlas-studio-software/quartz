@@ -56,7 +56,13 @@ html .navrow {
   padding: 6px 0 0 var(--isl-gap);
   align-items: center;
 }
-#titlebar > :not(.isl-plate):not(.tab-ind) { position: relative; z-index: 2; }
+/* Over the plate and the highlight. Only the row's own flex items: the
+   absolutely placed children (the plate, the highlight, its underline and
+   tabfit.js's two edge buttons, anchored on the strip's box) must stay out
+   of the row, or they take width from it and the edge buttons land after
+   the caption buttons instead of in their fades (taboverflow-e2e). */
+#titlebar > :not(.isl-plate, .tab-ind, .tab-ul, .strip-edge) { position: relative; z-index: 2; }
+/* the chips' air inside the tabs plate; tabfit.js takes it off the room it plans with */
 #tabstrip { padding: 0 4px; }
 
 .navrow {

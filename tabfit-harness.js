@@ -197,6 +197,34 @@ ok('edgeFor: no active chip, the design width', T.edgeFor(100, 0, 30, 22) === 30
   ok('@163px: and the left page brings the active chip back', s2 === 0, s2);
 }
 
+/* ---- the room the chips have: the look pads the strip inside its plate (islands.css) ---------- */
+{
+  // a 500px window in the look: 12px air at the left, 4px gaps, the + (28), the spacer's floor (24),
+  // the caption buttons (138 + 8 margin); the strip has 4px of padding at each end
+  const row = { inner: 488, gap: 4, others: [28, 24, 146], items: 4, stripBox: 8 };
+  const room = T.chipRoom(row);
+  ok('chipRoom: the row minus the others, the gaps and the strip\'s own padding', room === 488 - 198 - 12 - 8, room);
+  ok('chipRoom: an unpadded strip gets the padding back', T.chipRoom(Object.assign({}, row, { stripBox: 0 })) === room + 8);
+  // the strip box the row gives is room + padding; whatever the plan, its chips + gaps + padding
+  // never outgrow that box, so a strip that fits never scrolls by its own padding (taboverflow-e2e
+  // @1920: 16 tabs fit, yet one was counted hidden on each side)
+  let worst = null;
+  for (const W of [500, 800, 1024, 1280, 1920]) {
+    for (let flex = 1; flex <= 40; flex++) {
+      const r = Object.assign({}, row, { inner: W - 12 });
+      const a = T.chipRoom(r), box = a + r.stripBox;
+      const p = P({ avail: a, flex });
+      if (!p.fit || p.overflow) continue;
+      const used = 104 + flex * p.w + flex * 4 + r.stripBox;
+      if (used > box + 0.01 && !worst) worst = { W, flex, used, box };
+    }
+  }
+  ok('a fitted strip (chips + gaps + its padding) stays inside the box the row gives it', !worst, worst);
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'tabfit.js'), 'utf8');
+  ok('availWidth plans with the strip\'s padding and border taken off (chipRoom)',
+    /row\.stripBox = px\(ecs\.paddingLeft[^;]*borderRightWidth/.test(src) && /return chipRoom\(row\);/.test(src));
+}
+
 /* ---- small things ------------------------------------------------------------------------- */
 ok('wheel lines are 40px', T.wheelPx(3, 1) === 120);
 ok('wheel pages are the strip', T.wheelPx(1, 2, 333) === 333);

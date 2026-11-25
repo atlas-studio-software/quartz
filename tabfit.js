@@ -173,6 +173,19 @@
     return clamp(s + (fwd ? page : -page));
   }
 
+  /**
+   * The px the chips may have, from the titlebar row as measured (availWidth).
+   * @param {{inner:number, gap:number, others:number[], items:number, stripBox:number}} row
+   *   inner: the titlebar's content width. others: the outer widths of the row's other
+   *   flex items (the spacer at its floor). items: how many flex items, the strip
+   *   included (each pair has one gap). stripBox: the strip's own padding + border,
+   *   which the chips cannot use.
+   */
+  function chipRoom(row) {
+    const others = (row.others || []).reduce((a, b) => a + (Number(b) || 0), 0);
+    return row.inner - others - Math.max(0, (row.items | 0) - 1) * (row.gap || 0) - (row.stripBox || 0);
+  }
+
   /** A wheel event's vertical travel in px (deltaMode 1 = lines, 2 = pages). */
   function wheelPx(deltaY, deltaMode, pagePx) {
     const d = Number(deltaY) || 0;
@@ -184,7 +197,7 @@
   /** What an edge button says: the count, capped so the button never outgrows its fade. */
   function countText(n) { return n > 99 ? '99+' : String(n); }
 
-  const API = { plan, hidden, revealScroll, pageScroll, wheelPx, countText, insetsAt, edgeFor };
+  const API = { plan, hidden, revealScroll, pageScroll, wheelPx, countText, insetsAt, edgeFor, chipRoom };
   if (typeof module === 'object' && module && module.exports) { module.exports = API; return; }
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -246,21 +259,27 @@
     return 'flex';
   }
 
-  /** The px the strip may have: the titlebar minus everything else in its row and the spacer's floor. */
+  /**
+   * The px the CHIPS may have: the titlebar minus everything else in its row and the
+   * spacer's floor, minus the strip's own padding and border (the look's air inside the
+   * tabs plate, islands.css): the plan lays chips and gaps end to end, so a strip with
+   * padding the plan did not know about overflows by exactly that much.
+   */
   function availWidth() {
     const cs = getComputedStyle(titlebar);
-    let w = titlebar.clientWidth - px(cs.paddingLeft, 0) - px(cs.paddingRight, 0);
-    const gap = px(cs.columnGap, 0);
-    let items = 0;
+    const row = { inner: titlebar.clientWidth - px(cs.paddingLeft, 0) - px(cs.paddingRight, 0), gap: px(cs.columnGap, 0), others: [], items: 0, stripBox: 0 };
     for (const el of titlebar.children) {
       const ecs = getComputedStyle(el);
       if (ecs.display === 'none' || ecs.position === 'absolute' || ecs.position === 'fixed') continue;
-      items++;
-      if (el === strip) continue;
-      if (el.classList.contains('spacer')) { w -= px(ecs.minWidth, 0); continue; }
-      w -= el.getBoundingClientRect().width + px(ecs.marginLeft, 0) + px(ecs.marginRight, 0);
+      row.items++;
+      if (el === strip) {
+        row.stripBox = px(ecs.paddingLeft, 0) + px(ecs.paddingRight, 0) + px(ecs.borderLeftWidth, 0) + px(ecs.borderRightWidth, 0);
+        continue;
+      }
+      if (el.classList.contains('spacer')) { row.others.push(px(ecs.minWidth, 0)); continue; }
+      row.others.push(el.getBoundingClientRect().width + px(ecs.marginLeft, 0) + px(ecs.marginRight, 0));
     }
-    return w - Math.max(0, items - 1) * gap;
+    return chipRoom(row);
   }
 
   /** Chips in the strip's content coordinates (#tabstrip is their offsetParent; transforms ignored). */
