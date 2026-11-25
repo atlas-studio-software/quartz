@@ -1241,6 +1241,7 @@ function create(deps) {
 
 module.exports = {
   create,
+  DELTA_FLUSH_MS,
   maskKey,
   cleanKey,
   capHistory,

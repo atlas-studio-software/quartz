@@ -168,6 +168,7 @@ near('cost unknown model errs high', C.estimateCost('claude-mystery', { input: 1
     eq('answer: text with [n] markers, lead-in dropped', done.text, 'Quartz is a hard mineral made of silica [1], and it keeps time in watches [2][1] because it vibrates at a steady frequency.');
     eq('answer: deltas add up to the final text', deltas(got), done.text);
     ok('answer: streamed in more than one delta', got.filter((o) => o.phase === 'delta').length >= 2, got.length);
+    ok('answer: the mock pauses past the delta window, so the delta count does not ride on timer resolution', M.OK_GAP_MS >= 3 * C.DELTA_FLUSH_MS, [M.OK_GAP_MS, C.DELTA_FLUSH_MS]);
     eq('answer: citations', done.citations, [
       { n: 1, url: M.URL_A, title: 'Quartz - Wikipedia', host: 'en.wikipedia.org' },
       { n: 2, url: M.URL_B, title: 'Quartz | Britannica', host: 'britannica.com' }]);

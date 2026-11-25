@@ -8,6 +8,7 @@
 // Every request is recorded: method, path, the auth headers, the parsed body, and whether the
 // client hung up before the answer ended (`aborted`).
 'use strict';
+const OK_GAP_MS = 150;
 const http = require('http');
 
 const GOOD_KEY_PREFIX = 'sk-ant-api03-good';
@@ -79,6 +80,7 @@ function start(opts) {
     }
   }
 
+  /* the 'ok' answer's pause before its last text block (ms): longer than claudeanswer.js DELTA_FLUSH_MS */
   function stream(rec, res, sc, model) {
     res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', 'request-id': 'req_mock_' + requests.length });
     const q = [];   // [delayMs, text]
@@ -220,7 +222,12 @@ function start(opts) {
         search(1, 'quartz mineral', results);
         text(3, ['Quartz is a hard mineral ', 'made of silica'], [citeA]);
         text(4, [', and it keeps time in watches'], [citeB, citeA]);
-        text(5, [' because it vibrates at a steady frequency.']);
+        // A real pause before the last block, well past claudeanswer.js's 40 ms delta window, so the
+        // answer reaches the page in more than one delta on any machine. Without it the stream's only
+        // pacing was the 2 ms chunk splits, which last ~15 ms each at Windows' default timer
+        // resolution but ~2 ms when something on the machine has raised it, and then the whole
+        // answer fit in one window.
+        text(5, [' because it vibrates at a steady frequency.'], null, OK_GAP_MS);
         end('end_turn', { input_tokens: 5200, cache_creation_input_tokens: 600, cache_read_input_tokens: 0, output_tokens: 120, server_tool_use: { web_search_requests: 1 } });
         break;
     }
@@ -259,4 +266,4 @@ function start(opts) {
   });
 }
 
-module.exports = { start, GOOD_KEY_PREFIX, URL_A, URL_B };
+module.exports = { start, GOOD_KEY_PREFIX, URL_A, URL_B, OK_GAP_MS };
