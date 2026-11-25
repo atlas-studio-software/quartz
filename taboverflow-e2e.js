@@ -54,7 +54,8 @@ const PROBE = `(() => {
         const r = R(c);
         const st = r.left < clearL - 0.5 ? 'L' : r.right > clearR + 0.5 ? 'R' : 'in';
         if (st === 'L') left++; else if (st === 'R') right++; else shown++;
-        return { id: c.dataset.tabId, w: r.width, st, active: c.classList.contains('active'), pinned: c.classList.contains('pinned') };
+        // x: the chip's start in the strip's scrolled content (tabfit.js's offsetLeft)
+        return { id: c.dataset.tabId, w: r.width, x: r.left - s.left + strip.scrollLeft, st, active: c.classList.contains('active'), pinned: c.classList.contains('pinned') };
       });
       const num = (b) => (b && !b.hidden) ? Number((b.querySelector('.strip-edge-n') || {}).textContent) : 0;
       const badge = document.querySelector('#tabsearch-btn .ts-hidden-n');
@@ -74,6 +75,7 @@ const PROBE = `(() => {
         stripR: s.right, ntL: nt.left, ntR: nt.right,
         spacerW: sp ? R(sp).width : -1, wcL: wc ? R(wc).left : -1, wcR: wc ? R(wc).right : -1,
         vw: innerWidth, scrollLeft: strip.scrollLeft, maxScroll: strip.scrollWidth - strip.clientWidth,
+        cw: strip.clientWidth, edgeNow: edge,
         tabMin: parseFloat(getComputedStyle(strip).getPropertyValue('--tab-min')) || 104,
         floor: parseFloat(getComputedStyle(strip).getPropertyValue('--tab-fit-floor')) || 48
       };
@@ -206,14 +208,24 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
         check(await clickEdge('tabstrip-next'), tag + ': the right edge button is there to click');
         const m1 = await M();
         const nextRow = m1.rows.find((x) => x.id === nextUp);
-        check(m1.scrollLeft >= s0 + m0.floor - 0.5 && m1.right < m0.right, tag + ': the right edge button pages right', { s0, s1: m1.scrollLeft, right0: m0.right, right1: m1.right });
+        // A page moves at least one chip's floor, unless it cannot: the strip's end is nearer, or
+        // the page that puts the next hidden chip first in the clear (past the left fade, which
+        // shows once it scrolls) is shorter, as when a 72px active chip (the design's --tab-min)
+        // is the only one in the clear.
+        const nr0 = m0.rows.find((x) => x.id === nextUp);
+        const needR = Math.min(m0.floor, m0.maxScroll - s0, nr0 ? nr0.x - m0.edgeNow - s0 : m0.floor);
+        check(m1.scrollLeft >= s0 + needR - 0.5 && m1.right < m0.right, tag + ': the right edge button pages right', { s0, s1: m1.scrollLeft, need: needR, right0: m0.right, right1: m1.right });
         check(!!nextRow && nextRow.st === 'in', tag + ': and the first tab that was hidden on the right is in the clear (no tab skipped)', nextRow || nextUp);
         invariants(tag + ' paged', m1, true);
         const prevUp = (m1.rows.filter((x) => x.st === 'L').pop() || {}).id;
         check(await clickEdge('tabstrip-prev'), tag + ': the left edge button is there to click');
         const m2 = await M();
         const prevRow = m2.rows.find((x) => x.id === prevUp);
-        check(m2.scrollLeft <= m1.scrollLeft - m1.floor + 0.5 && m2.left < m1.left, tag + ': the left edge button pages back', { s1: m1.scrollLeft, s2: m2.scrollLeft, left1: m1.left, left2: m2.left });
+        // the mirror: a floor, unless the strip's start is nearer or the page that puts the
+        // previous hidden chip last in the clear (before the right fade) is shorter
+        const pr1 = m1.rows.find((x) => x.id === prevUp);
+        const needL = Math.min(m1.floor, m1.scrollLeft, pr1 ? m1.scrollLeft + m1.cw - m1.edgeNow - (pr1.x + pr1.w) : m1.floor);
+        check(m2.scrollLeft <= m1.scrollLeft - needL + 0.5 && m2.left < m1.left, tag + ': the left edge button pages back', { s1: m1.scrollLeft, s2: m2.scrollLeft, need: needL, left1: m1.left, left2: m2.left });
         check(!!prevRow && prevRow.st === 'in', tag + ': and the last tab that was hidden on the left is in the clear (no tab skipped)', prevRow || prevUp);
         invariants(tag + ' paged back', m2, true);
         // scrolled away from the tab in front, what brings it back: activating it again (the tab
