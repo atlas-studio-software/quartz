@@ -149,6 +149,15 @@ html .navrow {
 #win-close:hover { background: var(--caption-close); }
 #win-close:active { background: var(--caption-close-press); }
 
+/* ---------- hover and press (LOOK.md section 10: "Hover / press: 160. Press =
+   scale 0.94 (small buttons), 0.97 (pills), 0.985 (big tiles)") ---------- */
+.navrow > button, #newtab, #workspace-pill {
+  transition: background-color var(--m-press) var(--m-ease-look), color var(--m-press) var(--m-ease-look),
+              border-color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look);
+}
+.navrow > button:active:not(:disabled), #newtab:active { scale: var(--m-press-small); }
+#workspace-pill:active { scale: var(--m-press-pill); }
+
 /* ---------- toolbar: nav / address / tools ---------- */
 .navrow > button { border-radius: var(--isl-r-s); }
 .navrow > button:hover { background: var(--isl-fill-2); }
@@ -173,7 +182,7 @@ html .navrow {
 #views {
   border-radius: var(--isl-r);
   overflow: hidden;
-  box-shadow: var(--isl-float);
+  box-shadow: var(--island-float-sheet);   /* LOOK.md section 6: a floating web page */
 }
 #sidepane {
   border-radius: var(--isl-r);
@@ -222,6 +231,7 @@ html .navrow {
 
 @media (prefers-reduced-motion: reduce) {
   .tab-ind, .tab-ul { transition: none; }
+  .navrow > button:active, #newtab:active, #workspace-pill:active { scale: none; }
   /* no travel: app.js hides the leaving body at once, the arriving one just shows */
   #views > webview, #views > .claude-view { animation: none !important; }
 }

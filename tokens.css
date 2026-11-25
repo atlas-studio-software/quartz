@@ -129,11 +129,14 @@
      soft shadows only, no hairline; the brightness check's neutral film */
   --island-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);
   --island-float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
+  /* LOOK.md section 6: "A floating web page / content sheet" (the well, #views) */
+  --island-float-sheet: 0 2px 4px rgba(0, 12, 16, 0.18), 0 24px 48px -12px rgba(0, 12, 16, 0.45), 0 60px 100px -40px rgba(0, 12, 16, 0.6);
   --island-film-rgb: 10 12 14;
   --island-fill-1: rgba(255, 255, 255, 0.07);
   --island-fill-2: rgba(255, 255, 255, 0.12);
   --island-fill-press: rgba(255, 255, 255, 0.05);
-  --island-ind: rgba(255, 255, 255, 0.16);
+  --island-sheen-big: rgba(255, 255, 255, 0.05);   /* LOOK.md section 3: hover sheen .05 on big panels */
+  --island-ind: rgba(255, 255, 255, 0.18);          /* LOOK.md section 8: the selected fill, .18 */
   --island-ind-edge: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 3px rgba(0, 12, 16, 0.25);
   --island-glyph-lift: drop-shadow(0 1px 1px rgba(0, 12, 16, 0.4));
   /* the caption close button's hover (LOOK.md section 2: the Windows red) */
@@ -229,6 +232,7 @@ html[data-theme="light"] {
   --island-fill-1: rgba(11, 14, 26, 0.05);
   --island-fill-2: rgba(11, 14, 26, 0.09);
   --island-fill-press: rgba(11, 14, 26, 0.04);
+  --island-sheen-big: rgba(11, 14, 26, 0.035);     /* .05 of .07, as dark's big sheen is of its hover */
   --island-ind: rgba(255, 255, 255, 0.55);
   --chart-box: rgba(11, 14, 26, 0.04);
   --chart-box-hover: rgba(11, 14, 26, 0.07);
@@ -466,6 +470,10 @@ html[data-theme="light"] [data-palette="mono"] {
   --m-lift-fade-delay: 40ms;                   /* ... +40 */
   --m-lift-move: 460ms;                        /* transform 460 ... */
   --m-lift-move-delay: 20ms;                   /* ... +20 */
+  --m-press: 160ms;                            /* "Hover / press: 160" */
+  --m-press-small: 0.94;                       /* "Press = scale 0.94 (small buttons), */
+  --m-press-pill: 0.97;                        /*  0.97 (pills), */
+  --m-press-tile: 0.985;                       /*  0.985 (big tiles)" */
 
   /* the background layer (backdrop.js may override per the user's setting) */
   --bg-blur: 5px;                        /* the Helm setting (Helm settings.json background.blur) */

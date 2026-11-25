@@ -175,5 +175,26 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     'activateTab: Home on either side sinks and lifts, page to page cross-fades');
 }
 
+/* ---- lift, hover and press numbers (LOOK.md sections 6, 8, 10) ---- */
+{
+  const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  const ncss = strip(fs.readFileSync(path.join(__dirname, 'newtab.css'), 'utf8'));
+  check(tok.indexOf('--island-float: 0 1px 1px rgba(0, 12, 16, 0.14), 0 8px 18px -6px rgba(0, 12, 16, 0.32), 0 30px 56px -26px rgba(0, 12, 16, 0.52);') >= 0, '--float: LOOK.md section 6');
+  check(tok.indexOf('--island-float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);') >= 0, '--float-hi: LOOK.md section 6');
+  check(tok.indexOf('--island-float-sheet: 0 2px 4px rgba(0, 12, 16, 0.18), 0 24px 48px -12px rgba(0, 12, 16, 0.45), 0 60px 100px -40px rgba(0, 12, 16, 0.6);') >= 0
+    && /#views\s*\{[^}]*box-shadow:\s*var\(--island-float-sheet\)/.test(css), 'a floating page wears the sheet shadow');
+  check(tok.indexOf('--island-fill-1: rgba(255, 255, 255, 0.07);') >= 0 && tok.indexOf('--island-fill-2: rgba(255, 255, 255, 0.12);') >= 0
+    && tok.indexOf('--island-ind: rgba(255, 255, 255, 0.18);') >= 0 && tok.indexOf('--island-fill-press: rgba(255, 255, 255, 0.05);') >= 0
+    && tok.indexOf('--island-sheen-big: rgba(255, 255, 255, 0.05);') >= 0, 'fills .07 / .12 / .18, pressed .05, big-panel sheen .05');
+  check(tok.indexOf('--m-press: 160ms;') >= 0 && tok.indexOf('--m-press-small: 0.94;') >= 0 && tok.indexOf('--m-press-pill: 0.97;') >= 0 && tok.indexOf('--m-press-tile: 0.985;') >= 0,
+    'hover / press 160; press 0.94 / 0.97 / 0.985');
+  check(/\.navrow > button:active:not\(:disabled\), #newtab:active \{ scale: var\(--m-press-small\); \}/.test(css) && /#workspace-pill:active \{ scale: var\(--m-press-pill\); \}/.test(css),
+    'toolbar buttons press to 0.94, the workspace pill to 0.97');
+  check(/\.chip:active, \.rtile:active \{ scale: var\(--m-press-pill\); \}/.test(ncss) && /\.chip:hover:not\(:focus-visible\), \.rtile:hover:not\(:focus-visible\) \{ box-shadow: var\(--island-float-hi\); \}/.test(ncss),
+    'Home chips and tiles: --float-hi on hover, 0.97 pressed');
+  const tr = (ncss.match(/\.chip, \.rtile \{\s*transition:[^}]*\}/) || [''])[0] + (css.match(/\.navrow > button, #newtab, #workspace-pill \{\s*transition:[^}]*\}/) || [''])[0];
+  check(tr && !/box-shadow|filter/.test(tr) && (tr.match(/scale var\(--m-press\)/g) || []).length === 2, 'the press scales in 160; no shadow or filter is animated', tr);
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

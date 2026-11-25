@@ -3332,3 +3332,15 @@ body.home-unfold { --home-fold: 0; }
 .chip.soft, .rtile.soft { --frost: var(--frost-soft); }
 .chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }   /* LOOK.md section 3: a .07 sheen on hover only */
 .chip:active, .rtile:active { --frost-hover: var(--island-fill-press); }
+.chip.soft:hover, .rtile.soft:hover { --frost-hover: var(--island-sheen-big); }   /* section 3: .05 on big panels */
+/* LOOK.md section 6: --float-hi on hover; section 10: "Hover / press: 160. Press = ...
+   0.97 (pills)". The shadow swaps, it is not animated (transform and opacity only). */
+.chip, .rtile {
+  transition: background-color var(--m-press) var(--m-ease-look), color var(--m-press) var(--m-ease-look),
+              border-color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look);
+}
+.chip:hover:not(:focus-visible), .rtile:hover:not(:focus-visible) { box-shadow: var(--island-float-hi); }
+.chip:active, .rtile:active { scale: var(--m-press-pill); }
+@media (prefers-reduced-motion: reduce) {
+  .chip:active, .rtile:active { scale: none; }
+}
