@@ -198,5 +198,25 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(tr && !/box-shadow|filter/.test(tr) && (tr.match(/scale var\(--m-press\)/g) || []).length === 2, 'the press scales in 160; no shadow or filter is animated', tr);
 }
 
+/* ---- pop-over motion (LOOK.md section 10) ---- */
+{
+  const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  check(['--m-pop-in-fade: 160ms;', '--m-pop-in-move: 260ms;', '--m-pop-from-y: -6px;', '--m-pop-from-s: 0.97;', '--m-pop-out-fade: 120ms;', '--m-pop-out-move: 160ms;'].every((t) => tok.indexOf(t) >= 0),
+    'pop-overs: in 160 / 260 from -6 and 0.97, out 120 / 160');
+  const ruleAt = (head) => { const k = css.indexOf(head); return k < 0 ? '' : css.slice(k, css.indexOf('}', k) + 1); };
+  const pop = ['#shield-panel, #downloads-panel, #workspaces-panel, #tabmenu, #bm-overflow, #siteinfo-panel {',
+    '#tabmenu:not([hidden]), #bm-overflow:not([hidden]), #siteinfo-panel:not([hidden]) {', '#findbar {', '#findbar:not([hidden]) {'].map(ruleAt);
+  check(pop.every((b) => /transition:/.test(b) && /m-pop-/.test(b)), 'four pop-over transition rules (panels out / in, find bar out / in)', pop);
+  check(pop.every((b) => (b.replace(/^[^{]*\{/, '').match(/(?:^|,|:)\s*([a-z-]+) var\(--/g) || []).map((x) => x.replace(/^[,:\s]*/, '').split(' ')[0])
+    .every((p) => ['opacity', 'translate', 'scale', 'display', 'background-color', 'color', 'border-color', 'transition'].indexOf(p) >= 0)),
+    'pop-overs move on opacity / translate / scale only (the find bar keeps its theme colours)');
+  check(pop.filter((b) => /:not\(\[hidden\]\)/.test(b)).every((b) => /opacity var\(--m-pop-in-fade\) var\(--m-ease-lift\)/.test(b) && /translate var\(--m-pop-in-move\) var\(--m-ease-lift\)/.test(b) && /scale var\(--m-pop-in-move\) var\(--m-ease-lift\)/.test(b)),
+    'opening: ease-lift, 160 opacity, 260 transform');
+  const ccss = strip(fs.readFileSync(path.join(__dirname, 'chrome.css'), 'utf8'));
+  const rm = ccss.slice(ccss.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+  check(/#findbar \{[^}]*transition: opacity var\(--m-dur-rm\) var\(--m-fade-in\), display var\(--m-dur-rm\) allow-discrete !important;/.test(rm.replace(/#siteinfo-panel,[^{]*#findbar/, '#findbar'))
+    && /scale: none !important;/.test(rm), 'reduced motion: chrome.css still forces the 120 ms opacity fade over these (!important)');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

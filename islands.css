@@ -190,6 +190,56 @@ html .navrow {
   box-shadow: var(--isl-float);
 }
 
+/* ---------- pop-overs (LOOK.md section 10: "Pop-overs: in 160 opacity / 260
+   translate + scale from -6 and 0.97 (ease-lift); out 120 / 160") ----------
+   The panels and menus keep chrome.css's shared mechanics ([hidden] flips
+   clicks at once, display waits for the fade, @starting-style from
+   --m-from-y / --m-from-s); only the numbers are the look's. Each grows from
+   the corner it hangs from. Site info keeps its fade without travel (its
+   selects lay out again on every moving frame, chrome.css). The settings
+   sheet and the palette are centred dialogs, not pop-overs: unchanged.
+   Reduced motion: chrome.css's !important 120 ms opacity fade still wins. */
+#shield-panel, #downloads-panel, #workspaces-panel, #tabmenu, #bm-overflow, #siteinfo-panel {
+  --m-from-y: var(--m-pop-from-y);
+  --m-from-s: var(--m-pop-from-s);
+  transition:
+    opacity var(--m-pop-out-fade) var(--m-ease-look),
+    translate var(--m-pop-out-move) var(--m-ease-look),
+    scale var(--m-pop-out-move) var(--m-ease-look),
+    display var(--m-pop-out-move) allow-discrete;
+}
+#siteinfo-panel { --m-from-y: 0px; --m-from-s: 1; }
+#shield-panel:not([hidden]), #downloads-panel:not([hidden]), #workspaces-panel:not([hidden]),
+#tabmenu:not([hidden]), #bm-overflow:not([hidden]), #siteinfo-panel:not([hidden]) {
+  transition:
+    opacity var(--m-pop-in-fade) var(--m-ease-lift),
+    translate var(--m-pop-in-move) var(--m-ease-lift),
+    scale var(--m-pop-in-move) var(--m-ease-lift);
+}
+#shield-panel, #downloads-panel { transform-origin: top right; }   /* under their button's right edge */
+#workspaces-panel, #siteinfo-panel { transform-origin: top left; } /* under the pill / the lock's left edge */
+/* the find bar, at the chrome's right edge; its theme tempo stays */
+#findbar {
+  transform-origin: top right;
+  transition: background-color var(--dur-slow) var(--ease), color var(--dur-slow) var(--ease),
+              border-color var(--dur-slow) var(--ease),
+              opacity var(--m-pop-out-fade) var(--m-ease-look),
+              translate var(--m-pop-out-move) var(--m-ease-look),
+              scale var(--m-pop-out-move) var(--m-ease-look),
+              display var(--m-pop-out-move) allow-discrete;
+}
+#findbar:not([hidden]) {
+  transition: background-color var(--dur-slow) var(--ease), color var(--dur-slow) var(--ease),
+              border-color var(--dur-slow) var(--ease),
+              opacity var(--m-pop-in-fade) var(--m-ease-lift),
+              translate var(--m-pop-in-move) var(--m-ease-lift),
+              scale var(--m-pop-in-move) var(--m-ease-lift);
+}
+#findbar[hidden] { scale: calc((1 + var(--m-pop-from-s)) / 2); }
+@starting-style {
+  #findbar:not([hidden]) { opacity: 0; translate: 0 var(--m-pop-from-y); scale: var(--m-pop-from-s); }
+}
+
 /* sink and lift (LOOK.md section 10): "the leaving view sinks (opacity 0 in
    200, translateY 12 + scale 0.955 in 300, ease). The arriving one lifts from
    translateY 28 + scale 0.965 (opacity 240 +40 delay, transform 460 +20,

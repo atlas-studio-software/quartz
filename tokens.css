@@ -474,6 +474,12 @@ html[data-theme="light"] [data-palette="mono"] {
   --m-press-small: 0.94;                       /* "Press = scale 0.94 (small buttons), */
   --m-press-pill: 0.97;                        /*  0.97 (pills), */
   --m-press-tile: 0.985;                       /*  0.985 (big tiles)" */
+  --m-pop-in-fade: 160ms;                      /* pop-overs: "in 160 opacity / */
+  --m-pop-in-move: 260ms;                      /*  260 translate + scale */
+  --m-pop-from-y: -6px;                        /*  from -6 */
+  --m-pop-from-s: 0.97;                        /*  and 0.97 (ease-lift); */
+  --m-pop-out-fade: 120ms;                     /*  out 120 / */
+  --m-pop-out-move: 160ms;                     /*  160" */
 
   /* the background layer (backdrop.js may override per the user's setting) */
   --bg-blur: 5px;                        /* the Helm setting (Helm settings.json background.blur) */
