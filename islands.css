@@ -31,8 +31,8 @@
   --pop-gap: var(--isl-gap);
   --isl-r: 12px;
   --isl-r-s: 8px;
-  --isl-float: var(--island-float);
-  --isl-float-hi: var(--island-float-hi);
+  --isl-float: var(--float);          /* the design's own lift (tokens.css) */
+  --isl-float-hi: var(--float-hi);
   --isl-ease-lift: var(--m-ease-lift);
   --isl-fill-1: var(--island-fill-1);
   --isl-fill-2: var(--island-fill-2);
@@ -188,6 +188,13 @@ html .navrow {
   overflow: hidden;
   box-shadow: var(--island-float-sheet);   /* LOOK.md section 6: a floating web page */
 }
+/* Home in front on its own (app.js syncHomeLayer sets data-home-front): no
+   sheet at all. The design's Home is not a page: it sits straight on the
+   picture from 12 below the tool row to the window's edges, and its own
+   padding (newtab.css) keeps the 12 of air, so the islands' shadows are not
+   cut 12 px short of the window and no big sheet outline shows round them. */
+#well:has(> #views[data-home-front]):not(:has(> #sidepane:not([hidden]))) { margin: var(--isl-gap) 0 0; }
+#views[data-home-front] { border-radius: 0; box-shadow: none; }
 #sidepane {
   border-radius: var(--isl-r);
   border-left: 0;

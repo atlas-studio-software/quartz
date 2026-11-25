@@ -165,7 +165,11 @@ try {
   ok(/saturate: 100,/.test(bjs.slice(bjs.indexOf('function glassSnapshot()'), bjs.indexOf('function glassKeyOf('))),
     'state().glass.saturate is 100 in both themes');
   const cssCode = bcss.replace(/\/\*[\s\S]*?\*\//g, '');
-  ok(!/::after/.test(cssCode) && !/96px/.test(cssCode), 'backdrop.css: no Home-only scrim (::after) left');
+  // The approved floating look's top shade took the old Home-only 96px scrim's place: theme-free, on
+  // whenever a picture is shown (whatever tab is in front), rgb(8 10 12 / .28) at the top, 0 by 180px.
+  ok(!/96px/.test(cssCode) && (cssCode.match(/::after/g) || []).length === 3
+    && /\.backdrop::after \{[^}]*linear-gradient\(180deg, rgb\(var\(--shade-rgb\) \/ 0\.28\) 0, rgb\(var\(--shade-rgb\) \/ 0\) 180px\)/.test(cssCode)
+    && /body\[data-bg-home\] \.backdrop::after/.test(cssCode), "backdrop.css: no Home-only scrim; the design's top shade over the picture");
   ok(!/saturate\(/.test(cssCode), 'backdrop.css: no saturate()');
   ok(/var\(--chrome-glass-a, 0\.2\)\)/.test(cssCode) && !/var\(--chrome-glass-a, 0\.(5|45|3)\)/.test(cssCode),
     'backdrop.css: the wash fallback is the seed Dim .20 in both themes (CONTRACT, 2026-11-24)');

@@ -229,7 +229,7 @@ html[data-theme="light"] #bg-dim {
 /* Why there is no picture: quiet, bottom-left, in words. */
 .bg-note {
   position: fixed;
-  left: 52px;                      /* right of the Home's Edit pencil */
+  left: 60px;                      /* right of the Home's Edit pencil (12 + 40 + 8) */
   bottom: 12px;
   z-index: 2;
   max-width: min(560px, calc(100vw - 68px));
@@ -259,7 +259,10 @@ html[data-theme="light"] #bg-dim {
     minmax(var(--rail-w), 1fr);
   column-gap: 32px;
   min-height: 100%;
-  padding: 0 24px;
+  /* The design's Home box: 24 under the tool row's 12 of air, 12 at the
+     sides and the foot. With Home alone in front the guest reaches the
+     window's edges (islands.css data-home-front), so these are the window's. */
+  padding: 24px 12px 12px;
 }
 
 .home-rail {
@@ -267,7 +270,7 @@ html[data-theme="light"] #bg-dim {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 24px 0;
+  padding: 0;
 }
 
 .home-left  { align-items: flex-start; }
@@ -609,7 +612,7 @@ html.home-measure .home { grid-template-rows: 100vh; }
    pencil at the foot (markup order, top to bottom). */
 .home-edit {
   position: fixed;
-  left: 16px;
+  left: 12px;                      /* the design's .home-edit: 12 from the window's corner */
   bottom: 12px;
   z-index: 6;
   display: flex;
@@ -632,10 +635,10 @@ html.home-measure .home { grid-template-rows: 100vh; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
+  gap: 8px;
+  min-width: 40px;                 /* the design's .edit-btn: 40 tall, 0 12 */
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
   background: var(--surface-2);
@@ -658,11 +661,11 @@ html.home-measure .home { grid-template-rows: 100vh; }
 
 .home-edit-btn[disabled] { opacity: var(--disabled-opacity); cursor: default; }
 
-.home-edit-icon { width: 14px; height: 14px; }
+.home-edit-icon { width: 16px; height: 16px; }
 .home-edit-done { display: none; }
 
 .home-edit-btn[aria-pressed="true"] {
-  padding: 0 14px;
+  padding: 0 12px;
   border-color: var(--accent-line);
   background: var(--accent-soft);
   color: var(--text);
@@ -3303,24 +3306,34 @@ body.home-unfold { --home-fold: 0; }
 :root {
   --frost: none;
   --frost-soft: none;
-  --isl-float: var(--island-float);
+  --isl-float: var(--float);
 }
+/* The design's island (its .frost): the hover sheen on top, the brightness
+   check's film, the wash, the blurred picture; no edge, the design's
+   --float under it and its text shadow on the ink. Every card (the System
+   card and a lone Apps card too), the search box and the Edit pencil. */
 .frost,
-.module.frost {
+.module.frost,
+.dock.is-alone,
+.home-edit-btn {
   background:
+    linear-gradient(rgb(var(--sheen-rgb) / var(--sheen, 0)), rgb(var(--sheen-rgb) / var(--sheen, 0))),
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
     linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
     var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
     var(--bg);
-  border-color: transparent;
-  box-shadow: var(--isl-float);
+  border: 0;
+  box-shadow: var(--float);
+  text-shadow: var(--island-text-lift);
 }
-.frost.soft { --frost: var(--frost-soft); }
-.module.frost { border-radius: var(--radius-l); }
-.module.frost { text-shadow: var(--island-text-lift); }
+.frost.soft, .dock.is-alone.soft, .home-edit-btn.soft { --frost: var(--frost-soft); }
+/* a card: the design's .card, radius 16 and 16 all round */
+.module.frost,
+.stats.frost,
+.dock.is-alone { border-radius: var(--look-r-l); padding: 16px; }
 
 /* the search box: the form is the island, the field inside it is clear */
-.search.frost { border-radius: var(--radius-l); }
+.search.frost { border-radius: var(--radius-pill); }
 .search.frost .search-input {
   background: transparent;
   border-color: transparent;
@@ -3328,7 +3341,12 @@ body.home-unfold { --home-fold: 0; }
           backdrop-filter: none;
   box-shadow: none;
 }
-.search.frost:focus-within { box-shadow: var(--isl-float), 0 0 0 2px var(--ion); }
+.search.frost:hover { --sheen: 0.05; }
+.search.frost:focus-within { box-shadow: var(--float-hi), 0 0 0 2px var(--ion); }
+
+/* the Edit pencil: an island pill (the design's .edit-btn) */
+.home-edit-btn:hover { --sheen: 0.07; color: var(--text); }
+.home-edit-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); text-shadow: none; }
 
 /* The shortcut chips and the Saved tiles: small islands (frost.js lines them
    up by selector, newtab.js frostHome). They lose their live blur; a hover
@@ -3344,7 +3362,8 @@ body.home-unfold { --home-fold: 0; }
   border-color: transparent;
   -webkit-backdrop-filter: none;
           backdrop-filter: none;
-  box-shadow: var(--isl-float);
+  box-shadow: var(--float);
+  text-shadow: var(--island-text-lift);   /* the design's .frost text shadow */
 }
 .chip.soft, .rtile.soft { --frost: var(--frost-soft); }
 .chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }   /* LOOK.md section 3: a .07 sheen on hover only */
@@ -3354,10 +3373,17 @@ body.home-unfold { --home-fold: 0; }
    0.97 (pills)". The shadow swaps, it is not animated (transform and opacity only). */
 .chip, .rtile {
   transition: background-color var(--m-press) var(--m-ease-look), color var(--m-press) var(--m-ease-look),
-              border-color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look);
+              border-color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look),
+              translate var(--m-press) var(--m-ease-look);
 }
-.chip:hover:not(:focus-visible), .rtile:hover:not(:focus-visible) { box-shadow: var(--island-float-hi); }
-.chip:active, .rtile:active { scale: var(--m-press-pill); }
+/* The design: a hovered chip rises 1 px, a hovered Saved tile 2 px, both on --float-hi; pressed, they
+   sit back down and shrink to .97 (its transform replaces the rise). The shadow swaps, it is not
+   animated (LOOK.md section 10: transform and opacity only). */
+.chip:hover:not(:focus-visible), .rtile:hover:not(:focus-visible) { box-shadow: var(--float-hi); }
+.chip:hover { translate: 0 -1px; }
+.rtile:hover { translate: 0 -2px; }
+.chip:active, .rtile:active { scale: var(--m-press-pill); translate: none; }
 @media (prefers-reduced-motion: reduce) {
   .chip:active, .rtile:active { scale: none; }
+  .chip:hover, .rtile:hover { translate: none; }
 }

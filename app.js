@@ -5085,11 +5085,18 @@ function syncBoardPause() {
  * navigation, and makes no call into the backdrop.
  */
 function syncHomeLayer() {
+  let shown = 0;
+  let homeShown = false;
   for (const tab of tabs) {
+    const home = tab.kind === 'page' && isNewTabUrl(tab.url);
     if (tab.viewEl && tab.viewEl.classList) {
-      tab.viewEl.classList.toggle('own-layer', tab.kind === 'page' && isNewTabUrl(tab.url));
+      tab.viewEl.classList.toggle('own-layer', home);
     }
+    if (isTabOnScreen(tab)) { shown += 1; if (home) homeShown = true; }
   }
+  // Home alone in front (no split): the well drops its sheet (islands.css),
+  // so the Home sits straight on the picture as the design draws it.
+  if (viewsEl) viewsEl.toggleAttribute('data-home-front', shown === 1 && homeShown);
 }
 
 function wireOverlayWatch() {

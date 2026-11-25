@@ -134,6 +134,8 @@
   --float-hi: 0 2px 2px rgba(0, 12, 16, 0.12), 0 14px 26px -8px rgba(0, 12, 16, 0.38), 0 44px 72px -28px rgba(0, 12, 16, 0.6);
   --text-lift: 0 1px 2px rgba(0, 14, 18, 0.35), 0 2px 18px rgba(0, 14, 18, 0.28);   /* bare text on the picture */
   --island-float: var(--float);
+  --shade-rgb: 8 10 12;                              /* the design's top shade over the picture (backdrop.css) */
+  --sheen-rgb: 255 255 255;                          /* the design's hover sheen on an island: white, in both themes */
   --island-float-hi: var(--float-hi);
   /* Ink over the picture (the design's --text .. --text-4 in dark). Theme-free: bare text on the
      picture (the clock, the Saved caption) keeps this light ink in both themes, as the design's

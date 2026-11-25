@@ -28,6 +28,9 @@
                   tint (the user's 2026-11-11 rule). A ::after gradient, if
                   one ever comes back, is still read and counted.
      .bg-wash     the wash: the one shared tint over the picture
+     ::after      .backdrop's top shade (the approved floating look, 2026-11-24:
+                  rgb(8 10 12 / .28) at row 0, gone by 180 px), only while a
+                  picture is shown; read like the wash
      #titlebar    dark: no fill (a workspace's 7% tint, if any); light:
                   --surface-0 (+ the tint); inside .chrome-layer, which
                   fades in once at boot
@@ -461,6 +464,15 @@
     var wo = num(wash.opacity, 1);
     if (wc.a > 0 && wo > 0 && wash.display !== 'none' && wash.visibility !== 'hidden') {
       layers.push({ rgb: [wc.r, wc.g, wc.b], a: wc.a * wo });
+    }
+
+    // The top shade over the picture (backdrop.css .backdrop::after), above
+    // the wash: its first stop is what it lays on row 0.
+    var shade = cs(backdropEl, '::after');
+    if (shade && shade.content !== 'none' && shade.display !== 'none') {
+      var sh = gradientTop(shade.backgroundImage);
+      if (!sh) return { none: "the top shade can't be read (" + String(shade.backgroundImage).slice(0, 80) + ')' };
+      if (sh.a > 0) layers.push({ rgb: [sh.r, sh.g, sh.b], a: sh.a });
     }
 
     if (titlebarEl) {

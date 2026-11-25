@@ -4800,7 +4800,10 @@ function homeIsPlaced(layout, id) {
 
 /** The dock rides inside the stats card until it is moved on its own. */
 function homeDockInside(layout) {
-  return layout.hidden.indexOf('stats') < 0 && !homeIsPlaced(layout, 'apps');
+  // The approved design draws System and Apps as two cards, so the dock is
+  // always its own card (.dock.is-alone) right after the stats, never inside.
+  void layout;
+  return false;
 }
 
 /**
@@ -4899,10 +4902,12 @@ function frostHome() {
   if (!frostChipsWatched && window.Frost && typeof window.Frost.watch === 'function') {
     window.Frost.watch('.chip');
     window.Frost.watch('.rtile');
+    window.Frost.watch('.dock.is-alone');   // the Apps card, an island of its own
+    window.Frost.watch('.home-edit-btn');   // the Edit pencil, an island pill
     frostChipsWatched = true;
   }
   // The clock is never an island: the design has it bare over the picture.
-  const marks = document.querySelectorAll('.module[data-kind="card"]:not(.module-clock), #search');
+  const marks = document.querySelectorAll('.module[data-kind="card"]:not(.module-clock), #search, #stats');
   for (let i = 0; i < marks.length; i += 1) {
     if (!marks[i].classList.contains('frost')) marks[i].classList.add('frost');
   }

@@ -178,6 +178,23 @@ body[data-bg-home] .backdrop > .bg-photo {
   transition: opacity var(--dur-slow) var(--ease), visibility 0s linear 320ms;
 }
 
+/* The approved design's top shade (its .wall-shade): a soft dark fall-off
+   over the top 180 px of the PICTURE, above the wash and under every island,
+   so the tab and tool islands separate from a bright sky. The islands show
+   the blurred picture without it, which is what lifts them off it. Theme-free
+   (the picture does not change with the theme), and only while a picture is
+   shown: over the plain ground it would only darken it. Static: nothing moves. */
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(var(--shade-rgb) / 0.28) 0, rgb(var(--shade-rgb) / 0) 180px);
+}
+body[data-bg-home] .backdrop::after,
+body[data-bg-state="ok"]:not([data-bg-kind="none"]) .backdrop::after { display: block; }
+
 @media (prefers-reduced-motion: reduce) {
   .backdrop > .bg-photo,
   .backdrop > .bg-wash {
