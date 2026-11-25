@@ -3528,11 +3528,11 @@ body.home-unfold { --home-fold: 0; }
           backdrop-filter: none;
   box-shadow: none;
 }
-.search.frost:hover { --sheen: 0.05; }
+.search.frost:hover { --sheen: var(--sheen-hover-big); }
 .search.frost:focus-within { box-shadow: var(--float-hi), 0 0 0 2px var(--ion); }
 
 /* the Edit pencil: an island pill (the design's .edit-btn) */
-.home-edit-btn:hover { --sheen: 0.07; color: var(--text); }
+.home-edit-btn:hover { --sheen: var(--sheen-hover); color: var(--text); }
 .home-edit-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); text-shadow: none; }
 
 /* The shortcut chips and the Saved tiles: small islands (frost.js lines them
@@ -3553,7 +3553,7 @@ body.home-unfold { --home-fold: 0; }
   text-shadow: var(--island-text-lift);   /* the design's .frost text shadow */
 }
 .chip.soft, .rtile.soft { --frost: var(--frost-soft); }
-.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }   /* LOOK.md section 3: a .07 sheen on hover only */
+.chip:hover, .rtile:hover { --frost-hover: rgb(var(--sheen-rgb) / var(--sheen-hover)); }   /* LOOK.md section 3: a .07 sheen on hover only (light: .16) */
 .chip:active, .rtile:active { --frost-hover: var(--island-fill-press); }
 .chip.soft:hover, .rtile.soft:hover { --frost-hover: var(--island-sheen-big); }   /* section 3: .05 on big panels */
 /* LOOK.md section 6: --float-hi on hover; section 10: "Hover / press: 160. Press = ...

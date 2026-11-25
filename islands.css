@@ -162,14 +162,14 @@ html .navrow {
 #newtab { border-radius: var(--radius-pill); }
 #newtab.frost { width: 32px; height: 32px; margin-left: 6px; }
 #newtab:not(.frost):hover { background: var(--isl-fill-2); }
-#newtab.frost:hover { --sheen: 0.07; color: var(--text); }
+#newtab.frost:hover { --sheen: var(--sheen-hover); color: var(--text); }
 
 /* the workspace pill: its own island before the tabs */
 #workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }
 /* the design's .ws-pill: 32 tall, 0 8 0 12, 8 between the dot, the name and the chevron, 12px 600 */
 #workspace-pill.frost { height: 32px; padding: 0 8px 0 12px; gap: 8px; border: 0; color: var(--text); font-weight: 600; }
-#workspace-pill.frost:hover { --sheen: 0.07; }
-#workspace-pill.frost.is-open { --sheen: 0.1; }
+#workspace-pill.frost:hover { --sheen: var(--sheen-hover); }
+#workspace-pill.frost.is-open { --sheen: var(--sheen-open); }
 
 /* Windows' caption buttons stay at the window's real corner (a maximised
    window still closes from the corner), bare over the picture. LOOK.md

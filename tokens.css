@@ -136,6 +136,9 @@
   --island-float: var(--float);
   --shade-rgb: 8 10 12;                              /* the design's top shade over the picture (backdrop.css) */
   --sheen-rgb: 255 255 255;                          /* the design's hover sheen on an island: white, in both themes */
+  --sheen-hover: 0.07;                               /* ... .07 on a hovered island, */
+  --sheen-hover-big: 0.05;                           /* .05 on a big one (the search box), */
+  --sheen-open: 0.1;                                 /* .10 on the button of an open pop-over */
   --island-float-hi: var(--float-hi);
   /* Ink over the picture (the design's --text .. --text-4 in dark). Theme-free: bare text on the
      picture (the clock, the Saved caption) keeps this light ink in both themes, as the design's
@@ -272,12 +275,19 @@ html[data-theme="light"] {
 
   --wash-rgb: 255 255 255;                  /* the white wash (backdrop.css) */
 
-  /* the floating islands, light: the same shadows, dark ink fills */
-  --island-fill-1: rgba(11, 14, 26, 0.05);
-  --island-fill-2: rgba(11, 14, 26, 0.09);
-  --island-fill-press: rgba(11, 14, 26, 0.04);
-  --island-sheen-big: rgba(11, 14, 26, 0.035);     /* .05 of .07, as dark's big sheen is of its hover */
-  --island-ind: rgba(255, 255, 255, 0.55);
+  /* the floating islands, light (the design's light.css): the same shadows, black fills inside an
+     island, a WHITE hover sheen (.16, .12 on the big panels, .22 under an open pop-over), the raised
+     tab highlight white .5, a hair of light under the dark ink */
+  --island-fill-1: rgba(0, 0, 0, 0.05);
+  --island-fill-2: rgba(0, 0, 0, 0.08);
+  --island-fill-press: rgba(0, 0, 0, 0.04);
+  --island-sheen-big: rgba(255, 255, 255, 0.12);
+  --sheen-hover: 0.16;
+  --sheen-hover-big: 0.12;
+  --sheen-open: 0.22;
+  --island-ind: rgba(255, 255, 255, 0.5);
+  --island-ind-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(0, 12, 16, 0.16);
+  --island-text-lift: 0 1px 1px rgba(255, 255, 255, 0.28);
   /* the design's light.css: a well inside a light island lightens (white .12, .24 hovered) */
   --chart-box: rgba(255, 255, 255, 0.12);
   --chart-box-hover: rgba(255, 255, 255, 0.24);

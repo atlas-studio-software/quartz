@@ -100,7 +100,10 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     && ncss.indexOf('::view-transition-new(stk-chart) { animation-duration: 300ms; animation-delay: 90ms;') >= 0, 'the Markets morph: 480 group, old out 200, new in 300 after 90');
   check(ncss.indexOf('.stk-big { view-transition-name: stk-scrim; }') >= 0
     && ncss.indexOf('::view-transition-old(stk-scrim), ::view-transition-new(stk-scrim) { animation-duration: 360ms;') >= 0, 'the Markets morph: the scrim fades in 360 (its own snapshot)');
-  check(ncss.indexOf('.chip:hover, .rtile:hover { --frost-hover: var(--island-fill-1); }') >= 0, 'chips and tiles: a .07 sheen on hover only');
+  // the design's sheen is white in both themes: .07 in dark, .16 in light (its light.css)
+  const tokS = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  check(ncss.indexOf('.chip:hover, .rtile:hover { --frost-hover: rgb(var(--sheen-rgb) / var(--sheen-hover)); }') >= 0
+    && tokS.indexOf('--sheen-hover: 0.07;') >= 0 && tokS.indexOf('--sheen-hover: 0.16;') >= 0, 'chips and tiles: a .07 sheen on hover only (.16 in light)');
 }
 
 /* ---- the tab row's layers stay out of its flex row (taboverflow-e2e) ---- */
