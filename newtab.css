@@ -442,9 +442,9 @@ html[data-theme="light"] #bg-dim {
    foot (above): the design's session card sits right above it, not at the
    top of the rail. */
 
-/* The app dock away from the stats card: the same card, on its own. When
-   it follows the stats in the same column it is drawn INSIDE the stats
-   card, exactly as it always was (newtab.js puts it there). */
+/* The app dock: always its own card after the stats card (the design
+   draws System and Apps as two cards). The markup has it there already,
+   so a Home nobody has moved anything on draws it that way too. */
 .dock.is-alone {
   margin-top: 0;                   /* the column's 16px gap is the space */
   padding: 16px 20px;
@@ -3519,6 +3519,30 @@ body.home-unfold { --home-fold: 0; }
 .module.frost,
 .stats.frost,
 .dock.is-alone { border-radius: var(--look-r-l); padding: 16px; }
+
+/* The System card as the design draws it (design style.css:277-278, 371-377): a
+   28px head row with its title (12px 600, the second ink) and the way into the
+   process list at its right, then the five readouts, each in its own well
+   (the first fill, radius 10, padding 10 10 8), 8 apart. The section already
+   says "System" to a screen reader (aria-label), so the title is drawn. */
+.stats.frost::before {
+  content: 'System';
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: -4px 0 12px;
+  color: var(--text-2);
+  font-size: var(--look-fs-s);
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.stats.frost .stats-open { top: 12px; right: 16px; height: 28px; }
+.stats.frost .stats-strip { gap: 8px; }
+.stats.frost .stat {
+  padding: 10px 10px 8px;
+  border-radius: var(--radius-m);
+  background: var(--island-fill-1);
+}
 
 /* the search box: the form is the island, the field inside it is clear */
 .search.frost { border-radius: var(--radius-pill); }

@@ -287,6 +287,7 @@
           </div>
         </section>
       </div>
+    </section>
 
       <!-- The app dock: what this machine opens — installed programs, web
            apps ('web:' pins, drawn with the site's favicon) and terminal
@@ -304,7 +305,7 @@
 
            The row keeps one tile-row of height whether it holds nothing or
            nine, so the card does not jump when the first pin lands. -->
-      <section id="dock" class="dock" aria-label="Apps" data-piece="apps" data-kind="wide">
+      <section id="dock" class="dock is-alone" aria-label="Apps" data-piece="apps" data-kind="wide">
         <div class="dock-head">
           <p class="dock-caption">Apps</p>
           <button id="dock-edit" class="dock-edit" type="button" aria-pressed="false">Edit</button>
@@ -326,7 +327,6 @@
           <ul id="dock-results" class="dock-results" role="listbox" aria-label="Apps to pin"></ul>
         </div>
       </section>
-    </section>
 
   </div>
 </main>

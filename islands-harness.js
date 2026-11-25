@@ -433,5 +433,17 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(loud.length === 0, 'islands.css: no transition or animation says !important outside reduced motion (it would outrank tokens.css\'s catch-all)', loud.map((r) => r.sel));
 }
 
+// The design draws System and Apps as two cards. A Home nobody has moved anything on is drawn from
+// the markup as it is (newtab.js renderHome), so the Apps card must already be out of the System
+// card there: the section tags between the two open and close as many times.
+{
+  const nt = fs.readFileSync(path.join(__dirname, 'newtab.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  const a = nt.indexOf('<section id="stats"'), b = nt.indexOf('<section id="dock"');
+  const between = a >= 0 && b > a ? nt.slice(a, b) : '';
+  const opens = (between.match(/<section\b/g) || []).length, closes = (between.match(/<\/section>/g) || []).length;
+  check(!!between && opens === closes && /<section id="dock" class="dock is-alone"/.test(nt),
+    'newtab.html: the Apps card (#dock.is-alone) follows the System card, not inside it', { opens, closes });
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
