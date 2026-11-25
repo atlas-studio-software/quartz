@@ -213,7 +213,7 @@ html .navrow {
   border-top: 0 !important;
 }
 #views {
-  border-radius: var(--isl-r);
+  border-radius: var(--radius-l);          /* the design's page sheet: 14 */
   overflow: hidden;
   box-shadow: var(--island-float-sheet);   /* LOOK.md section 6: a floating web page */
 }

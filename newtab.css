@@ -2940,6 +2940,7 @@ body.home-unfold { --home-fold: 0; }
   letter-spacing: 0;
 }
 .chip:hover { color: var(--text); }
+.chip .chip-icon { width: 18px; height: 18px; }   /* the design's chip plate */
 
 /* the session card (its .session): 32px rows, the count in the display
    face, a divider over Idle music, the controls as pills */
@@ -3533,6 +3534,9 @@ body.home-unfold { --home-fold: 0; }
 
 /* the Edit pencil: an island pill (the design's .edit-btn) */
 .home-edit-btn:hover { --sheen: var(--sheen-hover); color: var(--text); }
+.home-edit-btn { transition: color var(--m-press) var(--m-ease-look), scale var(--m-press) var(--m-ease-look); }
+.home-edit-btn:active { scale: 0.95; }   /* the design's .edit-btn press */
+@media (prefers-reduced-motion: reduce) { .home-edit-btn:active { scale: none; } }
 .home-edit-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); text-shadow: none; }
 
 /* The shortcut chips and the Saved tiles: small islands (frost.js lines them
