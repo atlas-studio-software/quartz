@@ -144,6 +144,8 @@ const TESTS = [
   { name: 'brightcheck', file: 'brightcheck-harness.js' },
   // look-sync's shared v2.1 vectors: lift-v2 (dark) through Quartz's dark path; lift-light through the vendored liftAlpha.
   { name: 'lift-vectors', file: 'tests/lift-vectors-test.js' },
+  // Which lines of a failing test's output the suite lifts under it (tools/suite-lines.js).
+  { name: 'suite-lines', file: 'tests/suite-lines-test.js' },
   // The preview launcher (tools/newlook-preview.js): its command, refusals, environment and seeded picture.
   { name: 'newlook-preview', file: 'tests/newlook-preview-test.js' },
   // The islands (islands.js / islands.css): plates, the underline under the title's words, the look's rules.
@@ -318,7 +320,8 @@ const TESTS = [
   },
 ];
 
-const SUMMARY = /^(?:\S.*?): (\d+) (?:passed|ok), (\d+) failed/;
+// The summary line, and which FAIL lines are lifted under a failing test: tools/suite-lines.js.
+const { SUMMARY, failLines: pickFailLines } = require('./suite-lines');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /*
@@ -390,7 +393,7 @@ function runOne(t, env) {
       else if (!summary) { status = 'FAIL'; why = 'no summary line (exit ' + code + ')'; }
       else if (summary.failed > 0 || code !== 0) { status = 'FAIL'; why = summary.line + (code !== 0 && summary.failed === 0 ? ' but exit ' + code : ''); }
       else { status = 'PASS'; why = summary.line; }
-      const failLines = lines.filter((l) => /^(FAIL|HARNESS ERROR)\b/.test(l.trim())).slice(0, 8);
+      const failLines = pickFailLines(text, 8);
       resolve({ name: t.name, file: t.file, status, why, ms: Date.now() - t0, passed: summary ? summary.passed : 0, failed: summary ? summary.failed : (status === 'FAIL' ? 1 : 0), failLines, text });
     });
   });
