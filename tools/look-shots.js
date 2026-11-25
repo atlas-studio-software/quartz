@@ -21,11 +21,15 @@
 //     page never reaches a guest). The chrome's innerWidth x innerHeight is then measured; if the
 //     frame took some of it, the window is relaunched once, grown by the difference. The size check
 //     fails, with the real size, when it is still off.
-//   - The capture: Page.captureScreenshot of the chrome page (fromSurface, scaled to CSS pixels).
-//     The guest is captured on its own too, and its pixels are compared with the same rectangle of
-//     the window capture: when they match, the window capture holds the guest's pixels (said in a
-//     PASS line); when they do not, the guest capture is pasted into the window picture at the
-//     guest's rectangle, and that is said too.
+//   - The capture: Page.captureScreenshot of the chrome page, the whole viewport with NO clip. A
+//     clip makes Chromium emulate a viewport on the chrome page for the shot, and that reaches the
+//     guest: the Home was sometimes caught laid out 100 px taller than it is (the centre column 45
+//     px lower, the right rail 100 px lower). The guest is captured on its own too (no clip), and
+//     its opaque pixels are compared with the same rectangle of the window capture; the window is
+//     captured again until they match (at most 4 tries). Nothing is pasted: the Home is mostly
+//     transparent over the picture, so pasting it over a window capture that held another frame
+//     of it drew every piece twice. A window capture that never matches is saved as it is, and
+//     the check fails.
 //   - The wallpaper check: Backdrop.state() says builtin/<id>/ok, the Home guest's frost says ok,
 //     and the window picture is not a flat colour (the spread of its pixels' luminance).
 //
@@ -51,10 +55,7 @@ if (!/^[a-z0-9-]+$/.test(BG) || !fs.existsSync(path.join(APP, 'assets', 'backgro
   process.exit(1);
 }
 
-/* ---- PNG: just enough to read Chromium's captures and write one back --------------------------- */
-const CRC_TABLE = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
-function crc32(buf) { let c = -1; for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; }
-
+/* ---- PNG: just enough to read Chromium's captures ---------------------------------------------- */
 /** { w, h, px: RGBA Uint8Array } from an 8-bit, non-interlaced RGB or RGBA PNG. */
 function pngDecode(buf) {
   let p = 8, w = 0, h = 0, type = 0, depth = 0, inter = 0; const idat = [];
@@ -82,35 +83,25 @@ function pngDecode(buf) {
   }
   return { w, h, px };
 }
-function pngEncode(img) {
-  const stride = img.w * 4, raw = Buffer.alloc((stride + 1) * img.h);
-  for (let y = 0; y < img.h; y++) { raw[y * (stride + 1)] = 0; Buffer.from(img.px.buffer, img.px.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1); }
-  const chunk = (kind, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const kd = Buffer.concat([Buffer.from(kind, 'latin1'), data]); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(kd)); return Buffer.concat([len, kd, crc]); };
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(img.w, 0); ihdr.writeUInt32BE(img.h, 4); ihdr[8] = 8; ihdr[9] = 6;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
 const lum = (img, x, y) => { const o = (y * img.w + x) * 4; return 0.2126 * img.px[o] + 0.7152 * img.px[o + 1] + 0.0722 * img.px[o + 2]; };
-/** Mean absolute RGB difference between the guest picture and the window picture's rect (a 40 x 25 grid). */
+/**
+ * Mean absolute RGB difference between the guest picture's OPAQUE pixels (alpha 250 and up: the
+ * islands and what is on them) and the same pixels of the window picture, over a 160 x 100 grid.
+ * The guest's transparent pixels are the picture behind it, which only the window capture holds,
+ * so they say nothing. { diff, n }: n is how many opaque pixels were compared.
+ */
 function regionDiff(win, guest, rect) {
   let sum = 0, n = 0;
-  for (let i = 0; i < 40; i++) for (let j = 0; j < 25; j++) {
-    const gx = Math.min(guest.w - 1, Math.floor(((i + 0.5) / 40) * guest.w)), gy = Math.min(guest.h - 1, Math.floor(((j + 0.5) / 25) * guest.h));
-    const wx = Math.min(win.w - 1, Math.round(rect.x) + gx), wy = Math.min(win.h - 1, Math.round(rect.y) + gy);
+  for (let i = 0; i < 160; i++) for (let j = 0; j < 100; j++) {
+    const gx = Math.min(guest.w - 1, Math.floor(((i + 0.5) / 160) * guest.w)), gy = Math.min(guest.h - 1, Math.floor(((j + 0.5) / 100) * guest.h));
+    const wx = Math.round(rect.x) + gx, wy = Math.round(rect.y) + gy;
+    if (wx < 0 || wy < 0 || wx >= win.w || wy >= win.h) continue;
     const a = (gy * guest.w + gx) * 4, b = (wy * win.w + wx) * 4;
-    for (let c = 0; c < 3; c++) { sum += Math.abs(guest.px[a + c] - win.px[b + c]); n++; }
+    if (guest.px[a + 3] < 250) continue;
+    for (let c = 0; c < 3; c++) sum += Math.abs(guest.px[a + c] - win.px[b + c]);
+    n++;
   }
-  return sum / n;
-}
-function paste(win, guest, rect) {
-  const x0 = Math.round(rect.x), y0 = Math.round(rect.y);
-  for (let y = 0; y < guest.h; y++) {
-    const wy = y0 + y; if (wy < 0 || wy >= win.h) continue;
-    for (let x = 0; x < guest.w; x++) {
-      const wx = x0 + x; if (wx < 0 || wx >= win.w) continue;
-      const a = (y * guest.w + x) * 4, b = (wy * win.w + wx) * 4, al = guest.px[a + 3] / 255;
-      for (let c = 0; c < 3; c++) win.px[b + c] = Math.round(guest.px[a + c] * al + win.px[b + c] * (1 - al));
-    }
-  }
+  return { diff: n ? sum / (3 * n) : Infinity, n };
 }
 /** The spread (standard deviation) of luminance over a 48 x 27 grid of the window picture. */
 function spread(img) {
@@ -119,9 +110,10 @@ function spread(img) {
   return { mean: m, sd: Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / v.length) };
 }
 
-async function capture(cdp, w, h, scale) {
+/** The page's whole viewport as a PNG. No clip: a clip makes Chromium emulate a viewport for the shot (see the top). */
+async function capture(cdp) {
   const m = await Promise.race([
-    cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false, clip: { x: 0, y: 0, width: w, height: h, scale } }),
+    cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false }),
     sleep(15000).then(() => ({ error: { message: 'captureScreenshot timed out after 15 s' } })),
   ]);
   if (m.error || !m.result || !m.result.data) throw new Error((m.error && m.error.message) || 'no data');
@@ -185,19 +177,19 @@ run('look-shots', async ({ check, launch, say }) => {
         const name = 'quartz-' + theme + '-' + W + 'x' + H;
         const file = path.join(SHOTS, name + '.png');
         try {
-          const winBuf = await capture(chrome, inner[0], inner[1], 1 / dpr);
-          const gBuf = await capture(guest, Math.round(rect.w), Math.round(rect.h), 1 / dpr);
+          const gBuf = await capture(guest);
           fs.writeFileSync(path.join(SHOTS, name + '-home.png'), gBuf);
-          const win = pngDecode(winBuf), g = pngDecode(gBuf);
-          const diff = regionDiff(win, g, rect);
-          if (diff <= 12) {
-            fs.writeFileSync(file, winBuf);
-            check(true, name + ': the window capture holds the Home guest\'s pixels', 'mean diff ' + diff.toFixed(1));
-          } else {
-            paste(win, g, rect);
-            fs.writeFileSync(file, pngEncode(win));
-            say(name + ': the window capture did NOT hold the guest\'s pixels (mean diff ' + diff.toFixed(1) + '); the guest capture was pasted in at ' + JSON.stringify(rect));
+          const g = pngDecode(gBuf);
+          check(g.w === Math.round(rect.w) && g.h === Math.round(rect.h), name + ': the Home guest is ' + Math.round(rect.w) + 'x' + Math.round(rect.h) + ', its <webview>\'s size', g.w + 'x' + g.h);
+          let winBuf = null, m = null;
+          for (let tries = 0; tries < 4; tries++) {
+            if (tries) await sleep(500);
+            winBuf = await capture(chrome);
+            m = regionDiff(pngDecode(winBuf), g, rect);
+            if (m.diff <= 6) break;
           }
+          fs.writeFileSync(file, winBuf);
+          check(m.n >= 200 && m.diff <= 6, name + ': the window capture holds the Home guest\'s pixels, nothing pasted', 'mean diff ' + m.diff.toFixed(1) + ' over ' + m.n + ' opaque guest pixels');
           const sp = spread(pngDecode(fs.readFileSync(file)));
           check(sp.sd >= 6, name + ': the wallpaper shows (the picture is not a flat colour)', 'luminance mean ' + sp.mean.toFixed(1) + ', spread ' + sp.sd.toFixed(1));
           const saved = fs.existsSync(file) ? pngDecode(fs.readFileSync(file)) : null;
