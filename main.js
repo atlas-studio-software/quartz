@@ -1114,6 +1114,29 @@ function queueWindowStateSave(w) {
 const OFFSCREEN_TEST = process.argv.includes('--test-profile') && process.argv.includes('--offscreen');
 const OFFSCREEN_XY = -20000;
 
+/** TEST ONLY: { width, height } the window's content is set to after the first show (createWindow). */
+let testExactSize = null;
+/**
+ * TEST ONLY (QUARTZ_TEST_WINDOW_EXACT, see createWindow): the content set to exactly testExactSize.
+ * Off every monitor the hidden caption's frame reads differently, so what the content got is
+ * measured and the window resized again by the difference, at most twice.
+ */
+function fitTestWindowSize(w, when) {
+  if (!testExactSize || !w || w.isDestroyed()) return;
+  const before = w.getContentBounds();
+  w.setContentSize(testExactSize.width, testExactSize.height);
+  for (let i = 0; i < 2; i += 1) {
+    const c = w.getContentBounds();
+    const dw = testExactSize.width - c.width;
+    const dh = testExactSize.height - c.height;
+    if (!dw && !dh) break;
+    const b = w.getBounds();
+    w.setBounds({ x: b.x, y: b.y, width: b.width + dw, height: b.height + dh });
+  }
+  const c = w.getContentBounds();
+  if (qlog) qlog.log.line('[test window] ' + when + ': content ' + before.width + 'x' + before.height + ' -> ' + c.width + 'x' + c.height + ' (asked ' + testExactSize.width + 'x' + testExactSize.height + ')');
+}
+
 function createWindow() {
   const baseOptions = {
     width: 1280,
@@ -1170,6 +1193,11 @@ function createWindow() {
     // the pages inside <webview>s are that size too (an emulated size never reaches a guest).
     const sz = /^(\d{3,4})x(\d{3,4})$/.exec(String(process.env.QUARTZ_TEST_WINDOW_SIZE || ''));
     if (sz) { baseOptions.width = Number(sz[1]); baseOptions.height = Number(sz[2]); }
+    // TEST ONLY (QUARTZ_TEST_WINDOW_EXACT=1 with it, tools/look-shots.js): Windows clamps a NEW
+    // window to the screen's work area, so on a small screen the size above is not what you get.
+    // A window resized once it exists is not clamped: fitTestWindowSize() does that after the
+    // first show, so the window's content is exactly that size, whatever the screen is.
+    if (sz && process.env.QUARTZ_TEST_WINDOW_EXACT === '1') testExactSize = { width: Number(sz[1]), height: Number(sz[2]) };
     // TEST ONLY (QUARTZ_TEST_NO_WINDOW_FULLSCREEN=1, watch-player-e2e.js): a <webview>'s html
     // fullscreen is synced to its EMBEDDER (this window's webContents), whose own preference
     // decides whether the OS window goes fullscreen -- onto a real monitor. Off here, both ways.
@@ -1259,6 +1287,7 @@ function createWindow() {
     // the foreground from whoever is at the machine.
     if (process.argv.includes('--test-profile') && process.argv.includes('--show-inactive')) win.showInactive();
     else win.show();
+    if (OFFSCREEN_TEST && testExactSize) fitTestWindowSize(win, 'shown');
   });
 
   // The renderer owns the maximize/restore glyph, so it has to hear about

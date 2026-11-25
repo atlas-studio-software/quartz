@@ -16,11 +16,14 @@
 //   - The picture: Settings.setBackground({ kind: 'builtin', id }) with one of the repo's own
 //     pictures (assets/backgrounds/<id>.jpg; default cloud-peaks, "Peaks in cloud", a mountain), so
 //     the run needs no private wallpaper. The Dim stays at its default.
-//   - The size: QUARTZ_TEST_WINDOW_SIZE (main.js createWindow, test-only) makes the BrowserWindow that
-//     size, which is the only way the <webview> guest lays out at it (an emulated size on the chrome
-//     page never reaches a guest). The chrome's innerWidth x innerHeight is then measured; if the
-//     frame took some of it, the window is relaunched once, grown by the difference. The size check
-//     fails, with the real size, when it is still off.
+//   - The size: QUARTZ_TEST_WINDOW_SIZE with QUARTZ_TEST_WINDOW_EXACT=1 (main.js createWindow and
+//     fitTestWindowSize, test-only) makes the window's content that size, which is the only way the
+//     <webview> guest lays out at it (an emulated size on the chrome page never reaches a guest).
+//     Windows clamps a NEW window to the screen's work area (a 1024x768 screen gives 1024x720), but
+//     not one resized once it is up, so main sets the size again after the first show. The
+//     chrome's innerWidth x innerHeight is then measured; if it is still off, the window is
+//     relaunched once, grown by the difference. The size check fails, with the real size, when it
+//     is still off. The pictures need a device pixel ratio of 1 (the size check says so).
 //   - The capture: Page.captureScreenshot of the chrome page, the whole viewport with NO clip. A
 //     clip makes Chromium emulate a viewport on the chrome page for the shot, and that reaches the
 //     guest: the Home was sometimes caught laid out 100 px taller than it is (the centre column 45
@@ -120,7 +123,7 @@ async function capture(cdp) {
   return Buffer.from(m.result.data, 'base64');
 }
 
-run('look-shots', async ({ check, launch, say }) => {
+run('look-shots', async ({ check, launch, say, profileDir }) => {
   fs.mkdirSync(SHOTS, { recursive: true });
   const lookDir = fs.mkdtempSync(path.join(os.tmpdir(), 'quartz-look-shots-sync-'));
   say('pictures to ' + SHOTS + '; picture assets/backgrounds/' + BG + '.jpg; LOOK_SYNC_DIR ' + lookDir);
@@ -129,8 +132,11 @@ run('look-shots', async ({ check, launch, say }) => {
     for (const [W, H] of SIZES) {
       let q = null, inner = null, ask = [W, H];
       for (let attempt = 0; attempt < 2; attempt++) {
-        q = await launch({ cdp: PORT, env: { LOOK_SYNC_DIR: lookDir, QUARTZ_TEST_WINDOW_SIZE: ask[0] + 'x' + ask[1] } });
+        q = await launch({ cdp: PORT, env: { LOOK_SYNC_DIR: lookDir, QUARTZ_TEST_WINDOW_SIZE: ask[0] + 'x' + ask[1], QUARTZ_TEST_WINDOW_EXACT: '1' } });
+        // main sizes the window just after it is first shown: give that a moment to land
+        await q.chrome.waitFor('innerWidth === ' + W + ' && innerHeight === ' + H, 5000).catch(() => null);
         inner = await q.chrome.ev('[innerWidth, innerHeight, devicePixelRatio]');
+        try { for (const l of fs.readFileSync(path.join(profileDir, 'quartz.log'), 'utf8').split('\n')) if (/\[test window\]/.test(l)) say('quartz.log: ' + l.trim()); } catch (e) { say('quartz.log not read: ' + e.message); }
         if (inner[0] === W && inner[1] === H) break;
         if (attempt === 0) {
           say('asked ' + ask.join('x') + ', the content is ' + inner[0] + 'x' + inner[1] + ': relaunching grown by the difference');
@@ -140,7 +146,7 @@ run('look-shots', async ({ check, launch, say }) => {
       }
       const chrome = q.chrome;
       const dpr = inner[2] || 1;
-      check(inner[0] === W && inner[1] === H, W + 'x' + H + ': the window content is exactly ' + W + 'x' + H + ' CSS px', 'got ' + inner[0] + 'x' + inner[1] + ' at dpr ' + dpr + ' (window asked ' + ask.join('x') + ')');
+      check(inner[0] === W && inner[1] === H && dpr === 1, W + 'x' + H + ': the window content is exactly ' + W + 'x' + H + ' CSS px at a device pixel ratio of 1', 'got ' + inner[0] + 'x' + inner[1] + ' at dpr ' + dpr + ' (window asked ' + ask.join('x') + ')');
 
       // The picture: one of the repo's own, never the desktop's.
       await chrome.ev("Settings.setBackground({ kind: 'builtin', id: " + JSON.stringify(BG) + " }), 1");
