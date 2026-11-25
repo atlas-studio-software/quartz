@@ -218,5 +218,18 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     && /scale: none !important;/.test(rm), 'reduced motion: chrome.css still forces the 120 ms opacity fade over these (!important)');
 }
 
+/* ---- the first load (LOOK.md section 10) ---- */
+{
+  const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  check(tok.indexOf('--m-rise: 520ms;') >= 0 && tok.indexOf('--m-rise-step: 45ms;') >= 0, 'first load: 520, staggered 45');
+  check(/body:not\(\.booted\) #titlebar,\s*body:not\(\.booted\) \.navrow \{ opacity: 0; translate: 0 10px; \}/.test(css), 'the rows start 10 low and clear');
+  const r = css.slice(css.indexOf('body.booted #titlebar,'), css.indexOf('}', css.indexOf('body.booted #titlebar,')));
+  check(/transition: opacity var\(--m-rise\) var\(--m-ease-look\) var\(--isl-rise-at\),\s*translate var\(--m-rise\)/.test(r) && !/animation/.test(r),
+    'they rise on a transition off body.booted (set once), so showing a row again never replays it', r);
+  check(/\.navrow \{ --isl-rise-at: calc\(var\(--m-rise-from\) \+ var\(--m-rise-step\)\); \}/.test(css), 'the tool row follows the tab row 45 later');
+  check(/body:not\(\.booted\) \.chrome-layer \{ opacity: 1; transform: none; \}/.test(css), 'the old whole-layer drop is off in the new look');
+  check((app.match(/classList\.add\('booted'\)/g) || []).length === 1 && !/classList\.remove\('booted'\)/.test(app), 'app.js adds booted once and never takes it off');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

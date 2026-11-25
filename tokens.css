@@ -480,6 +480,9 @@ html[data-theme="light"] [data-palette="mono"] {
   --m-pop-from-s: 0.97;                        /*  and 0.97 (ease-lift); */
   --m-pop-out-fade: 120ms;                     /*  out 120 / */
   --m-pop-out-move: 160ms;                     /*  160" */
+  --m-rise: 520ms;                             /* first load: "pieces rise 10 with opacity, 520, */
+  --m-rise-step: 45ms;                         /*  staggered 45" (the prototype starts at +60) */
+  --m-rise-from: 60ms;
 
   /* the background layer (backdrop.js may override per the user's setting) */
   --bg-blur: 5px;                        /* the Helm setting (Helm settings.json background.blur) */

@@ -190,6 +190,28 @@ html .navrow {
   box-shadow: var(--isl-float);
 }
 
+/* ---------- the first load (LOOK.md section 10: "First load only: pieces rise
+   10 with opacity, 520, staggered 45. Never replayed when moved.") ----------
+   The chrome window loads once per launch, so its rows are the pieces: the
+   tab row, then the tool row 45 later (the page arrives on its own lift).
+   This replaces chrome.css's whole-layer 6 px drop for the new look. It is a
+   TRANSITION off body.booted (app.js adds it once, a frame after the strip is
+   up), not an animation, so a row shown again (fullscreen, a moved node)
+   never replays it. The Home's own cards do not rise: a new-tab guest cannot
+   tell the launch's first Home from a later one. */
+body:not(.booted) .chrome-layer { opacity: 1; transform: none; }
+body:not(.booted) #titlebar,
+body:not(.booted) .navrow { opacity: 0; translate: 0 10px; }
+body.booted #titlebar,
+body.booted .navrow {
+  opacity: 1;
+  translate: none;
+  transition: opacity var(--m-rise) var(--m-ease-look) var(--isl-rise-at),
+              translate var(--m-rise) var(--m-ease-look) var(--isl-rise-at);
+}
+#titlebar { --isl-rise-at: var(--m-rise-from); }
+.navrow { --isl-rise-at: calc(var(--m-rise-from) + var(--m-rise-step)); }
+
 /* ---------- pop-overs (LOOK.md section 10: "Pop-overs: in 160 opacity / 260
    translate + scale from -6 and 0.97 (ease-lift); out 120 / 160") ----------
    The panels and menus keep chrome.css's shared mechanics ([hidden] flips
@@ -282,6 +304,12 @@ html .navrow {
 @media (prefers-reduced-motion: reduce) {
   .tab-ind, .tab-ul { transition: none; }
   .navrow > button:active, #newtab:active, #workspace-pill:active { scale: none; }
+  /* the first load: a 120 ms fade, no rise */
+  body:not(.booted) #titlebar, body:not(.booted) .navrow { translate: none; }
+  body.booted #titlebar, body.booted .navrow {
+    transition: opacity var(--m-dur-rm) var(--m-fade-in);
+    --rm-keep: var(--m-dur-rm);
+  }
   /* no travel: app.js hides the leaving body at once, the arriving one just shows */
   #views > webview, #views > .claude-view { animation: none !important; }
 }
