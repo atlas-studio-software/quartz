@@ -160,6 +160,12 @@
   --look-fs-2xl: 28px;
   --look-fs-hero: 84px;
   --look-r-l: 16px;                                  /* the design's --r-l: a card's corners */
+  --logo-lift: drop-shadow(0 6px 14px rgba(0, 12, 16, 0.35));                        /* the design's .logo */
+  --art-lift: 0 4px 12px rgba(0, 12, 16, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);   /* its .media-art */
+  /* the play / pause disc (the design's .ctl-main): a light disc with dark ink in dark */
+  --media-disc: rgba(238, 246, 247, 0.92);
+  --media-disc-hover: #ffffff;
+  --media-disc-ink: #0b2328;
   /* LOOK.md section 6: "A floating web page / content sheet" (the well, #views) */
   --island-float-sheet: 0 2px 4px rgba(0, 12, 16, 0.18), 0 24px 48px -12px rgba(0, 12, 16, 0.45), 0 60px 100px -40px rgba(0, 12, 16, 0.6);
   --island-film-rgb: 10 12 14;
@@ -280,6 +286,10 @@ html[data-theme="light"] {
   --chart-row-on: rgba(0, 0, 0, 0.08);
   --chart-row-hover: rgba(0, 0, 0, 0.05);
   --look-ok: #124028;
+  /* light.css: the play / pause disc turns dark with a light glyph */
+  --media-disc: rgba(15, 30, 33, 0.92);
+  --media-disc-hover: #0f1e21;
+  --media-disc-ink: #f4f7f8;
   --look-down: #6f1813;
   /* the light pill: the ok tint laid on white .24 (two layers, as the design paints it) */
   --look-ok-soft: rgba(18, 64, 40, 0.08);

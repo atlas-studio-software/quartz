@@ -66,6 +66,21 @@
   --saved-warn: var(--warn);
 }
 
+/* The approved design's ink on the Home: in dark its --text .. --text-3 (a
+   light ink over the picture and on every island); in light the ink its
+   light.css sets on islands. Bare text on the picture (the clock, the Saved
+   caption) reads --look-text* itself, in both themes. */
+:root:not([data-theme="light"]) {
+  --text: var(--look-text);
+  --text-2: var(--look-text-2);
+  --text-3: var(--look-text-3);
+}
+html[data-theme="light"] {
+  --text: var(--look-ink);
+  --text-2: var(--look-ink-2);
+  --text-3: var(--look-ink-3);
+}
+
 /* --- Home's own values (Helm home.css, as they are) ---------- */
 /* --home-card is the one addition: the tiles here are taller than
    Helm's cards and may sit over a moving clip, so instead of blurring
@@ -2884,6 +2899,103 @@ body.home-unfold { --home-fold: 0; }
     align-self: center;
   }
 }
+
+/* --- the design's pieces -------------------------------------- */
+/* The approved design's search box, logo, Saved caption, chips, session
+   and now-playing cards, over the rules above (same elements, the design's
+   numbers). */
+
+/* the search box (its .search): a 52px pill, the glass icon 18px at 20px
+   in and 12px before the text, the text at 15px, the placeholder text-3 */
+.search.frost { height: 52px; }
+.search-icon { left: 20px; width: 18px; height: 18px; margin-top: -9px; }
+.search.frost .search-input {
+  height: 52px;
+  padding: 0 12px 0 calc(20px + 18px + 12px);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-size: var(--look-fs-l);
+}
+.search.frost .search-input::placeholder { color: var(--text-3); }
+
+/* the Q: the design's logo shadow */
+.home-logo { filter: var(--logo-lift); }
+
+/* the Saved caption (its .cap-line): bare on the picture */
+.saved-caption {
+  margin: 8px 4px 8px;
+  color: var(--look-text-2);
+  font-size: var(--look-fs-s);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-shadow: var(--text-lift);
+}
+
+/* the shortcut chips (its .chip): 32px pills, the icon 8px in */
+.chip {
+  padding: 0 14px 0 8px;
+  border: 0;
+  color: var(--text-2);
+  font-size: var(--look-fs-s);
+  letter-spacing: 0;
+}
+.chip:hover { color: var(--text); }
+
+/* the session card (its .session): 32px rows, the count in the display
+   face, a divider over Idle music, the controls as pills */
+.module-session .mod-row { height: 32px; gap: 10px; }
+.module-session .mod-row + .mod-row { margin-top: 0; }
+.module-session .mod-value {
+  min-width: 32px;
+  font-family: var(--font-display);
+  font-size: var(--look-fs-xl);
+  font-weight: 500;
+  line-height: 32px;
+}
+.module-session .mod-label { color: var(--text-2); font-size: var(--look-fs-m); }
+.module-session .mod-music { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.module-session .mod-music-head { height: auto; margin: 0 0 8px; }
+.module-session .mod-music-head::after { display: none; }
+.module-session .mod-music-caption { color: var(--text-2); font-size: var(--look-fs-s); line-height: normal; }
+.module-session .mod-music-row { height: 32px; }
+.module-session .mod-music-state { font-size: var(--look-fs-l); font-weight: 500; }
+.module-session .mod-music-btn {
+  width: auto;
+  min-width: 52px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--island-fill-1);
+  color: var(--text-2);
+  font-size: var(--look-fs-s);
+  font-weight: 500;
+}
+.module-session .mod-music-btn:hover { background: var(--island-fill-2); color: var(--text); }
+.module-session #music-toggle { background: var(--accent-soft); color: var(--accent); }
+.module-session .mod-music-hint { margin-top: 8px; color: var(--text-3); font-size: var(--look-fs-s); }
+
+/* now playing (its .media): art 48px with radius 10 and a shadow, the
+   title at 15px, a 4px bar, 36px round controls round a 44px disc */
+.module-media .mod-media-body { gap: 12px; }
+.module-media .mod-media-art { border: 0; border-radius: var(--radius-m); box-shadow: var(--art-lift); }
+.module-media .mod-media-title { height: auto; color: var(--text); font-size: var(--look-fs-l); font-weight: 600; line-height: 1.4; }
+.module-media .mod-media-artist { height: auto; color: var(--text-2); font-size: var(--look-fs-s); line-height: 1.4; }
+.module-media .mod-media-bar { height: 4px; margin-top: 16px; border-radius: var(--radius-pill); background: var(--island-fill-2); }
+.module-media .mod-media-fill { border-radius: var(--radius-pill); background: var(--text); }
+.module-media .mod-media-ctls { gap: 16px; height: 44px; margin-top: 8px; }
+.module-media .mod-media-btn {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--island-fill-1);
+  color: var(--text-2);
+}
+.module-media .mod-media-btn:hover { background: var(--island-fill-2); color: var(--text); }
+.module-media .mod-media-btn svg { width: 16px; height: 16px; }
+.module-media .mod-media-play { width: 44px; height: 44px; background: var(--media-disc); color: var(--media-disc-ink); }
+.module-media .mod-media-play:hover { background: var(--media-disc-hover); color: var(--media-disc-ink); }
 
 /* --- reduced motion ------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
