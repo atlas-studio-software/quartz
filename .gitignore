@@ -21,3 +21,6 @@ quartz-vmp.json
 *.local
 *.local.*
 .quartz-update/
+
+# look-shots and suite pictures (tools/look-shots.js --out)
+suite-out/
