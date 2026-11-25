@@ -143,8 +143,12 @@ html .navrow {
 #workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }
 
 /* Windows' caption buttons stay at the window's real corner (a maximised
-   window still closes from the corner), bare over the picture */
-.wincontrols { align-self: flex-start; margin-top: -6px; }
+   window still closes from the corner), bare over the picture. LOOK.md
+   section 2: "46 wide, the full row height (44 in Quartz)". Lifted to the
+   row's top edge (flex-start), the group needs the row's height said
+   outright: chrome.css's buttons are height 100%, which an un-stretched
+   flex item cannot resolve, so they fell to their 10 px glyph's height. */
+.wincontrols { align-self: flex-start; margin-top: -6px; height: var(--tab-row-h); }
 .wincontrols button { filter: var(--island-glyph-lift); }
 #win-close:hover { background: var(--caption-close); }
 #win-close:active { background: var(--caption-close-press); }

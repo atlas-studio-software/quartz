@@ -231,5 +231,13 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check((app.match(/classList\.add\('booted'\)/g) || []).length === 1 && !/classList\.remove\('booted'\)/.test(app), 'app.js adds booted once and never takes it off');
 }
 
+/* ---- the caption buttons (LOOK.md section 2) ---- */
+{
+  const ccss = strip(fs.readFileSync(path.join(__dirname, 'chrome.css'), 'utf8'));
+  check(/#win-min, #win-max, #win-close \{\s*width: 46px;\s*height: 100%;/.test(ccss) && /\.wincontrols \{ align-self: flex-start; margin-top: -6px; height: var\(--tab-row-h\); \}/.test(css),
+    'caption buttons: 46 wide and the full 44 px row (the group has a definite height for their 100%)');
+  check(/#win-min \.glyph, #win-max \.glyph, #win-close \.glyph \{ font-size: 10px; \}/.test(ccss), 'caption glyphs 10 px');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
