@@ -200,9 +200,10 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(tok.indexOf('--island-fill-1: rgba(255, 255, 255, 0.07);') >= 0 && tok.indexOf('--island-fill-2: rgba(255, 255, 255, 0.12);') >= 0
     && tok.indexOf('--island-ind: rgba(255, 255, 255, 0.16);') >= 0 && tok.indexOf('--island-fill-press: rgba(255, 255, 255, 0.05);') >= 0
     && tok.indexOf('--island-sheen-big: rgba(255, 255, 255, 0.05);') >= 0, "fills .07 / .12, the tab highlight .16 (the design's .tab-ind), pressed .05, big-panel sheen .05");
-  // The design's tab row: a 32px tabs island round 26px chips, the + its own 32px island.
+  // The design's tab row: a 32px tabs island round 26px chips, the + its own 32px island 6 after the
+  // tabs (2px of margin on the row's own 4px gap).
   check(/#tabstrip \{ height: 32px; padding: 3px; gap: 2px; \}/.test(css) && /\.tab \{\s*height: 26px;/.test(css)
-    && /#newtab\.frost \{ width: 32px; height: 32px; margin-left: 6px; \}/.test(css)
+    && /#newtab\.frost \{ width: 32px; height: 32px; margin-left: calc\(6px - 4px\); \}/.test(css)
     && js.indexOf('putPlate(plates.tabs, titlebar, tabstrip, tabstrip, 0);') >= 0, 'the tab row: tabs island 32 round 26px chips, the + its own island');
   check(tok.indexOf('--m-press: 160ms;') >= 0 && tok.indexOf('--m-press-small: 0.94;') >= 0 && tok.indexOf('--m-press-pill: 0.97;') >= 0 && tok.indexOf('--m-press-tile: 0.985;') >= 0,
     'hover / press 160; press 0.94 / 0.97 / 0.985');

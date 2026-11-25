@@ -159,18 +159,21 @@ html .navrow {
 .tab::after, .tab.active::after { opacity: 0 !important; }
 .tab-title { mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent); }
 
-/* the new-tab button: an island of its own, 32 round, 6 after the tabs (the design's .new-tab) */
+/* the new-tab button: an island of its own, 32 round, 6 after the tabs (the design's .new-tab,
+   style.css:173). The row already puts its 4px gap (chrome.css #titlebar) between them. */
 #newtab { border-radius: var(--radius-pill); }
-#newtab.frost { width: 32px; height: 32px; margin-left: 6px; }
+#newtab.frost { width: 32px; height: 32px; margin-left: calc(6px - 4px); }
 #newtab:not(.frost):hover { background: var(--isl-fill-2); }
 #newtab.frost:hover { --sheen: var(--sheen-hover); color: var(--text); }
 /* the tab-search button: the design's second round island (#tab-search), 6 after the + */
-#tabsearch-btn.frost { width: 32px; height: 32px; margin-left: 6px; border-radius: var(--radius-pill); }
+#tabsearch-btn.frost { width: 32px; height: 32px; margin-left: calc(6px - 4px); border-radius: var(--radius-pill); }
 #tabsearch-btn.frost:hover { --sheen: var(--sheen-hover); color: var(--text); }
 #tabsearch-btn.frost.is-on { --sheen: var(--sheen-open); color: var(--text); box-shadow: var(--isl-float); }
 
-/* the workspace pill: its own island before the tabs */
-#workspace-pill.frost { border-radius: var(--radius-pill); margin-right: 6px; }
+/* the workspace pill: its own island, 6 before the tabs (the design's .tabs margin-left), the row's gap included */
+#workspace-pill.frost { border-radius: var(--radius-pill); margin-right: calc(6px - 4px); }
+/* its slot is the row's full height: at the top like every island of the row, not centred 3px lower */
+#titlebar > #workspace-slot { align-items: flex-start; }
 /* the design's .ws-pill: 32 tall, 0 8 0 12, 8 between the dot, the name and the chevron, 12px 600 */
 #workspace-pill.frost { height: 32px; padding: 0 8px 0 12px; gap: 8px; border: 0; color: var(--text); font-weight: 600; }
 #workspace-pill.frost:hover { --sheen: var(--sheen-hover); }

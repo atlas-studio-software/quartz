@@ -11,7 +11,8 @@
 //     edge button on its side, and each button shows exactly the number of chips hidden on its
 //     side (and is hidden when there are none); the tab-search badge shows their total;
 //   - the active chip is in the clear and never under --tab-min; no inactive chip under the floor;
-//   - the + sits right after the strip, the spacer keeps its grab area, nothing leaves the row;
+//   - the + sits the design's 6px after the strip (its own island: design style.css:173), the
+//     spacer keeps its grab area, nothing leaves the row;
 //   - activating the first, the last and a middle tab brings each into view;
 //   - a tab made with the + button is in view on the FIRST frame after it exists;
 //   - the vertical wheel scrolls the strip sideways; the edge buttons page it, and a page never skips a
@@ -137,7 +138,7 @@ run('taboverflow-e2e', async ({ check, launch, say }) => {
     check(!!act && (act.pinned || act.w >= m.tabMin - 0.5), tag + ': the active chip is never under --tab-min', act && act.w);
     const thin = m.rows.filter((r) => !r.active && !r.pinned && r.w < m.floor - 0.5);
     check(!thin.length, tag + ': no inactive chip under the floor', thin.slice(0, 3));
-    check(m.ntL >= m.stripR - 0.5 && m.ntL - m.stripR <= 4.5, tag + ': the + sits right after the strip', { stripR: m.stripR, ntL: m.ntL });
+    check(Math.abs(m.ntL - m.stripR - 6) <= 0.5, tag + ': the + sits 6px after the strip, as the design draws it', { stripR: m.stripR, ntL: m.ntL });
     check(m.spacerW >= 23.5 && m.ntR <= m.wcL && m.wcR <= m.vw + 0.5, tag + ': the row fits and keeps its grab area', { spacer: m.spacerW, wcR: m.wcR, vw: m.vw });
   }
 
