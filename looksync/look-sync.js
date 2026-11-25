@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit 3fa3800 (look-sync.js).
+/* VENDORED from ~/look-sync commit 5d9e4f6 (look-sync.js).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 'use strict';
 /*
@@ -21,7 +21,9 @@
  *   sync.readOnlyNow();           // -> reason while a newer-schema file is on disk NOW, else null
  *   sync.refresh();               // call on window focus and on resume from sleep
  *   sync.close();
- *   LS.washAlpha(look, desktop, theme)    // the tint over the painted desktop, the same in every app
+ *   LS.washAlpha(look, desktop, theme)    // v1 tint over the painted desktop (kept for apps not yet on v2)
+ *   LS.panelLift(look, theme, samples)    // v2 islands look: one panel's film, the same in every app
+ *   LS.frostKind(w, h), LS.liftPoints(x, y, w, h), LS.liftAlpha(samples, dim, theme), LS.FROST, LS.LIFT
  *
  * Errors are never thrown out of the stream: every failure becomes a status
  * with a reason, because each app shows that state in its UI.
@@ -48,12 +50,14 @@ const APP_NAMES = { helm: 'Helm', quartz: 'Quartz', mantle: 'Mantle' };
 // glass + tint override"): blur 0 in both themes (the picture is painted
 // sharp) and a lighter dim .30 in both, raised automatically where a picture
 // needs it (washAlpha). dimAuto is absent: absent means automatic.
+// Dim .20 in both themes (Owen, 2026-11-24, the islands look, CONTRACT
+// "2026-11-24: the islands look (v2)"); the range stays 0.20-0.90.
 const SEED = Object.freeze({
   theme: 'system',
   accent: Object.freeze({ hue: null }),
   glass: Object.freeze({
-    dark: Object.freeze({ blurPx: 0, dim: 0.30, panel: 0 }),
-    light: Object.freeze({ blurPx: 0, dim: 0.30, panel: 0 }),
+    dark: Object.freeze({ blurPx: 0, dim: 0.20, panel: 0 }),
+    light: Object.freeze({ blurPx: 0, dim: 0.20, panel: 0 }),
     render: 'picture'
   })
 });
@@ -144,6 +148,131 @@ function washAlpha(look, desktop, theme, opts) {
   return { alpha: dim, mode: 'auto', raised: false, guarded: true, dim, contrast,
     reason: why + 'text already reads over this picture at this Dim',
     text: 'Automatic: ' + a2(dim) + ', ' + why + 'text already reads over this picture at this Dim' };
+}
+
+// ---- v2: the islands look (Owen, 2026-11-24; CONTRACT "2026-11-24: the islands look (v2)") ----
+// Panels show the wallpaper still, dimmed by Dim and blurred by size, at its own
+// colours. Two copies are blurred ONCE (not live): 'light' for small chrome and
+// 'soft' for big panels. Where the picture behind a panel is too bright for white
+// text, the panel gets just enough neutral film (liftAlpha) for its brightest tenth.
+
+// The two pre-blurred copies: blurPx on a bitmapWidth-wide copy of the still
+// (about 16 and 40 px on a 1440p screen). A panel is big when its short side is
+// at least bigMin px AND its area at least bigArea px² (layout px / DIP).
+const FROST = Object.freeze({
+  bitmapWidth: 512,
+  light: Object.freeze({ blurPx: 6 }),
+  soft: Object.freeze({ blurPx: 15 }),
+  bigMin: 48,
+  bigArea: 20000
+});
+
+// The brightness check: a cols x rows grid of samples over the panel.
+// Dark theme: the sample at index floor(n * quantile) after sorting brightest
+// first (the 5th of 40) is darkened with film rgb in steps of step, up to max,
+// until its relative luminance is at most target.
+// Light theme (LIGHT.md section 4b): the same index after sorting DARKEST first is
+// lightened with light.rgb (#F4F7F8) until its luminance is at least light.target.
+// Targets (v2.1, Owen 2026-11-24 option (b)): the worst of text-2, ok and down
+// reaches 4.5:1 at the floor in both themes, over any hue. Dark 0.066 is set by
+// down #FF9D95 (0.163 only covered the main ink); light 0.386 by text-2 (ink .76).
+// max .72 is what white at the lowest Dim (.20) needs in dark; black needs .68 in light.
+const LIFT = Object.freeze({
+  cols: 8, rows: 5, quantile: 0.1,
+  rgb: Object.freeze([10, 12, 14]),
+  target: 0.066, step: 0.04, max: 0.72,
+  light: Object.freeze({ rgb: Object.freeze([244, 247, 248]), target: 0.386 })
+});
+
+/** 'soft' for a big panel, else 'light'. w, h: the panel's layout size in px. */
+function frostKind(w, h) {
+  const ok = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  if (!ok(w) || !ok(h)) return 'light';
+  return Math.min(w, h) >= FROST.bigMin && w * h >= FROST.bigArea ? 'soft' : 'light';
+}
+
+/** The cols x rows sample points (cell centres) of a panel at x, y, size w x h. */
+function liftPoints(x, y, w, h) {
+  const pts = [];
+  for (let i = 0; i < LIFT.cols; i++) {
+    for (let j = 0; j < LIFT.rows; j++) {
+      pts.push({ x: x + ((i + 0.5) / LIFT.cols) * w, y: y + ((j + 0.5) / LIFT.rows) * h });
+    }
+  }
+  return pts;
+}
+
+const srgbLin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+/** Relative luminance (WCAG) of [r, g, b] in 0..255. */
+function relLum(rgb) {
+  return 0.2126 * srgbLin(rgb[0]) + 0.7152 * srgbLin(rgb[1]) + 0.0722 * srgbLin(rgb[2]);
+}
+const filmOver = (rgb, a, film) => [0, 1, 2].map(k => rgb[k] * (1 - a) + (film || LIFT.rgb)[k] * a);
+
+/**
+ * The film alpha for one panel.
+ *   samples  [[r, g, b], ...] in 0..255: the panel's liftPoints read from the
+ *            blurred copy that panel shows (frostKind), BEFORE Dim
+ *   dim      the Dim in effect (0..1); anything else = the seed Dim
+ *   theme    'light' = the LIGHT.md 4b lift toward LIFT.light.rgb; anything else = dark
+ * What is behind the panel is the copy times (1 - dim): Dim is a black wash in
+ * both themes.
+ * -> 0, or a multiple of step up to max (2 decimals). 0 when no sample is
+ *    usable (the panel stays pure blur). Never throws.
+ */
+function liftAlpha(samples, dim, theme) {
+  const light = theme === 'light';
+  const d = typeof dim === 'number' && Number.isFinite(dim) && dim >= 0 && dim <= 1 ? dim : SEED.glass.dark.dim;
+  const ch = v => (typeof v === 'number' && Number.isFinite(v) ? Math.min(255, Math.max(0, v)) : null);
+  const keep = 1 - d;
+  const seen = [];
+  if (Array.isArray(samples)) {
+    for (const s of samples) {
+      if (!Array.isArray(s) || s.length < 3) continue;
+      const rgb = [ch(s[0]), ch(s[1]), ch(s[2])];
+      if (rgb.includes(null)) continue;
+      const dimmed = rgb.map(v => v * keep);
+      seen.push({ rgb: dimmed, l: relLum(dimmed) });
+    }
+  }
+  if (!seen.length) return 0;
+  seen.sort(light ? (p, q) => p.l - q.l : (p, q) => q.l - p.l);   // light: darkest first
+  const pick = seen[Math.floor(seen.length * LIFT.quantile)].rgb;
+  const at = k => Math.round(k * LIFT.step * 100) / 100;
+  const short = light
+    ? a => relLum(filmOver(pick, a, LIFT.light.rgb)) < LIFT.light.target
+    : a => relLum(filmOver(pick, a)) > LIFT.target;
+  let n = 0;
+  while (at(n) < LIFT.max && short(at(n))) n++;
+  return Math.min(LIFT.max, at(n));
+}
+
+/**
+ * One panel's film in the theme in effect, with the Settings row.
+ *   look     { glass } (or shared()'s { glass: { v } }); theme 'dark' | 'light'
+ *   samples  as liftAlpha
+ * Check on (glass.<theme>.dimAuto absent or true): alpha = liftAlpha(samples, dim, theme).
+ * Check off (dimAuto false): alpha 0; the panel is pure blur over the dimmed picture.
+ * film: the neutral to lay at alpha: rgb(10,12,14) in dark, #F4F7F8 in light (LIGHT.md section 4b).
+ * An app that has not built its light look yet does not call this in light.
+ * -> { alpha, check: 'on'|'off', dim, film, text }. Never throws.
+ */
+function panelLift(look, theme, samples) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  let glass = isObj(look) ? look.glass : null;
+  if (isObj(glass) && isObj(glass.v) && !isObj(glass[t])) glass = glass.v;   // shared() shape
+  const g = isObj(glass) && isObj(glass[t]) ? glass[t] : null;
+  const dim = g && num(g.dim, RANGES.dim) ? g.dim : SEED.glass[t].dim;
+  const film = (t === 'light' ? LIFT.light.rgb : LIFT.rgb).slice();
+  if (g && g.dimAuto === false) {
+    return { alpha: 0, check: 'off', dim, film, text: 'Brightness check off: Dim ' + a2(dim) + ' only' };
+  }
+  const alpha = liftAlpha(samples, dim, t);
+  const did = t === 'light' ? ['lightened', 'dark', 'lighten'] : ['darkened', 'bright', 'darken'];
+  return { alpha, check: 'on', dim, film,
+    text: alpha > 0
+      ? 'Brightness check on: Dim ' + a2(dim) + ', ' + did[0] + ' ' + a2(alpha) + ' where the picture is ' + did[1]
+      : 'Brightness check on: Dim ' + a2(dim) + ', nothing to ' + did[2] + ' here' };
 }
 // ==== pure (browser-safe): end ====
 
@@ -678,5 +807,6 @@ function create(opts) { return new LookSync(opts); }
 
 module.exports = {
   create, LookSync, read, parse, migrate, writeAtomic, checkValue, checkDesktop,
-  washAlpha, defaultDir, SEED, SCHEMA, FILE, FIELDS, RANGES, WASH_CEIL
+  washAlpha, defaultDir, SEED, SCHEMA, FILE, FIELDS, RANGES, WASH_CEIL,
+  FROST, LIFT, frostKind, liftPoints, relLum, liftAlpha, panelLift
 };

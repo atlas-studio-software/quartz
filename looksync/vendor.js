@@ -12,15 +12,17 @@
  * it runs inside a function scope (its top-level consts never collide with a
  * page's globals) and leaves window.LookAccent = { tokens, ... }.
  * wash.browser.js is look-sync.js's pure block (seeds, ranges, washAlpha:
- * the one tint rule every app shares) wrapped the same way, for index.html:
- * window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL }.
+ * the one tint rule every app shares, and the v2 islands look's brightness
+ * check) wrapped the same way, for index.html and newtab.html:
+ * window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL, FROST, LIFT,
+ * frostKind, liftPoints, relLum, liftAlpha, panelLift }.
  * Never edit a vendored copy: change ~/look-sync, run its tests, re-copy.
  */
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const PINNED = '3fa3800';
+const PINNED = '5d9e4f6';
 const SRC_REPO = process.env.LOOK_SYNC_REPO || path.join(require('os').homedir(), 'look-sync');
 // fake-writer.js is the test tool looksync-e2e drives the shared file with (it needs ./look-sync).
 const FILES = ['look-sync.js', 'accent.js', 'windows-mode.js', 'fake-writer.js'];
@@ -49,13 +51,19 @@ function build(commit) {
     '\nwindow.LookAccent = module.exports;\n})();\n';
   // wash.browser.js: look-sync.js's pure block (the seeds, ranges and
   // washAlpha, between its "pure (browser-safe)" markers), wrapped the same
-  // way; it leaves window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL }.
+  // way; it leaves window.LookWash = { washAlpha, SEED, RANGES, WASH_CEIL } plus,
+  // from a v2 block (LIFT present), the brightness check brightcheck.js uses.
   const ls = show(commit, 'look-sync.js');
   const m = /\/\/ ==== pure \(browser-safe\): begin ====\r?\n([\s\S]*?)\/\/ ==== pure \(browser-safe\): end ====/.exec(ls);
   if (!m) throw new Error('look-sync.js at ' + commit + ' has no pure (browser-safe) block');
-  out['wash.browser.js'] = header(commit, 'look-sync.js pure block: washAlpha, wrapped for <script> pages') +
+  out['wash.browser.js'] = header(commit, 'look-sync.js pure block: washAlpha and the v2 brightness check, wrapped for <script> pages') +
     "(function () {\n'use strict';\n" + m[1] +
-    'window.LookWash = { washAlpha: washAlpha, SEED: SEED, RANGES: RANGES, WASH_CEIL: WASH_CEIL };\n})();\n';
+    'window.LookWash = { washAlpha: washAlpha, SEED: SEED, RANGES: RANGES, WASH_CEIL: WASH_CEIL' +
+    (/\bconst LIFT\b/.test(m[1])
+      ? ',\n  FROST: FROST, LIFT: LIFT, frostKind: frostKind, liftPoints: liftPoints, relLum: relLum,' +
+        ' liftAlpha: liftAlpha, panelLift: panelLift'
+      : '') +
+    ' };\n})();\n';
   return out;
 }
 
