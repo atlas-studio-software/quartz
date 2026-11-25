@@ -6,8 +6,9 @@ The approved design is a static prototype of Quartz's Home (dark: `style.css`; l
 repository's files at the commit the audit was taken (before any fix); **after** is the state once the
 look-fidelity fixes landed.
 
-Match: **yes**, **no** or **partial**, each with one word on why. Nothing in the after column has been seen
-on screen yet: it is read from the CSS. `tools/look-shots.js` takes the window's pictures to check it.
+Match: **yes**, **no** or **partial**, each with one word on why. The after column was read from the CSS;
+`tools/look-shots.js` has since taken the window's pictures (dark and light, 1536x864 and 1920x1080, the
+built-in "Peaks in cloud" picture) and "Seen on screen" below says what they showed.
 
 ## Home: the picture under it
 
@@ -135,6 +136,32 @@ on screen yet: it is read from the CSS. `tools/look-shots.js` takes the window's
   the user's real symbols (as many as they keep) from its own feed, and says when it has none.
 - **The address bar's lead icon and star inside the field.** Quartz's address bar is the input element itself; its
   icons are separate toolbar controls.
+
+## Seen on screen
+
+look-shots, on a fresh test profile (no media, no Markets key, no app pins, the default Saved and shortcut
+sites), against the design's own pictures at the same sizes. Fixed once seen: the Apps card was still drawn
+inside the System card on a default Home (the markup had it there); the System card had no head row or stat
+wells; the +, the tab search and the workspace pill sat 10px from the tabs instead of 6, and the pill 3px low.
+
+What still differs, both themes unless named:
+
+- **Dark: the picture is painted far darker.** Quartz's legibility guard raises the dark wash from the Dim
+  (.20) to .76 over this picture (`Backdrop.state().glass`: source "own", raised) so the tab row's text keeps
+  its contrast; the design keeps the Dim at .20 and gets legibility from its top shade and a per-island film
+  (design style.css:66, 105-108; its film rule in app.js). A sky pixel reads 155/133/132 in the design and
+  53/48/47 in Quartz. Over a picture that dark the islands' film is 0 and they barely stand off it, so the
+  tab row, the chips and the cards read faint where the design's read as distinct panels. The guard is a
+  shared rule (the top-band value other apps read), so changing it is its own decision.
+- **Light: the wash and the lift** (see "Not done yet"): the picture reads lighter, the islands pale, and
+  the third ink (the System labels, about 2:1) and the bare clock over the picture are hard to read.
+- **The tab** sizes to its title (about 130px for "New tab"); the design's is 208px (design style.css:139).
+  Changing it moves tabfit.js's planning, so it is not done here.
+- **The centre column** sits lower than the design's because its content is shorter (pill Saved tiles, an
+  empty Apps card, no readings); the centring is the design's.
+- **Small:** the Processes control and the Apps card's Edit are plain text where the design has pill
+  buttons, and the Apps head has a hairline the design does not; Idle music has no Next button; the rest
+  (no media, no Markets rows, Session "Off", the market badge) is the test profile's data.
 
 ## Not done yet
 
