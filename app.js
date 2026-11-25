@@ -731,7 +731,7 @@ function pushFrostToTab(tab) {
     left: Math.round((p.picture.left - vr.left) * 10) / 10, top: Math.round((p.picture.top - vr.top) * 10) / 10,
     width: Math.round(p.picture.width * 10) / 10, height: Math.round(p.picture.height * 10) / 10,
   } : null;
-  const small = { dim: p.dim, washRgb: p.washRgb, box };
+  const small = { dim: p.dim, check: p.check, washRgb: p.washRgb, box };  // check: the brightness check switch (frost.js)
   const full = !pushUnchanged(tab, 'frost-rev', String(p.rev));
   const geo = JSON.stringify(small);
   if (!full && pushUnchanged(tab, 'frost-geo', geo)) return;
