@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit 5d9e4f6 (windows-mode.js).
+/* VENDORED from ~/look-sync commit dca42dc (windows-mode.js).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 'use strict';
 /*

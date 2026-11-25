@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit 5d9e4f6 (look-sync.js).
+/* VENDORED from ~/look-sync commit dca42dc (look-sync.js).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 'use strict';
 /*
@@ -50,7 +50,7 @@ const APP_NAMES = { helm: 'Helm', quartz: 'Quartz', mantle: 'Mantle' };
 // glass + tint override"): blur 0 in both themes (the picture is painted
 // sharp) and a lighter dim .30 in both, raised automatically where a picture
 // needs it (washAlpha). dimAuto is absent: absent means automatic.
-// Dim .20 in both themes (Owen, 2026-11-24, the islands look, CONTRACT
+// Dim .20 in both themes (the user, 2026-11-24, the islands look, CONTRACT
 // "2026-11-24: the islands look (v2)"); the range stays 0.20-0.90.
 const SEED = Object.freeze({
   theme: 'system',
@@ -150,7 +150,7 @@ function washAlpha(look, desktop, theme, opts) {
     text: 'Automatic: ' + a2(dim) + ', ' + why + 'text already reads over this picture at this Dim' };
 }
 
-// ---- v2: the islands look (Owen, 2026-11-24; CONTRACT "2026-11-24: the islands look (v2)") ----
+// ---- v2: the islands look (the user, 2026-11-24; CONTRACT "2026-11-24: the islands look (v2)") ----
 // Panels show the wallpaper still, dimmed by Dim and blurred by size, at its own
 // colours. Two copies are blurred ONCE (not live): 'light' for small chrome and
 // 'soft' for big panels. Where the picture behind a panel is too bright for white
@@ -173,7 +173,7 @@ const FROST = Object.freeze({
 // until its relative luminance is at most target.
 // Light theme (LIGHT.md section 4b): the same index after sorting DARKEST first is
 // lightened with light.rgb (#F4F7F8) until its luminance is at least light.target.
-// Targets (v2.1, Owen 2026-11-24 option (b)): the worst of text-2, ok and down
+// Targets (v2.1, the user 2026-11-24 option (b)): the worst of text-2, ok and down
 // reaches 4.5:1 at the floor in both themes, over any hue. Dark 0.066 is set by
 // down #FF9D95 (0.163 only covered the main ink); light 0.386 by text-2 (ink .76).
 // max .72 is what white at the lowest Dim (.20) needs in dark; black needs .68 in light.
