@@ -111,12 +111,12 @@
 
 #downloads-panel {
   position: fixed;
-  top: calc(var(--titlebar-h) + var(--nav-h) + 8px);
+  top: calc(var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))) + var(--pop-gap, 8px));
   right: 10px;
   z-index: 20;
   width: 380px;
   max-width: calc(100vw - 20px);
-  max-height: calc(100vh - var(--titlebar-h) - var(--nav-h) - 28px);
+  max-height: calc(100vh - var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))) - var(--pop-gap, 8px) - 20px);
   display: flex;
   flex-direction: column;
   overflow: hidden;

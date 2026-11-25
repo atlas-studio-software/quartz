@@ -553,6 +553,17 @@
 
   /* --- the panel ------------------------------------------------ */
 
+  /** The top of a pop-over hung under the chrome: the tool row's bottom
+   *  plus the CSS --pop-gap (islands.css, the look's 12 air; 8 without it). */
+  function popTop(r) {
+    var row = buttonEl && buttonEl.closest ? buttonEl.closest('.navrow') : null;
+    var rr = row && row.getBoundingClientRect ? row.getBoundingClientRect() : null;
+    var bottom = rr && rr.height ? rr.bottom : r.bottom;
+    var gap = NaN;
+    try { gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pop-gap')); } catch (e) { gap = NaN; }
+    return Math.round(bottom + (gap >= 0 ? gap : 8)) + 'px';
+  }
+
   /** Anchored under the button's right edge; CSS holds the fallback. */
   function position() {
     if (!panelEl) return;
@@ -560,7 +571,7 @@
     var r = buttonEl.getBoundingClientRect();
     if (!r || !r.width) return;
     var right = Math.max(8, Math.round(window.innerWidth - r.right));
-    panelEl.style.top = Math.round(r.bottom + 8) + 'px';
+    panelEl.style.top = popTop(r);
     panelEl.style.right = right + 'px';
   }
 

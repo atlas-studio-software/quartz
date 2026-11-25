@@ -836,6 +836,17 @@
     applyPlace(at);
   }
 
+  /** The top of a pop-over hung under the chrome: the tool row's bottom
+   *  plus the CSS --pop-gap (islands.css, the look's 12 air; 8 without it). */
+  function popTop(r) {
+    var row = buttonEl && buttonEl.closest ? buttonEl.closest('.navrow') : null;
+    var rr = row && row.getBoundingClientRect ? row.getBoundingClientRect() : null;
+    var bottom = rr && rr.height ? rr.bottom : r.bottom;
+    var gap = NaN;
+    try { gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pop-gap')); } catch (e) { gap = NaN; }
+    return Math.round(bottom + (gap >= 0 ? gap : PANEL_GAP)) + 'px';
+  }
+
   /** The panel hangs under the button's left edge, inside the window. */
   function position() {
     if (!panelEl || !buttonEl || typeof buttonEl.getBoundingClientRect !== 'function') return;
@@ -845,7 +856,7 @@
     var maxLeft = Math.max(EDGE_GAP, (window.innerWidth || width) - width - EDGE_GAP);
     var left = Math.min(Math.max(EDGE_GAP, Math.round(r.left)), Math.round(maxLeft));
     panelEl.style.left = left + 'px';
-    panelEl.style.top = Math.round(r.bottom + PANEL_GAP) + 'px';
+    panelEl.style.top = popTop(r);
   }
 
   function openPanel() {

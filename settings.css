@@ -75,7 +75,7 @@
   --set-hover: rgba(255, 255, 255, 0.045);
   --set-press: rgba(255, 255, 255, 0.07);
   --set-current: rgba(255, 255, 255, 0.07);
-  --set-top-at: var(--set-top, calc(var(--titlebar-h) + var(--nav-h)));
+  --set-top-at: var(--set-top, var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))));
   --set-gap: 24px;
 
   position: fixed;
@@ -117,7 +117,7 @@ html[data-theme="light"] #settings-panel {
 /* the scrim: a plain tint over the page, behind the sheet */
 #settings-scrim {
   position: fixed;
-  top: var(--set-top, calc(var(--titlebar-h) + var(--nav-h)));
+  top: var(--set-top, var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))));
   right: 0;
   bottom: 0;
   left: 0;

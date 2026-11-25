@@ -20,6 +20,15 @@
      starts at 100, 12 below the tool row". Tab row 44 (#titlebar) + 4 + 40 + 12 = 100.
      chrome.css's 44 stays the old look's; the panels placed under the chrome follow it. */
   --nav-h: 40px;
+  --tab-row-h: calc(var(--titlebar-h) + 4px);   /* 44: "tab row 44 tall" */
+  --tool-row-top: 4px;                          /* "tool row 40 tall, 4 below it" */
+  /* the bottom of the chrome (88), and the air a pop-over hangs below it.
+     LOOK.md names no pop-over gap of its own, so it is the look's 12 air
+     (section 2: "Air between an island and the window edge, and between
+     big panels | 12"), the same 12 the page keeps below the tool row.
+     Panels read both with the old look's values as fallbacks. */
+  --chrome-bottom: calc(var(--tab-row-h) + var(--tool-row-top) + var(--nav-h));
+  --pop-gap: var(--isl-gap);
   --isl-r: 12px;
   --isl-r-s: 8px;
   --isl-float: var(--island-float);
@@ -56,7 +65,7 @@ html .navrow {
 
 #titlebar {
   position: relative;
-  height: calc(var(--titlebar-h) + 4px);
+  height: var(--tab-row-h);
   padding: 6px 0 0 var(--isl-gap);
   align-items: center;
 }
@@ -71,7 +80,7 @@ html .navrow {
 
 .navrow {
   position: relative;
-  margin: 4px var(--isl-gap) 0;
+  margin: var(--tool-row-top) var(--isl-gap) 0;
   padding: 4px;
   gap: 2px;
   background: transparent;

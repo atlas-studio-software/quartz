@@ -23,7 +23,7 @@
   top: 100%;
   right: 16px;
   z-index: 4;
-  margin-top: 8px;
+  margin-top: var(--pop-gap, 8px);
   width: 360px;
   max-width: calc(100vw - 32px);
   height: 40px;
@@ -71,7 +71,7 @@
    out): the bar re-hangs itself off <body> and measures from the viewport. */
 #findbar.find-detached {
   position: fixed;
-  top: calc(var(--titlebar-h) + var(--nav-h) + 8px);
+  top: calc(var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))) + var(--pop-gap, 8px));
   margin-top: 0;
 }
 

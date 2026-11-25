@@ -121,13 +121,32 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   const ccss = strip(fs.readFileSync(path.join(__dirname, 'chrome.css'), 'utf8'));
   const num = (re, src) => { const m = re.exec(src); return m ? Number(m[1]) : NaN; };
   const titlebarH = num(/--titlebar-h:\s*(\d+)px/, ccss);
-  const tabRow = /#titlebar\s*\{[^}]*height:\s*calc\(var\(--titlebar-h\)\s*\+\s*4px\)/.test(css) ? titlebarH + 4 : NaN;
+  const tabRow = /--tab-row-h:\s*calc\(var\(--titlebar-h\)\s*\+\s*4px\)/.test(css) && /#titlebar\s*\{[^}]*height:\s*var\(--tab-row-h\)/.test(css) ? titlebarH + 4 : NaN;
   const navH = num(/--nav-h:\s*(\d+)px/, css);
-  const navTop = num(/\.navrow\s*\{[^}]*margin:\s*(\d+)px var\(--isl-gap\) 0/, css);
+  const navTop = /\.navrow\s*\{[^}]*margin:\s*var\(--tool-row-top\) var\(--isl-gap\) 0/.test(css) ? num(/--tool-row-top:\s*(\d+)px/, css) : NaN;
   const gap = num(/--isl-gap:\s*(\d+)px/, css);
   const wellGap = /#well\s*\{[^}]*margin:\s*var\(--isl-gap\)/.test(css) ? gap : NaN;
   check(tabRow === 44 && navTop === 4 && navH === 40 && wellGap === 12 && tabRow + navTop + navH + wellGap === 100,
     'the chrome rows: tab row 44 + 4 + tool row 40 + 12 = content at 100 (LOOK.md section 2)', [tabRow, navTop, navH, wellGap].join(' + '));
+  // pop-overs hang under the chrome's bottom (88) with the look's 12 air: one shared token
+  check(/--chrome-bottom:\s*calc\(var\(--tab-row-h\)\s*\+\s*var\(--tool-row-top\)\s*\+\s*var\(--nav-h\)\)/.test(css)
+    && tabRow + navTop + navH === 88, 'the chrome bottom: tab row 44 + 4 + tool row 40 = 88', [tabRow, navTop, navH].join(' + '));
+  check(/--pop-gap:\s*var\(--isl-gap\)/.test(css) && 88 + gap === 100, 'a pop-over hangs 12 below the chrome (88 + 12 = 100)', gap);
+  const CB = 'var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h)))';
+  const under = CB + ' + var(--pop-gap, 8px)';
+  for (const [f, want] of [['find.css', 'top: calc(' + under + ');'], ['find.css', 'margin-top: var(--pop-gap, 8px);'],
+    ['downloads.css', 'top: calc(' + under + ');'], ['shield.css', 'top: calc(' + under + ');'], ['siteinfo.css', 'top: calc(' + under + ');'],
+    ['settings.css', '--set-top-at: var(--set-top, ' + CB + ');'], ['settings.css', 'top: var(--set-top, ' + CB + ');']]) {
+    check(strip(fs.readFileSync(path.join(__dirname, f), 'utf8')).indexOf(want) >= 0, f + ': placed with the shared chrome-bottom token', want);
+  }
+  const left = ['find.css', 'downloads.css', 'shield.css', 'siteinfo.css', 'settings.css']
+    .filter((f) => /var\(--titlebar-h\)\s*\+\s*var\(--nav-h\)\s*\+/.test(strip(fs.readFileSync(path.join(__dirname, f), 'utf8')).replace(/var\(--chrome-bottom, calc\(var\(--titlebar-h\) \+ var\(--nav-h\)\)\)/g, '')));
+  check(left.length === 0, 'no panel is still placed at --titlebar-h + --nav-h by hand', left);
+  for (const f of ['downloads.js', 'shield.js', 'siteinfo.js']) {
+    const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    check(src.indexOf('panelEl.style.top = popTop(r);') >= 0 && src.indexOf("getPropertyValue('--pop-gap')") >= 0 && src.indexOf("closest('.navrow')") >= 0,
+      f + ': the panel hangs from the tool row bottom plus --pop-gap, not the button');
+  }
 }
 
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');

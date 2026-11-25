@@ -100,7 +100,7 @@
 
 #siteinfo-panel {
   position: fixed;
-  top: calc(var(--titlebar-h) + var(--nav-h) + 8px);
+  top: calc(var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))) + var(--pop-gap, 8px));
   left: 10px;
   z-index: 20;
   width: 340px;
@@ -110,7 +110,7 @@
      "Clear cookies and site data" included — simply fell off the screen with
      no way to reach it. Same cap and the same scrolling body as the settings
      and downloads panes, which hang from the same top offset. */
-  max-height: calc(100vh - var(--titlebar-h) - var(--nav-h) - 28px);
+  max-height: calc(100vh - var(--chrome-bottom, calc(var(--titlebar-h) + var(--nav-h))) - var(--pop-gap, 8px) - 20px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
