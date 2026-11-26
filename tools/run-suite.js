@@ -144,6 +144,8 @@ const TESTS = [
   { name: 'brightcheck', file: 'brightcheck-harness.js' },
   // look-sync's shared v2.1 vectors: lift-v2 (dark) through Quartz's dark path; lift-light through the vendored liftAlpha.
   { name: 'lift-vectors', file: 'tests/lift-vectors-test.js' },
+  // The new tab's shortcut chips (app.js slice): a fresh profile does not show the Saved row twice.
+  { name: 'newtab-chips', file: 'tests/newtab-chips-test.js' },
   // Which lines of a failing test's output the suite lifts under it (tools/suite-lines.js).
   { name: 'suite-lines', file: 'tests/suite-lines-test.js' },
   // The preview launcher (tools/newlook-preview.js): its command, refusals, environment and seeded picture.

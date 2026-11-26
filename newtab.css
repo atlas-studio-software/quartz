@@ -2423,6 +2423,9 @@ html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* 
   gap: 8px;
   margin-top: 0;                   /* the column's 16px gap (the design) */
 }
+/* No chips (a fresh profile: no visits yet, and the defaults are already on
+   the Saved row): the row takes no room, so it adds no gap to the column. */
+.home:not(.is-editing) .links:empty { display: none; }
 
 /* Chips are controls, not containers: they keep ordinary round corners
    so the bevel stays the signature of the slot and the dropdown. */

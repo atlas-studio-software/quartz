@@ -235,7 +235,19 @@ function settingsChipList() {
   return all.chips;
 }
 
-/** The top sites as chips, padded out of the defaults, or null with no store. */
+/** The hosts on the Saved row (Settings.chips()), as a set; empty when it cannot be read. */
+function savedChipHosts() {
+  const out = Object.create(null);
+  let rows = [];
+  try { rows = typeof savedSites === 'function' ? savedSites() : []; } catch (err) { rows = []; }
+  for (const row of rows) {
+    const host = chipBareHost(row && row.url);
+    if (host) out[host] = true;
+  }
+  return out;
+}
+
+/** The top sites as chips, padded out of the defaults (less any already saved), or null with no store. */
 function visitedChips() {
   const store = window.History;
   if (!store || typeof store.topSites !== 'function') return null;
@@ -259,11 +271,15 @@ function visitedChips() {
     seen[host] = true;
     out.push({ label: chipLabelForHost(host), url: url });
   }
+  // The padding skips a default the Saved row already shows: on a fresh profile
+  // (no visits yet, the saved list still its seeded defaults) both rows would
+  // otherwise be the same four sites. A site actually visited stays, saved or not.
+  const saved = savedChipHosts();
   for (const chip of defaultChipList()) {
     if (out.length >= NEWTAB_CHIP_COUNT) break;
     if (!chip || !chip.url) continue;
     const host = chipBareHost(chip.url);
-    if (!host || seen[host]) continue;
+    if (!host || seen[host] || saved[host]) continue;
     seen[host] = true;
     out.push({ label: String(chip.label || chipLabelForHost(host)), url: String(chip.url) });
   }
