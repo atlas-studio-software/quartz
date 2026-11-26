@@ -155,6 +155,22 @@ html .navrow {
   text-shadow: var(--island-text-lift);
 }
 .tab-close { width: 20px; height: 20px; border-radius: var(--radius-s); }
+/* The design's width: every chip starts at 208 and shrinks with the strip down
+   to --tab-min (flexbox, as before; tabfit.js plans from --tab-min alone), so a
+   short title such as "New tab" has its room and the title's fade lands on
+   empty space instead of on its last letter. Pinned, collapsed and fitted
+   chips keep their own widths (chrome.css, more specific). */
+.tab { width: 208px; flex: 0 1 208px; }
+/* Collapse to icon (app.js buildChip, .tab-collapse) is not in the design's
+   tab: it comes up on hover or keyboard focus only. Hidden, it takes no room
+   (width 0, its gap given back) but stays focusable, so Tab still reaches it.
+   On a collapsed chip it is the way back out, so there it always shows. */
+.tab:not(:hover):not(:focus-within):not(.collapsed) .tab-collapse {
+  width: 0;
+  margin-left: -8px;
+  overflow: hidden;
+  opacity: 0;
+}
 .tab:hover { background: var(--isl-fill-1); }
 .tab:active { background: var(--isl-fill-press); }
 .tab.active { background: transparent; box-shadow: none; }
