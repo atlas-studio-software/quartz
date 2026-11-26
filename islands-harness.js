@@ -43,6 +43,22 @@ check(/#omnibox\.frost[^{]*\{[^}]*max-width:\s*760px/.test(css), 'the address ba
 check(/\.frost\.soft\s*\{\s*--frost:\s*var\(--frost-soft\)/.test(css), 'a big panel shows the soft copy');
 check(!/rgba\(255,\s*255,\s*255,[^)]*\)\s*,\s*rgba\(255,\s*255,\s*255/.test(css.slice(css.indexOf('.frost {'), css.indexOf('.frost.soft'))), 'the island fill has no white sheen layer');
 check(/prefers-reduced-motion/.test(css), 'reduced motion: the slide and the lift are off');
+// The fill reads --sheen as an ALPHA (0 at rest). A stylesheet the chrome loads that sets --sheen to
+// anything else (the old look's gradient) makes every island's background invalid: the plates paint nothing.
+{
+  const sheenSets = [];
+  for (const m of fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').matchAll(/<link rel="stylesheet" href="([^"]+)"/g)) {
+    const f = path.join(__dirname, m[1]);
+    if (!/node_modules/.test(m[1]) && fs.existsSync(f)) {
+      for (const d of strip(fs.readFileSync(f, 'utf8')).matchAll(/--sheen\s*:\s*([^;}]+)/g)) {
+        if (!/^(0|0?\.\d+|var\(--sheen-(hover|hover-big|open)\))$/.test(d[1].trim())) sheenSets.push(m[1] + ': ' + d[1].trim());
+      }
+    }
+  }
+  check(/rgb\(var\(--sheen-rgb\) \/ var\(--sheen, 0\)\)/.test(css) && sheenSets.length === 0, 'the chrome sets --sheen only to an alpha (else the islands paint nothing)', sheenSets);
+  const list = css.slice(0, css.indexOf('background:', css.indexOf('/* ---------- the frosted island')));
+  check(/(^|[\s,])#omnibox\.frost\s*,/.test(list.slice(list.lastIndexOf('}') + 1)), "the address bar is an island: #omnibox.frost outranks chrome.css's #omnibox field");
+}
 check(!/navrow\.appendChild|wrap/.test(js.replace(/insertBefore\(p, container\.firstChild\)/, '')), 'islands.js never wraps the toolbar buttons (they stay children of .navrow)');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const last = html.lastIndexOf('<link rel="stylesheet"');

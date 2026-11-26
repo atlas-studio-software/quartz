@@ -151,10 +151,15 @@ What still differs, both themes unless named:
   the tint): the picture is under the stored Dim only (`Backdrop.state().glass`: alpha .20, mode "islands"),
   and each island's brightness check lays its own film (.44 to .68 on the top-row islands over this sky).
   Settings reads "Dim 20%, brightness check per island". Light keeps washAlpha until it has its own look.
-- **Dark: the top-row plates read pale.** The tabs plate, the workspace pill, the + and tab-search buttons,
-  the nav plate and the tools plate show the bright sky with faint glyphs, although frost.js sets a film of
-  .56 to .68 on them; the address bar, with the same film, reads dark as it should. The design's top row is
-  dark, distinct islands. Not yet explained.
+- **Dark: the top-row plates read pale (fixed).** The tabs plate, the workspace pill, the + and tab-search
+  buttons, the nav plate and the tools plate showed the bare sky with faint glyphs, although frost.js set a
+  film of .44 to .68 on them. chrome.css still set the old look's `--sheen` to a gradient on `:root`; the
+  island fill reads `--sheen` as an alpha (`rgb(255 255 255 / var(--sheen, 0))`), so in the chrome the whole
+  `background` was invalid and every plate painted nothing but its shadow. The address bar only looked right
+  because chrome.css's `#omnibox` field (a `--code-bg` fill, a hairline) outranked `.frost`: it was not an
+  island either. The gradient is gone and `#omnibox.frost` takes the island fill, so the top row is the
+  design's dark, distinct islands (the tab plate's edge, the nav and tools plates read rgb 71 67 65,
+  62 58 57 and 73 74 81 at 1536x864, the address bar 67 61 58, beside the bare picture's 135 to 170).
 - **Saved row twice (fixed).** On a fresh profile the shortcut chips (most visited, no visits yet) were
   padded out of the same four defaults the Saved row is seeded with, so both rows showed the same sites; a
   profile with visits shows its own top sites there. The padding now skips a default that is already saved.

@@ -58,11 +58,14 @@
   --shade-drop: rgba(0, 0, 0, 0.30);
 
   /* the old lit treatments, flattened. They were gradients used as
-     background LAYERS (var(--sheen), var(--glass) ...), so each stays
+     background LAYERS (var(--rim), var(--glass) ...), so each stays
      an image — a clear or one-colour gradient — never a bare colour,
-     which would void the whole background declaration it sits in. */
-  --sheen:     linear-gradient(transparent, transparent);
-  --rim:       linear-gradient(var(--hairline), var(--hairline));
+     which would void the whole background declaration it sits in.
+     No --sheen here: that name is the islands' hover-sheen ALPHA now
+     (islands.css .frost, 0 at rest). A gradient under it made every
+     chrome island's background invalid, so the top-row plates painted
+     nothing but their shadow. */
+  --rim:      linear-gradient(var(--hairline), var(--hairline));
   --rim-focus: linear-gradient(var(--accent-line), var(--accent-line));
   --rim-soft:  linear-gradient(var(--hairline), var(--hairline));
   --seam:      linear-gradient(var(--hairline), var(--hairline));

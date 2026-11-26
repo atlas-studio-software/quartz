@@ -45,8 +45,11 @@
 /* ---------- the frosted island ---------- */
 /* The design's .frost: the hover sheen on top (0 at rest), the film, the
    wash, the blurred picture. The island buttons (the workspace pill, the
-   new-tab button) keep it under their own hover and press. */
+   new-tab button) keep it under their own hover and press, and the
+   address bar keeps it over chrome.css's #omnibox field (a --code-bg fill
+   and a hairline, which an id selector would otherwise paint instead). */
 .frost,
+#omnibox.frost,
 #workspace-pill.frost:hover, #workspace-pill.frost:active, #workspace-pill.frost.is-open,
 #newtab.frost:hover, #newtab.frost:active,
 #tabsearch-btn.frost:hover, #tabsearch-btn.frost:active, #tabsearch-btn.frost.is-on {
