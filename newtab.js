@@ -4125,7 +4125,7 @@ function setSearchEngine(key) {
   searchEngineKey = Object.prototype.hasOwnProperty.call(SEARCH_ENGINES, name) ? name : 'google';
   const input = document.getElementById('search-input');
   if (!input) return;
-  const prompt = 'Search ' + searchEngine().name + ' or type a URL';
+  const prompt = 'Search ' + searchEngine().name + ' or enter address';
   if (input.placeholder !== prompt) input.placeholder = prompt;
   input.setAttribute('aria-label', prompt);
 }

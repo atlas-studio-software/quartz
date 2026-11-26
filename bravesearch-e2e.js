@@ -332,7 +332,7 @@ async function guest(urlRe, notId) {
     await chrome.ev('createTab(), 1');
     const home = await guest(/newtab\.html/);
     const homeT = await home.waitFor("(() => { const s = window.__search && window.__search('moon phases'); return s && s.engine === 'brave-api' ? s : null; })()", 8000);
-    check(/search\.html\?q=moon\+phases&theme=dark/.test(homeT.target) && homeT.placeholder === 'Search Brave or type a URL', 'Home search box -> Quartz results page', homeT.target.split('/').pop() + ' | ' + homeT.placeholder);
+    check(/search\.html\?q=moon\+phases&theme=dark/.test(homeT.target) && homeT.placeholder === 'Search Brave or enter address', 'Home search box -> Quartz results page', homeT.target.split('/').pop() + ' | ' + homeT.placeholder);
     home.close();
 
     // right-click "Search for" on a plain web page
