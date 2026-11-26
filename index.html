@@ -159,7 +159,9 @@
         </svg>
       </button>
 
-      <!-- glyph swaps to &#xE706; (sun) when the light theme is on -->
+      <!-- One line moon in both themes; app.js flips only the title and
+           aria-label ("Switch to dark theme" in light, "Switch to light theme"
+           in dark). A click flips what is on screen and leaves system mode. -->
       <button id="theme" class="glass iconbtn no-drag" type="button" title="Switch theme" aria-label="Switch theme">
         <span class="glyph">&#xE708;</span>
       </button>

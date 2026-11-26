@@ -462,5 +462,31 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     'newtab.html: the Apps card (#dock.is-alone) follows the System card, not inside it', { opens, closes });
 }
 
+// The theme button (the approved design's toolbar): ONE line moon in both themes, only the title and
+// aria-label flip, and a click flips what is on screen, so from system mode it goes to the opposite
+// of the theme shown and leaves system.
+{
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const btn = /<button id="theme"[^>]*>\s*<span class="glyph">([^<]*)<\/span>/.exec(html);
+  check(!!btn && btn[1] === '&#xE708;', 'index.html: the theme button wears the line moon (E708)', btn && btn[1]);
+  // line endings read as \n: a CRLF checkout (CI's Windows runner) must give the same answers
+  const src = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+  const setThemeAt = src.indexOf('function setTheme(input)');
+  const setThemeEnd = setThemeAt < 0 ? -1 : src.indexOf('\n}\n', setThemeAt);
+  const setThemeSrc = setThemeEnd < 0 ? '' : src.slice(setThemeAt, setThemeEnd);
+  check(setThemeSrc.length > 0 && !/themeBtn[\s\S]*?(textContent|innerHTML|\.glyph)/.test(setThemeSrc) && !/THEME_GLYPH|\\uE706/.test(src.slice(src.indexOf('const THEME_STORAGE_KEY'), src.indexOf('function toggleTheme()') + 200)),
+    'app.js: setTheme never swaps the theme button\'s glyph (no sun in light)');
+  const titleSrc = /const THEME_TITLE = (\{[^}]*\});/.exec(src);
+  const title = titleSrc ? Function('return ' + titleSrc[1])() : null;
+  check(!!title && title.light === 'Switch to dark theme' && title.dark === 'Switch to light theme', 'app.js: "Switch to dark theme" in light, "Switch to light theme" in dark', title);
+  const setThemeLabels = /themeBtn\.title = THEME_TITLE\[theme\];/.test(setThemeSrc) && /themeBtn\.setAttribute\('aria-label', THEME_TITLE\[theme\]\);/.test(setThemeSrc);
+  check(setThemeLabels, 'app.js: setTheme sets both the title and the aria-label from THEME_TITLE');
+  const toggledSrc = /function toggledThemeMode\(resolved\) \{[\s\S]*?\n\}/.exec(src);
+  const toggled = toggledSrc ? Function(toggledSrc[0] + '; return toggledThemeMode;')() : null;
+  check(!!toggled && toggled('light') === 'dark' && toggled('dark') === 'light', 'a click flips light to dark and dark to light', toggled && [toggled('light'), toggled('dark')]);
+  check(/function toggleTheme\(\) \{\s*setThemeMode\(toggledThemeMode\(getTheme\(\)\)\);\s*\}/.test(src),
+    'a click from system mode flips the theme on screen (getTheme) to an explicit light or dark, leaving system');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

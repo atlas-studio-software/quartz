@@ -5487,9 +5487,8 @@ function shortLabelFor(url) {
 // synchronously from <head> (so nothing ever paints the wrong way round) and
 // everything below reads it back rather than keeping a second copy.
 const THEME_STORAGE_KEY = 'theme';
-// Segoe Fluent Icons: E708 = moon (shown in dark, click for light),
-//                     E706 = sun  (shown in light, click for dark).
-const THEME_GLYPH = { dark: '\uE708', light: '\uE706' };
+// The toolbar button wears one glyph in both themes, the line moon (Segoe
+// Fluent Icons E708, set in index.html); only its title and label flip.
 const THEME_TITLE = { dark: 'Switch to light theme', light: 'Switch to dark theme' };
 
 function getTheme() {
@@ -5521,8 +5520,8 @@ function pushThemeToTab(tab, theme) {
 }
 
 /**
- * Apply a theme everywhere at once: the chrome attribute, storage, the toggle
- * glyph, every live terminal and every open new-tab page.
+ * Apply a theme everywhere at once: the chrome attribute, storage, the toggle's
+ * title and label, every live terminal and every open new-tab page.
  */
 function setTheme(input) {
   const theme = input === 'light' ? 'light' : 'dark';
@@ -5533,8 +5532,6 @@ function setTheme(input) {
   } catch (err) { /* storage blocked — the attribute still holds for this run */ }
 
   if (themeBtn) {
-    const glyph = themeBtn.querySelector('span.glyph');
-    if (glyph) glyph.textContent = THEME_GLYPH[theme];
     themeBtn.title = THEME_TITLE[theme];
     themeBtn.setAttribute('aria-label', THEME_TITLE[theme]);
   }
@@ -5674,7 +5671,7 @@ function onSystemThemePush(sys) {
 }
 
 /**
- * Boot: read the mode, re-apply what theme-boot.js painted (glyph, terminal),
+ * Boot: read the mode, re-apply what theme-boot.js painted (button label, terminal),
  * and for 'system' ask Windows once. No event is fired here.
  */
 function initThemeMode() {
