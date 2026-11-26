@@ -162,15 +162,23 @@ html .navrow {
    chips keep their own widths (chrome.css, more specific). */
 .tab { width: 208px; flex: 0 1 208px; }
 /* Collapse to icon (app.js buildChip, .tab-collapse) is not in the design's
-   tab: it comes up on hover or keyboard focus only. Hidden, it takes no room
-   (width 0, its gap given back) but stays focusable, so Tab still reaches it.
-   On a collapsed chip it is the way back out, so there it always shows. */
-.tab:not(:hover):not(:focus-within):not(.collapsed) .tab-collapse {
-  width: 0;
-  margin-left: -8px;
-  overflow: hidden;
+   tab: it comes up on hover or keyboard focus only. It is out of the row
+   (absolute, just left of the close button, over the title's faded end), so
+   it takes no room and showing it moves nothing: neither the title nor the
+   strip's scroll width, which a chip at --tab-min would otherwise overflow
+   on hover and push itself under the strip's right fade. At rest it ignores
+   the pointer but stays focusable, so Tab still reaches it. On a collapsed
+   chip it is the way back out, so there it keeps its place in the row. */
+.tab:not(.collapsed) .tab-collapse {
+  position: absolute;
+  top: 50%;
+  right: 32px;                     /* the chip's 4px end, the 20px close, the 8px gap */
+  margin-top: -9px;
   opacity: 0;
+  pointer-events: none;
 }
+.tab:not(.collapsed):is(:hover, :focus-within) .tab-collapse { opacity: 1; pointer-events: auto; }
+body.tab-dragging .tab:not(.collapsed) .tab-collapse { opacity: 0; }
 .tab:hover { background: var(--isl-fill-1); }
 .tab:active { background: var(--isl-fill-press); }
 .tab.active { background: transparent; box-shadow: none; }
