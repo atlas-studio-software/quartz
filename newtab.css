@@ -1858,8 +1858,8 @@ html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* 
   cursor: default;                 /* the strip's pointer stops at the dock */
 }
 
-/* Caption at the left, the way in at the right, closed by the same
-   double-fading rule the process header uses. */
+/* Caption at the left, the way in at the right. No rule under it: no card
+   head on Home has one (the design's card head, design style.css:276). */
 .dock-head {
   position: relative;
   display: flex;
@@ -1868,16 +1868,6 @@ html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* 
   gap: 8px;
   height: 20px;
   margin-bottom: 8px;
-}
-
-.dock-head::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: var(--hairline);
 }
 
 .dock-caption {
