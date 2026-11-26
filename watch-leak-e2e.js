@@ -336,9 +336,12 @@ run('watch-leak-e2e', async ({ check, launch, say, profileDir }) => {
 
     /* ---- 4. the leak counter in Settings ---- */
     await g.ev('console.log("quartz-watch:settings {}"), 1');
-    const txt = await chrome.waitFor('(() => { const n = document.querySelector("[data-field=\\"watchplayer\\"] .set-lumen-leaks"); return n ? n.textContent : null; })()', 8000).catch(() => null);
+    // The text and the box in ONE read: Settings may redraw the field between two reads, and a
+    // second read would then find nothing. Both checks below are unchanged.
+    const leak = await chrome.waitFor('(() => { const n = document.querySelector("[data-field=\\"watchplayer\\"] .set-lumen-leaks"); return n ? { txt: n.textContent, box: { sw: n.scrollWidth, cw: n.clientWidth, sh: n.scrollHeight, ch: n.clientHeight } } : null; })()', 8000).catch(() => null);
+    const txt = leak ? leak.txt : null;
     check(txt === 'Times Lumen had to leave: 3, last: Open in a tab, from a page in the layer: 127.0.0.1:' + srv.other.port + ' (just now)' || /^Times Lumen had to leave: 3, last: Open in a tab, from a page in the layer: 127\.0\.0\.1:\d+/.test(String(txt)), 'Settings > Lumen: "Times Lumen had to leave: 3, last: <reason>"', txt);
-    const box = await chrome.ev('(() => { const n = document.querySelector("[data-field=\\"watchplayer\\"] .set-lumen-leaks"); if (!n) return null; return { sw: n.scrollWidth, cw: n.clientWidth, sh: n.scrollHeight, ch: n.clientHeight }; })()');
+    const box = leak ? leak.box : null;
     check(!!box && box.sw <= box.cw + 1 && box.sh <= box.ch + 1, 'the counter line is not clipped', box);
     await chrome.ev('(() => { const n = document.querySelector("[data-field=\\"watchplayer\\"]"); if (n) n.scrollIntoView({ block: "center" }); return 1; })()');
     await shot('settings-counter', 1536, 800);
