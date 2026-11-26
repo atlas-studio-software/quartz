@@ -6,8 +6,9 @@
 //   brightcheck.js -> frost.js, the 40 samples painted into a bitmap at the panel's liftPoints and read
 //   back by frost.js filmFromPixels. Also straight through brightcheck.js in node, and with the check
 //   off (always 0).
-//   Light: the vendored liftAlpha(samples, dim, 'light') passes every light vector, but Quartz does
-//   not draw the light lift yet (today's light look), so nothing in Quartz calls it in light.
+//   Light (LIGHT.md section 4b): every vector goes through Quartz's light path the same way (frost.js
+//   filmFromPixels(..., 'light') over brightcheck.js), plus the vendored liftAlpha in node and in the
+//   page, and with the check off (always 0). The dark film is never laid in light.
 // One summary line: "lift-vectors: N passed, M failed".
 'use strict';
 const fs = require('fs');
@@ -72,23 +73,35 @@ const whole = (s) => s.every((c) => c.every((v) => Number.isInteger(v) && v >= 0
   check(white && white.dim === 0.2 && B.alphaFor(white.samples, 0.2) === 0.72, 'a white picture at Dim .20 gets .72 (was .48)');
 }
 
-/* ---- light: the vendored liftAlpha passes, Quartz does not draw it ---- */
+/* ---- light: Quartz's light path (frost.js -> brightcheck.js -> the vendored liftAlpha) ---- */
 {
   const LS = require(path.join(ROOT, 'looksync', 'look-sync.js'));
+  const B = require(path.join(ROOT, 'brightcheck.js'));
   let ok = 0, bad = 0;
   for (const v of light.vectors) {
+    const k = 10, bmp = paint(v.samples, k);
+    const geo = { ox: 0, oy: 0, cw: bmp.w, ch: bmp.h }, rect = { x: 0, y: 0, w: bmp.w, h: bmp.h };
+    const page = PF.filmFromPixels(bmp, geo, rect, v.dim, true, 'light');
+    const lift = B.filmFor(v.samples, v.dim, true, 'light');
+    const off = PF.filmFromPixels(bmp, geo, rect, v.dim, false, 'light');
     const a = LS.liftAlpha(v.samples, v.dim, 'light');
     const b = ctx.LookWash.liftAlpha(v.samples, v.dim, 'light');
     const p = LS.panelLift({ glass: { light: { dim: Math.max(0.2, v.dim) } } }, 'light', v.samples);
-    const good = a === v.alpha && b === v.alpha && p.film.join() === '244,247,248';
+    const good = whole(v.samples) && page === v.alpha && lift.alpha === v.alpha && lift.check === 'on' && off === 0 &&
+      lift.film.join() === '244,247,248' && a === v.alpha && b === v.alpha && p.film.join() === '244,247,248';
     if (good) ok++; else bad++;
-    check(good, 'lift-light "' + v.name + '": ' + v.alpha, { node: a, page: b });
+    check(good, 'lift-light "' + v.name + '": ' + v.alpha, { page, lift: lift.alpha, off, node: a, wash: b });
   }
-  console.log('lift-light (light, vendored liftAlpha, not wired into Quartz): ' + ok + ' passed, ' + bad + ' failed');
+  console.log("lift-light (light, Quartz's light path): " + ok + ' passed, ' + bad + ' failed');
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   const bjs = strip(read('brightcheck.js')), fjs = strip(read('frost.js'));
-  check(!/'light'/.test(bjs) && /liftAlpha\(samples, dim, 'dark'\)/.test(bjs), "brightcheck.js only ever asks for the dark film");
-  check(!/panelLift|liftAlpha/.test(fjs) && /!light && checkOn \? filmFromPixels\(/.test(fjs), 'frost.js never calls the light lift, and lays no film in light');
+  check(/liftAlpha\(samples, dim, theme === 'light' \? 'light' : 'dark'\)/.test(bjs) && /\(light \? L\.light\.rgb : L\.rgb\)/.test(bjs),
+    "brightcheck.js asks for the theme's own check and hands back that theme's neutral");
+  check(/dim, checkOn, light \? 'light' : 'dark'\)/.test(fjs), 'frost.js runs the check of the theme in effect, one at a time');
+  // the dark film is never laid in light: the light film colour is the lift's
+  const tokens = read('tokens.css');
+  const lm = /html\[data-theme="light"\] \{[\s\S]*?--island-film-rgb:\s*(\d+) (\d+) (\d+);/.exec(tokens);
+  check(lm && [lm[1], lm[2], lm[3]].join() === LIFT.light.rgb.join(), 'tokens.css light --island-film-rgb is LIFT.light.rgb (#F4F7F8)', lm && lm.slice(1));
 }
 
 /* ---- the film laid is the check's film, per channel ---- */

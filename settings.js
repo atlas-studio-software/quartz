@@ -2954,17 +2954,17 @@
    * 'off: <why>'), when it has one. Off, or not running, always says so.
    */
   function glassCheckText(on, theme, frostCheck) {
-    var dimOnly = 'the panels show the blurred picture under the Dim only, with no film over bright parts, so text over a bright picture can be hard to read';
-    if (!on) {
-      return 'Off: ' + dimOnly + (theme === 'light' ? ' (the check does not run in the light theme yet in any case).' : '.');
-    }
-    if (theme === 'light') {
-      return 'On, but not running in the light theme yet: the light look keeps its design until it has its own check, so the panels show the Dim only.';
-    }
+    var light = theme === 'light';
+    var dimOnly = light
+      ? 'the panels show the blurred picture under the Dim only, not lightened over dark parts, so text over a dark picture can be hard to read'
+      : 'the panels show the blurred picture under the Dim only, with no film over bright parts, so text over a bright picture can be hard to read';
+    if (!on) return 'Off: ' + dimOnly + '.';
     if (typeof frostCheck === 'string' && /^off/i.test(frostCheck)) {
       return 'On, but not running: ' + frostCheck.replace(/^off:\s*/i, '') + '. Until then ' + dimOnly + '.';
     }
-    return 'On: a panel over a bright part of the picture gets a dark film, just enough for its text to stay readable.';
+    return light
+      ? 'On: a panel over a dark part of the picture is lightened, just enough for its dark text to stay readable.'
+      : 'On: a panel over a bright part of the picture gets a dark film, just enough for its text to stay readable.';
   }
 
   function renderGlass() {
@@ -3001,8 +3001,7 @@
     guard.setAttribute('role', 'status');
     field.appendChild(guard);
     field.appendChild(el('p', 'set-hint',
-      (theme === 'light' ? 'Dim lays a white tint over the picture' : 'Dim lays a tint over the picture')
-      + ' so text stays readable, from 20% to 90%.'));
+      'Dim darkens the picture, in both themes, from 20% to 90%.'));
 
     /* The brightness check: its own switch, writing only glass.<theme>.dimAuto
        (CONTRACT v2). A dimAuto false left by an older Dim drag reads as off. */
@@ -3014,7 +3013,7 @@
     check.setAttribute('data-glass-check', '');
     field.appendChild(check);
     var F = window.Frost;
-    var checkNote = el('p', 'set-hint set-glass-check-note' + (checkOn && theme !== 'light' ? '' : ' set-look-warn'),
+    var checkNote = el('p', 'set-hint set-glass-check-note' + (checkOn ? '' : ' set-look-warn'),
       glassCheckText(checkOn, theme, F && typeof F.check === 'string' ? F.check : null));
     checkNote.setAttribute('data-glass-check-note', '');
     field.appendChild(checkNote);
@@ -3032,8 +3031,8 @@
   /**
    * The Dim row's mode line (pure): backdrop.js's glass state `gs` for the
    * theme on show, and the stored glass for that theme `g`. backdrop.js
-   * writes the whole line (gs.text: dark, on the islands look, "Dim 20%,
-   * brightness check per island" / "... brightness check off"; light, still
+   * writes the whole line (gs.text, the islands look in both themes: "Dim
+   * 20%, brightness check per island" / "... brightness check off"; a theme
    * on v1, "Automatic: ..." / "Manual: ..."). An older backdrop.js without it keeps its old wording, worked out here;
    * no state at all is said, never blank.
    */

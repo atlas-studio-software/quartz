@@ -184,7 +184,7 @@ run('look-shots', async ({ check, launch, say, profileDir }) => {
         // A toast (settings.js showToast: a note that times out on its own) is not part of the look.
         const toast = await chrome.waitFor("(() => { const t = document.getElementById('settings-toast'); return !t || t.hidden; })()", 8000).then(() => null, () => 'still up');
         if (toast) say(W + 'x' + H + ' ' + theme + ': a toast is up: ' + JSON.stringify(await chrome.ev("(document.getElementById('settings-toast') || {}).textContent || ''").catch(() => '')));
-        // How dark the picture is painted: the wash over it (dark: the Dim, the islands look; light: washAlpha).
+        // How dark the picture is painted: the wash over it (the Dim, the islands look, in both themes).
         const glass = await chrome.ev('(() => { const g = Backdrop.state().glass || {}; return { alpha: g.alpha, floor: g.floor, raised: g.raised, source: g.source, mode: g.mode, reason: g.reason || g.sourceReason || null }; })()').catch((e) => ({ error: e.message }));
         say(W + 'x' + H + ' ' + theme + ': the wash over the picture ' + JSON.stringify(glass));
         // The Saved row and the shortcut chips: what each one holds, and where the chrome got it.

@@ -104,7 +104,7 @@ const storedGlass = (b) => b.S.get('glass');
   ok('check note: on (dark) says what it does', /^On: /.test(T(true, 'dark', 'on')), T(true, 'dark', 'on'));
   ok('check note: off says the panels show the Dim only', /^Off: .*under the Dim only/.test(T(false, 'dark', 'on')), T(false, 'dark', 'on'));
   ok('check note: on but brightcheck missing says not running and why', /^On, but not running: brightcheck\.js did not load/.test(T(true, 'dark', 'off: brightcheck.js did not load, so x')), T(true, 'dark', 'off: brightcheck.js did not load, so x'));
-  ok('check note: light says it does not run there yet', /not running in the light theme/.test(T(true, 'light', 'on')) && /light theme yet/.test(T(false, 'light', 'on')), [T(true, 'light'), T(false, 'light')]);
+  ok('check note: light says it lightens a panel over a dark part, and off says so', /^On: .*dark part of the picture is lightened/.test(T(true, 'light', 'on')) && /^Off: .*not lightened over dark parts/.test(T(false, 'light', 'on')), [T(true, 'light', 'on'), T(false, 'light', 'on')]);
 }
 
 // ---- 3. the rendered rows: Dim slider, the brightness check, no Blur / See-through ------------
@@ -173,7 +173,7 @@ const storedGlass = (b) => b.S.get('glass');
   q(b.field, '[data-glass-check]').click();
   ok('light: the check writes glass.light.dimAuto only', storedGlass(b).light.dimAuto === false && storedGlass(b).dark.dimAuto === false && storedGlass(b).light.dim === 0.4, storedGlass(b));
   const hint = b.field.querySelectorAll('.set-hint').map((n) => n.textContent).join(' ');
-  ok('light hint: white tint, 20% to 90%, check not running in light yet', /white tint/.test(hint) && /20% to 90%/.test(hint) && /light theme yet/.test(hint), hint);
+  ok('light hint: the Dim darkens in both themes, 20% to 90%; the check off is said', /Dim darkens the picture, in both themes/.test(hint) && /20% to 90%/.test(hint) && !/white tint/.test(hint) && /^Off: |Off: /.test(hint), hint);
 }
 
 // ---- 6. the mode line -----------------------------------------------------------------------

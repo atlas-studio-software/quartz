@@ -58,7 +58,7 @@
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
     linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
     var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
-    var(--bg);
+    var(--island-ground, var(--bg));
   box-shadow: var(--isl-float);
   border: 0;
   text-shadow: var(--island-text-lift);   /* the design's ink shadow on an island */
