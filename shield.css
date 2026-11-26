@@ -37,7 +37,17 @@
   position: relative;                 /* the badge is placed against it */
 }
 
-#shield .glyph { font-family: var(--icon-font); }
+#shield .glyph { display: block; }
+/* the line mark (shield.js): the Lumen mark's recipe (chrome.css #lumen) */
+#shield .shield-mark {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  overflow: visible;
+}
 
 /* The panel is open: Helm's pressed icon button (.icon-btn.on), its
    hairline drawn inset so the button keeps exactly its box. */

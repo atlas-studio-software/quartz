@@ -36,10 +36,26 @@
  */
 
 (function () {
-  /* --- Segoe Fluent Icons ------------------------------------- */
-  // E83D is "Shield" in Segoe MDL2 Assets and is carried forward by Segoe
-  // Fluent Icons, so it renders on both fonts named in --icon-font.
-  var GLYPH_SHIELD = '\uE83D';
+  /* --- the mark ------------------------------------------------ */
+  // A line shield like its neighbours in the tools island (the Lumen mark,
+  // the moon, the gear): the design's shield outline on the 12 px grid the
+  // font glyphs use, drawn with a 1 px stroke in currentColor (shield.css).
+  // The font's E83D drew as a solid shield beside them.
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var SHIELD_PATH = 'M6 1.4 9.75 2.8v2.9c0 2.25-1.5 4-3.75 4.9-2.25-.9-3.75-2.65-3.75-4.9V2.8Z';
+  function shieldMark() {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'shield-mark');
+    svg.setAttribute('width', '12');
+    svg.setAttribute('height', '12');
+    svg.setAttribute('viewBox', '0 0 12 12');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', SHIELD_PATH);
+    svg.appendChild(path);
+    return svg;
+  }
 
   /* --- state ---------------------------------------------------- */
   /** The last state() we were told about. Rendered before it is ever true. */
@@ -310,7 +326,7 @@
 
     glyphEl = document.createElement('span');
     glyphEl.className = 'glyph';
-    glyphEl.textContent = GLYPH_SHIELD;
+    glyphEl.appendChild(shieldMark());
     buttonEl.appendChild(glyphEl);
 
     badgeEl = document.createElement('span');
