@@ -146,13 +146,21 @@ wells; the +, the tab search and the workspace pill sat 10px from the tabs inste
 
 What still differs, both themes unless named:
 
-- **Dark: the picture is painted far darker.** Quartz's legibility guard raises the dark wash from the Dim
-  (.20) to .76 over this picture (`Backdrop.state().glass`: source "own", raised) so the tab row's text keeps
-  its contrast; the design keeps the Dim at .20 and gets legibility from its top shade and a per-island film
-  (design style.css:66, 105-108; its film rule in app.js). A sky pixel reads 155/133/132 in the design and
-  53/48/47 in Quartz. Over a picture that dark the islands' film is 0 and they barely stand off it, so the
-  tab row, the chips and the cards read faint where the design's read as distinct panels. The guard is a
-  shared rule (the top-band value other apps read), so changing it is its own decision.
+- **Dark: the wash (fixed).** Quartz's legibility guard used to raise the dark wash from the Dim (.20) to .76
+  over this picture. Dark now follows the islands look (look-sync CONTRACT v2, which supersedes washAlpha as
+  the tint): the picture is under the stored Dim only (`Backdrop.state().glass`: alpha .20, mode "islands"),
+  and each island's brightness check lays its own film (.44 to .68 on the top-row islands over this sky).
+  Settings reads "Dim 20%, brightness check per island". Light keeps washAlpha until it has its own look.
+- **Dark: the top-row plates read pale.** The tabs plate, the workspace pill, the + and tab-search buttons,
+  the nav plate and the tools plate show the bright sky with faint glyphs, although frost.js sets a film of
+  .56 to .68 on them; the address bar, with the same film, reads dark as it should. The design's top row is
+  dark, distinct islands. Not yet explained.
+- **Saved row twice (fixed).** On a fresh profile the shortcut chips (most visited, no visits yet) were
+  padded out of the same four defaults the Saved row is seeded with, so both rows showed the same sites; a
+  profile with visits shows its own top sites there. The padding now skips a default that is already saved.
+  The design shows both rows, with different sites in each.
+- **The islands' tint.** The design's islands read teal over this picture; Quartz's are the neutral film
+  (rgb 10 12 14) over the picture's own colours, so they read grey-mauve.
 - **Light: the wash and the lift** (see "Not done yet"): the picture reads lighter, the islands pale, and
   the third ink (the System labels, about 2:1) and the bare clock over the picture are hard to read.
 - **The tab** sizes to its title (about 130px for "New tab"); the design's is 208px (design style.css:139).
