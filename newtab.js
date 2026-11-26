@@ -1395,7 +1395,8 @@ function paintMedia() {
   if (mediaToggle) {
     // [disabled] is what hides a control (visibility, in CSS) and what keeps
     // it out of the tab order: the box stays either way, so the transport is
-    // the same size with nothing playing as with a full session.
+    // the same size in every live state. (With nothing playing the whole
+    // transport is off the card: newtab.css, data-media="none".)
     mediaToggle.disabled = !live;
     mediaToggle.setAttribute('aria-label', state === 'playing' ? 'Pause' : 'Play');
   }

@@ -932,9 +932,10 @@ html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* 
    the artist, the position as a hairline, and the transport. It is the left
    rail's card under the clock, a tile of its own unlike idle music.
 
-   Fixed heights everywhere, the same rule the other tiles keep: nothing here
-   may grow when a track starts, when the art arrives or when a long title
-   lands, so the rail under it never jumps. */
+   Fixed heights everywhere while something plays: nothing here may grow when
+   the art arrives or when a long title lands. With nothing playing the card
+   is one row (the look section below), so it grows once when a session
+   starts and shrinks once when it ends. */
 
 .mod-media-body {
   display: flex;
@@ -1042,8 +1043,8 @@ html.home-measure .home { grid-template-rows: calc(100vh - 24px - 12px); }   /* 
   background: var(--ion);
 }
 
-/* Nothing playing: the track stays (it is part of the height) and the fill
-   goes, rather than a bright zero-length cap sitting at the left edge. */
+/* No session: the fill goes, rather than a bright zero-length cap sitting
+   at the left edge (the look section takes the whole track away). */
 .module-media[data-media="none"] .mod-media-fill { opacity: 0; }
 
 /* The transport. Glyphs only, quiet at rest: the tile is a readout and these
@@ -3000,6 +3001,15 @@ body.home-unfold { --home-fold: 0; }
 .module-media .mod-media-btn svg { width: 16px; height: 16px; }
 .module-media .mod-media-play { width: 44px; height: 44px; background: var(--media-disc); color: var(--media-disc-ink); }
 .module-media .mod-media-play:hover { background: var(--media-disc-hover); color: var(--media-disc-ink); }
+/* Nothing playing: one row, the note in its 48px well and the words. No
+   empty track and no hidden transport holding the card at full height; the
+   card grows to the design's when a session starts. The well is a quiet
+   fill-1 plate (the design draws no empty state). */
+.module-media[data-media="none"] .mod-media-bar,
+.module-media[data-media="none"] .mod-media-ctls { display: none; }
+.module-media[data-media="none"] .mod-media-art { background: var(--island-fill-1); box-shadow: none; }
+.module-media[data-media="none"] .mod-media-note { fill: var(--text-3); }
+.module-media[data-media="none"] .mod-media-title { color: var(--text-2); font-weight: 500; }
 
 /* --- reduced motion ------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
