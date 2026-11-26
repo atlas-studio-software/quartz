@@ -12445,11 +12445,19 @@ function retryTab(tab) {
 /* ------------------------------------------------------------------ */
 
 function navigateActiveTab(input) {
+  // Typed before openStrip() has built the strip: the session arrives over
+  // IPC a turn after the window and the address bar are up, so there is no
+  // tab yet to take it. It waits for the strip, in order, and then goes to
+  // the tab the boot put in front, instead of being dropped without a word.
+  if (!stripReady) {
+    stripWaiting.push(() => navigateActiveTab(input));
+    return;
+  }
   const tab = getActiveTab();
-  if (!tab) return;
-
   const url = toNavigationUrl(input);
   if (!url) return;
+  // No tab in front once the strip is built: the address opens in a new one.
+  if (!tab) { createTab(url); return; }
 
   // phone.html typed in anywhere goes to the phone tab already open, never a
   // second guest on the one stream (and never a reload of the stream itself).

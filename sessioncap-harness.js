@@ -231,6 +231,34 @@ function realisticEntry(i) {
   ok('restoreSession says when the boot went lazy against the settings', /if \(restoreForced\)/.test(rest) && /sessionNote\(lastRestoreNote\)/.test(rest));
 }
 
+// --- typed before the strip is built: navigateActiveTab waits for it ---------
+// The session arrives over IPC a turn after the address bar is up; an Enter in that turn found no tab
+// and was dropped without a word (bravesearch-e2e's first search timed out on it).
+{
+  const made = [], loaded = [];
+  const front = { id: 1, url: 'home', kind: 'page' };
+  const c = vm.createContext({
+    stripReady: false, stripWaiting: [], active: null, made, loaded,
+    getActiveTab: () => c.active,
+    toNavigationUrl: (t) => (String(t || '').trim() ? 'search:' + String(t).trim() : null),
+    isPhoneUrl: () => false, findPhoneTab: () => null, isClaudeTab: () => false, isNativeTab: () => false, isKeptPhoneTab: () => false,
+    createTab: (u) => made.push(u),
+    isViewUsable: () => true
+  });
+  vm.runInContext(cutFunction('navigateActiveTab'), c);
+  front.viewEl = { loadURL: (u) => { loaded.push(u); return null; }, setAttribute: () => {} };
+  vm.runInContext("navigateActiveTab('quartz crystal')", c);
+  ok('Enter before the strip: nothing navigates yet, the text waits', c.stripWaiting.length === 1 && loaded.length === 0 && made.length === 0, { waiting: c.stripWaiting.length, loaded, made });
+  c.active = front; c.stripReady = true;
+  for (const run of c.stripWaiting.splice(0)) run();
+  ok('...and goes to the tab the boot put in front once it is built', front.url === 'search:quartz crystal' && loaded.join() === 'search:quartz crystal' && made.length === 0, { url: front.url, loaded, made });
+  c.active = null;
+  vm.runInContext("navigateActiveTab('lunar eclipse')", c);
+  ok('no tab in front after the boot: the address opens in a new tab, not dropped', made.join() === 'search:lunar eclipse', made);
+  vm.runInContext("navigateActiveTab('   ')", c);
+  ok('empty input still does nothing', made.length === 1 && c.stripWaiting.length === 0, made);
+}
+
 // The suite's summary-line format (tools/run-suite.js): "<name>: N passed, M failed".
 console.log('\nsessioncap: ' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;

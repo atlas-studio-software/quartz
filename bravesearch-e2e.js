@@ -163,6 +163,19 @@ async function guest(urlRe, notId) {
       o.dispatchEvent(new Event('input', { bubbles: true }));
       o.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); return true; })()`);
     const activeUrl = () => chrome.ev('(getActiveTab() || {}).url || ""');
+    // What the chrome had when a wait for the active tab's url gave up: the tab's url, what its guest
+    // reports (readCurrentUrl), how many tabs, whether the strip was built yet, what the bar holds.
+    const activeSeen = () => chrome.ev(`(() => { const t = getActiveTab(); let read = '';
+      try { read = t ? String(readCurrentUrl(t) || '') : ''; } catch (e) { read = 'threw: ' + e.message; }
+      return JSON.stringify({ url: t ? t.url : null, readCurrentUrl: read, tabs: tabs.length, activeTabId,
+        stripReady: typeof stripReady === 'boolean' ? stripReady : 'unknown', omnibox: document.getElementById('omnibox').value }); })()`)
+      .catch((e) => 'unreadable (' + e.message + ')');
+    const waitActiveUrl = async (reSrc, ms) => {
+      const t0 = Date.now();
+      try { return await chrome.waitFor(`${reSrc}.test((getActiveTab() || {}).url || '')`, ms); } catch (e) {
+        throw new Error('timed out after ' + (Date.now() - t0) + ' ms (limit ' + ms + ') waiting for the active tab\'s url to match ' + reSrc + '; at the end: ' + await activeSeen());
+      }
+    };
     const SEARCH_RE = /\/search\.html\?/;
     const state = () => page.ev('window.__searchState && window.__searchState()');
     const settle = (pred) => page.waitFor(`(() => { const s = window.__searchState && window.__searchState(); return s && s.phase !== 'loading' && (${pred}) ? s : null; })()`, 12000);
@@ -174,7 +187,7 @@ async function guest(urlRe, notId) {
 
     // ---- no key ------------------------------------------------------------------------------
     await omnibox('quartz crystal');
-    await chrome.waitFor(`/search\\.html\\?q=quartz/.test((getActiveTab() || {}).url || '')`, 8000);
+    await waitActiveUrl('/search\\.html\\?q=quartz/', 8000);
     check(SEARCH_RE.test(await activeUrl()), 'omnibox search -> Quartz results page', await activeUrl());
     page = await guest(SEARCH_RE);
     let s = await settle("s.phase === 'problem'");
