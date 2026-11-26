@@ -272,6 +272,19 @@ html[data-theme="light"] #win-max:active { background: var(--caption-press); col
   padding: 0 14px;
 }
 #omnibox.frost:focus { box-shadow: var(--isl-float), 0 0 0 2px var(--accent); }
+/* The save star and the zoom readout ride INSIDE the address bar's island
+   (the design's #omni-save, a 28 px .tb-sm in .omni), at its right end:
+   out of the row's flow, so a page in front leaves the bar and the tools
+   island exactly as on Home. islands.js (placeInBar) writes their left and
+   the bar's right padding; centred on the row, as the bar is. */
+#save-star, #zoom-badge {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 50%;
+}
+#save-star { width: 28px; height: 28px; margin-top: -14px; }
+#zoom-badge { margin-top: -13px; }
 
 /* ---------- the well: a page floats as a sheet ---------- */
 #well {

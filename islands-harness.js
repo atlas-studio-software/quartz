@@ -488,5 +488,38 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
     'a click from system mode flips the theme on screen (getTheme) to an explicit light or dark, leaving system');
 }
 
+// A page in front: the toolbar is Home's. The star (and the zoom readout, and siteinfo.js's lock,
+// which is APPENDED to the row's end) ride inside the address bar, so they never start or end the
+// tools island; otherwise its plate spans from the lock (inside the bar's left end) to the star and
+// the real tools sit bare on the picture, the bug the 1536 x 864 page shots showed.
+{
+  const el = (id, cls) => ({ id, classList: { contains: (c) => c === cls } });
+  const kids = ['back', 'forward', 'reload'].map((id) => el(id));
+  const plateN = el('', 'isl-plate'), plateT = el('', 'isl-plate'), bar = el('omnibox');
+  const row = [plateN, plateT, ...kids, bar, el('zoom-badge'), el('save-star'), el('lumen'), el('shield'), el('theme'), el('settings'), el('siteinfo')];
+  const hidden = new Set(['zoom-badge']);
+  const shownF = (c) => !hidden.has(c.id);
+  const t = typeof I.toolsOf === 'function' ? I.toolsOf(row, bar, shownF) : null;
+  check(!!t && t[0].id === 'lumen' && t[1].id === 'settings', 'a page in front: the tools island is Lumen .. Settings, as on Home (not the star .. the lock)', t && t.map((c) => c.id));
+  const home = typeof I.toolsOf === 'function' ? I.toolsOf(row, bar, (c) => shownF(c) && c.id !== 'save-star' && c.id !== 'siteinfo') : null;
+  check(!!home && !!t && home[0] === t[0] && home[1] === t[1], 'the tools island is the same with a page in front and with Home in front', home && home.map((c) => c.id));
+  check(Array.isArray(I.IN_BAR) && ['siteinfo', 'zoom-badge', 'save-star'].every((id) => I.inBar({ id })) && !I.inBar({ id: 'lumen' }), 'the lock, the zoom readout and the star belong to the address bar');
+  // the seats: Home's bar at 1536 wide is 388..1148; the star sits inside it, 6 from its end
+  const box = I.barBox(1536, 124, 1374);
+  const right = box ? box.left + box.width : 0;
+  const s = typeof I.seats === 'function' ? I.seats(right, [28]) : null;
+  check(!!s && s.lefts[0] >= box.left && s.lefts[0] + 28 === right - I.BAR_END && s.pad === 6 + 28 + 8, 'the star sits inside the 760 px bar at its right end, and the text stops 8 before it', { box, s });
+  const s2 = typeof I.seats === 'function' ? I.seats(right, [28, 44]) : null;
+  check(!!s2 && s2.lefts[1] + 44 + 4 === s2.lefts[0] && s2.lefts[1] >= box.left && s2.pad === 6 + 28 + 4 + 44 + 8, 'the zoom readout sits before the star, inside the bar too', s2);
+  check(!!(typeof I.seats === 'function' && I.seats(right, []).pad === 0), 'nothing at the end: the CSS padding stays');
+  const rule = (sel) => { const i = css.indexOf(sel + ' {'); return i < 0 ? '' : css.slice(i, css.indexOf('}', i)); };
+  const both = rule('#save-star, #zoom-badge');
+  check(/position:\s*absolute/.test(both), 'islands.css: the star and the zoom readout are out of the row\'s flow (absolutely placed inside the bar)', both);
+  check(/width:\s*28px/.test(rule('#save-star')) && /height:\s*28px/.test(rule('#save-star')), 'the star is the design\'s 28 px .tb-sm');
+  check(js.indexOf('placeInBar();') > 0 && /return toolsOf\(navrow\.children, omnibox, shown\);/.test(js), 'islands.js seats the bar\'s controls and finds the tools with toolsOf');
+  // nothing ties the tools island or the bar to Home being in front
+  check(!/data-home-front|homeFront|isHome/.test(js), 'islands.js: no plate depends on Home being in front');
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

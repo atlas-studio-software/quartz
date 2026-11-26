@@ -9,12 +9,18 @@
 
      tabs   #tabstrip itself              (the workspace pill and the + are islands of their own)
      nav    #back .. #reload
-     tools  the first shown control after #omnibox .. the last one
+     tools  the first shown control after #omnibox .. the last one, not
+            counting the ones that sit INSIDE the address bar (IN_BAR)
 
    The address bar (#omnibox) is an island itself, 760 px at most, centred
    in the WINDOW (LOOK.md section 2), not between the nav and tools
    islands; when the window is too narrow for that it keeps ISL_AIR from
-   each of them (barBox).
+   each of them (barBox). The site-info lock (siteinfo.js), the zoom
+   readout and the save star ride inside it (the design's #omni-save is
+   in its .omni island), absolutely placed: the star at its right end,
+   the readout before it, and the field's right padding makes room
+   (seats). With a page in front the bar and the tools island are the
+   same as on Home.
 
    The active tab: ONE highlight (.tab-ind) slides between chips, with the
    accent underline under the title's WORDS (not the chip's middle). It
@@ -43,6 +49,13 @@
   var UL_W = 16;            // the underline's width
   var BAR_MAX = 760;        // the address bar's widest
   var ISL_AIR = 6;          // air between toolbar islands (LOOK.md section 2)
+  var BAR_END = 6;          // the design's .omni: 6 of air after the star
+  var BAR_TEXT = 8;         // ...and 8 between the text and the first control
+  var BAR_GAP = 4;          // between two controls in the bar
+  // the controls that ride INSIDE the address bar, never on the tools island;
+  // RIGHT ones are seated from its right end, in this order (star outermost)
+  var IN_BAR = ['siteinfo', 'zoom-badge', 'save-star'];
+  var BAR_RIGHT = ['save-star', 'zoom-badge'];
 
   /** The plate box covering rects a..b (container-relative), padded. */
   function span(container, first, last, pad) {
@@ -96,7 +109,44 @@
     return { left: Math.round(left * 10) / 10, width: Math.round(w * 10) / 10 };
   }
 
-  var pure = { PAD: PAD, UL_W: UL_W, BAR_MAX: BAR_MAX, ISL_AIR: ISL_AIR, span: span, underlineX: underlineX, indMove: indMove, barBox: barBox };
+  function inBar(el) { return !!el && IN_BAR.indexOf(el.id) >= 0; }
+
+  /**
+   * The tools group among the row's children (in DOM order): the first and
+   * the last control after the address bar that is shown (isShown), not a
+   * plate and not one of the bar's own controls. -> [first, last] or null.
+   */
+  function toolsOf(kids, bar, isShown) {
+    var first = null, last = null, after = false;
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c === bar) { after = true; continue; }
+      if (!after || inBar(c) || (c.classList && c.classList.contains('isl-plate')) || !isShown(c)) continue;
+      if (!first) first = c;
+      last = c;
+    }
+    return first ? [first, last] : null;
+  }
+
+  /**
+   * Seats for the controls at the bar's right end. right = the bar's right
+   * edge (row px), widths = the shown ones' widths, outermost first. ->
+   * { lefts, pad }: each control's left, and the bar's right padding that
+   * keeps its text clear of them (0: nothing there, the CSS padding stays).
+   */
+  function seats(right, widths) {
+    var x = right - BAR_END, lefts = [];
+    for (var i = 0; i < widths.length; i++) {
+      if (i) x -= BAR_GAP;
+      x -= widths[i];
+      lefts.push(Math.round(x * 10) / 10);
+    }
+    var pad = lefts.length ? Math.round((right - x + BAR_TEXT) * 10) / 10 : 0;
+    return { lefts: lefts, pad: pad };
+  }
+
+  var pure = { PAD: PAD, UL_W: UL_W, BAR_MAX: BAR_MAX, ISL_AIR: ISL_AIR, BAR_END: BAR_END, IN_BAR: IN_BAR,
+    span: span, underlineX: underlineX, indMove: indMove, barBox: barBox, inBar: inBar, toolsOf: toolsOf, seats: seats };
   if (typeof document === 'undefined' || typeof window === 'undefined') return pure;
 
   var reduce = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
@@ -140,14 +190,26 @@
 
   function toolsRange() {
     if (!navrow || !omnibox) return null;
-    var first = null, last = null, after = false;
-    for (var c = navrow.firstElementChild; c; c = c.nextElementSibling) {
-      if (c === omnibox) { after = true; continue; }
-      if (!after || c.classList.contains('isl-plate') || !shown(c)) continue;
-      if (!first) first = c;
-      last = c;
-    }
-    return first ? [first, last] : null;
+    return toolsOf(navrow.children, omnibox, shown);
+  }
+
+  /** The star and the zoom readout inside the bar's right end; one write per real change. */
+  var seatSent = '';
+  function placeInBar() {
+    if (!navrow || !omnibox) return;
+    var els = [], widths = [];
+    BAR_RIGHT.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.parentNode === navrow && shown(el)) { els.push(el); widths.push(el.offsetWidth); }
+    });
+    var right = shown(omnibox) ? omnibox.getBoundingClientRect().right - navrow.getBoundingClientRect().left : 0;
+    var s = seats(right, widths);
+    var key = s.lefts.join(',') + '/' + s.pad;
+    if (key === seatSent) return;
+    seatSent = key;
+    els.forEach(function (el, i) { el.style.left = s.lefts[i].toFixed(1) + 'px'; });
+    if (s.pad) omnibox.style.paddingRight = s.pad.toFixed(1) + 'px';
+    else omnibox.style.removeProperty('padding-right');
   }
 
   /** The address bar centred in the window (barBox); one style write per real change. */
@@ -245,6 +307,7 @@
     var ts = document.getElementById('tabsearch-btn');
     if (ts && !ts.classList.contains('frost')) ts.classList.add('frost', 'island');
     placeBar();
+    placeInBar();
     // the tabs island is the strip's own box: its 3px padding is the island's air (islands.css)
     putPlate(plates.tabs, titlebar, tabstrip, tabstrip, 0);
     putPlate(plates.nav, navrow, document.getElementById('back'), document.getElementById('reload'));
