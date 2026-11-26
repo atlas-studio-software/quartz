@@ -1,4 +1,4 @@
-/* VENDORED from ~/look-sync commit dca42dc (accent.js, wrapped for <script> pages).
+/* VENDORED from ~/look-sync commit 6e7e729 (accent.js, wrapped for <script> pages).
    Do not edit this copy: change ~/look-sync, run its tests, then `node looksync/vendor.js <commit>`. */
 (function () {
 var module = { exports: {} };
@@ -14,15 +14,16 @@ var module = { exports: {} };
  *
  * Two profiles (CONTRACT "Accent profiles", 2026-11-25):
  *   steel    the v1 look: Helm's steel blue (dark #9fb4cc, light #4d6784), base hue 212. The default.
- *   islands  the v2 islands look: ice blue (dark #a9e7ed, ink on it #052a2f), base hue 185. Its light
- *            tokens stay steel's until an app builds its light look (LIGHT.md), so today's light is unchanged.
+ *   islands  the v2 islands look: dark ice blue (#a9e7ed, ink on it #052a2f), base hue 185; light
+ *            LIGHT.md's deep teal (#083f49, strong #05313a, ink on it #f4f7f8), base hue 189 (v2.2).
  * At a profile's base hue (per theme) the tokens ARE the authored hexes, so turning "Custom" on at
- * baseHue(profile) keeps the dark colour exactly (ice blue stays #a9e7ed); other hues keep the authored S/L.
- * islands light: at 185 it is steel's light S/L at hue 185 (#4d7f84), not #4d6784 (one shared hue, two themes).
+ * baseHue(profile, theme) keeps the colour exactly; other hues keep the authored S/L.
+ * An app passes 'islands' only in a theme whose islands look it has built, and 'steel' (or nothing)
+ * in the other, so nobody's light changes until that app builds its light look (CONTRACT v2.2).
  *
  *   tokens(hue, theme, profile?) -> { acc, strong, on, soft, line, select, glow, rgb }
  *   tokens(null, theme)          -> null   (hue null = keep the app's own tokens)
- *   baseHue(profile)             -> 212 | 185
+ *   baseHue(profile, theme?)     -> 212 | 185 (islands dark) | 189 (islands light)
  */
 
 // The authored hexes of each profile and theme.
@@ -34,12 +35,12 @@ const AUTHORED = {
   },
   islands: {
     dark: { acc: '#a9e7ed', strong: '#c4f0f4', on: '#052a2f' },     // LOOK.md accent; Helm tokens.css ce15f69
-    light: { acc: '#4d6784', strong: '#3c536d', on: null }          // today's light, until the light look
+    light: { acc: '#083f49', strong: '#05313a', on: '#f4f7f8' }     // LIGHT.md section 4 (v2.2); strong = its hover/pressed
   }
 };
 // The hue of each profile's authored accent, per theme: at that hue the tokens are the authored hexes.
-// islands light reuses steel's light hexes, so its light base is steel's 212.
-const BASE_HUE = { steel: { dark: 212, light: 212 }, islands: { dark: 185, light: 212 } };
+// islands light: #083f49's own hue, 189.23, rounded to the whole degree accent.hue holds (v2.2).
+const BASE_HUE = { steel: { dark: 212, light: 212 }, islands: { dark: 185, light: 189 } };
 const PROFILES = Object.keys(AUTHORED);
 
 const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
@@ -64,7 +65,7 @@ const ALPHA = {
   light: { soft: 0.11, line: 0.40, select: 0.20, glow: 0.22 }
 };
 const DEFAULT_HUE = 212; // the steel blue (profile steel's base hue)
-const ISLANDS_HUE = 185; // ice blue (profile islands' base hue)
+const ISLANDS_HUE = 185; // ice blue (profile islands' dark base hue; light is 189)
 
 function hslToRgb(h, s, l) {
   h = ((h % 360) + 360) % 360;

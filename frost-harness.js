@@ -135,12 +135,30 @@ const geo = { ox: 0, oy: 0, cw: 1000, ch: 500 };
   check(fjs.indexOf('document.querySelectorAll(selector)') >= 0 && fjs.indexOf("document.querySelectorAll('.frost')") < 0, 'frost.js places by one selector, .frost plus what a page watches');
 }
 
-/* ---- light theme keeps today's look: no brightness film (decision 2026-11-24) ---- */
+/* ---- light theme: the lift toward #F4F7F8 (LIGHT.md section 4b), never the dark film ---- */
 {
   const fjs = fs.readFileSync(path.join(__dirname, 'frost.js'), 'utf8');
-  check(fjs.indexOf("var light = docEl.getAttribute('data-theme') === 'light';") >= 0 && fjs.indexOf('copy && geo && !light && checkOn ? filmFromPixels(') >= 0, 'light theme: panels get no film; nor with the check off');
+  check(fjs.indexOf("var light = docEl.getAttribute('data-theme') === 'light';") >= 0 &&
+        fjs.indexOf("copy && geo ? filmFromPixels(copy.lum, geo, { x: r.left, y: r.top, w: f.offsetWidth, h: f.offsetHeight }, dim, checkOn, light ? 'light' : 'dark')") >= 0,
+    "the theme in effect picks the check: the film in dark, the lift in light");
   check(fjs.indexOf("themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme', 'data-check-off'] })") >= 0, 'a theme flip or the check switching re-places the panels');
-  check(fjs.indexOf("'off in the light theme: it keeps its look until it has its own design'") >= 0, 'Frost.state().check says the film is off in light, and why');
+  const black = { w: 8, h: 8, px: new Uint8ClampedArray(256).map((v, i) => (i % 4 === 3 ? 255 : 0)) };
+  const white = { w: 8, h: 8, px: new Uint8ClampedArray(256).fill(255) };
+  const geo = { ox: 0, oy: 0, cw: 100, ch: 100 }, rect = { x: 0, y: 0, w: 100, h: 100 };
+  check(F.filmFromPixels(black, geo, rect, 0.2, true, 'light') === 0.68, 'light: a black picture lifts .68', F.filmFromPixels(black, geo, rect, 0.2, true, 'light'));
+  check(F.filmFromPixels(white, geo, rect, 0.2, true, 'light') === 0, 'light: a white picture needs no lift');
+  check(F.filmFromPixels(black, geo, rect, 0.2, true, 'dark') === 0 && F.filmFromPixels(white, geo, rect, 0.2, true, 'dark') === 0.72, 'dark is unchanged: no film over black, .72 over white');
+  check(F.filmFromPixels(black, geo, rect, 0.2, false, 'light') === 0, 'light, check off: no lift even over black');
+  const lift = F.liftFromPixels(black, geo, rect, 0.2, true, 'light');
+  check(lift.film.join() === '244,247,248' && /lightened 0\.68/.test(lift.text), 'light: the lift is #F4F7F8 and says so', lift);
+  // no still yet (or none): the flat ground, dimmed and lifted (.60 at the seed Dim)
+  check(F.FALLBACK_RGB.join() === '44,82,88' && F.fallbackLift(0.2, true) === 0.6 && F.fallbackLift(0.2, false) === 0, 'no still: the flat ground lifts .60 at Dim .20; 0 with the check off', F.fallbackLift(0.2, true));
+  check(fjs.indexOf(": light ? fallbackLift(dim, checkOn) : 0;") >= 0, 'light without the copies takes the fallback lift; dark without them stays 0');
+  const tok = fs.readFileSync(path.join(__dirname, 'tokens.css'), 'utf8');
+  const lightTok = tok.slice(tok.indexOf('html[data-theme="light"] {'));
+  check(/--island-film-rgb: 244 247 248;/.test(lightTok) && /--island-ground: #2c5258;/.test(lightTok) && /--wash-rgb: 9 10 11;/.test(lightTok),
+    'tokens.css light: the film layer is #F4F7F8, the ground before the copies #2c5258, the wash black');
+  check(!/'off in the light theme/.test(fjs), 'Frost.state().check no longer says the check is off in light');
 }
 
 /* ---- the check's switch: glass.<theme>.dimAuto -> :root [data-check-off] -> no film, said ---- */

@@ -35,13 +35,19 @@
    to FILM_MAX (.72); 0 over a dark area. The alpha goes on the panel as
    --film; the CSS lays rgb(var(--island-film-rgb)) at that alpha, which
    the compositor mixes per channel (tokens.css --island-film-rgb is the
-   check's film, LIFT.rgb). The switch is glass.dark.dimAuto (absent or
+   check's film, LIFT.rgb). The switch is glass.<theme>.dimAuto (absent or
    true = on): backdrop.js marks :root [data-check-off] when it is false,
    and then every panel's film is 0 (pure blur over the dimmed picture).
-   Light theme: no film (decision 2026-11-24: light keeps today's look
-   until it has its own design). The check is for white text over a wash
-   towards black; light's wash is white and its text dark ink, where a
-   dark film would cost contrast.
+   Light theme (LIGHT.md section 4b, look-sync v2.1): the same samples, the
+   other end: the darkest tenth is LIFTED toward #F4F7F8 until its
+   luminance is .386 or more (liftAlpha(samples, dim, 'light'), the same
+   steps and cap), for the dark ink on a light island. The alpha goes in
+   the same --film; tokens.css makes --island-film-rgb #F4F7F8 in light
+   (panelLift's `film` for the theme), so the dark film is never laid in
+   light. Only one check runs at a time: the theme in effect. Before (or
+   without) the blurred copies a light island shows the flat FALLBACK_RGB
+   ground (tokens.css --island-ground) and is lifted from that colour (.60
+   at the seed Dim), so dark ink never sits on an unlifted dark ground.
 
    Dim default (DIM_DEFAULT, 20%): see effectiveDim. Look Sync is
    untouched: this file never writes look.json or the shared glass; it only
@@ -75,6 +81,9 @@
   var CHECK_MISSING = !BC ? 'brightcheck.js did not load, so no panel is darkened over a bright picture'
     : !BC.ok ? BC.missing : '';
   var CHECK_OFF = 'off: the brightness check is switched off in Settings, so the panels show the Dim only';
+  /* The flat ground a light island shows until the blurred copies exist (the
+     design's flat tint, LIGHT.md section 4.2; tokens.css --island-ground). */
+  var FALLBACK_RGB = [44, 82, 88];
   var LEGIBILITY_FLOOR = true;
   var DIM_DEFAULT = 0.20;
   var DIM_MIN = 0.20, DIM_MAX = 0.90;     // the Dim's range (Settings, Look Sync)
@@ -128,18 +137,30 @@
   }
 
   /**
-   * One panel's film in the dark theme: brightcheck.js filmFor on its
-   * samples. dim = the wash alpha (towards black); checkOn false =
-   * glass.dark.dimAuto false. -> { alpha, film, check, text }.
+   * One panel's film (dark) or lift (light): brightcheck.js filmFor on its
+   * samples. dim = the wash alpha (towards black, both themes); checkOn
+   * false = glass.<theme>.dimAuto false; theme 'light' = the lift.
+   * -> { alpha, film, check, text }.
    */
-  function liftFromPixels(lum, geo, rect, dim, checkOn) {
+  function liftFromPixels(lum, geo, rect, dim, checkOn, theme) {
     if (!LEGIBILITY_FLOOR || !BC) return { alpha: 0, film: FILM_RGB.slice(), check: 'off', text: 'Brightness check off: ' + CHECK_MISSING };
-    return BC.filmFor(samplesFromPixels(lum, geo, rect) || [], dim, checkOn);
+    return BC.filmFor(samplesFromPixels(lum, geo, rect) || [], dim, checkOn, theme);
   }
 
-  /** The film alpha one panel needs (dark): liftFromPixels(...).alpha. */
-  function filmFromPixels(lum, geo, rect, dim, checkOn) {
-    return liftFromPixels(lum, geo, rect, dim, checkOn).alpha;
+  /** The alpha one panel needs: liftFromPixels(...).alpha. */
+  function filmFromPixels(lum, geo, rect, dim, checkOn, theme) {
+    return liftFromPixels(lum, geo, rect, dim, checkOn, theme).alpha;
+  }
+
+  /**
+   * A light island before (or without) the blurred copies: the lift its
+   * flat ground (FALLBACK_RGB) needs under the Dim (.60 at .20).
+   */
+  function fallbackLift(dim, checkOn) {
+    if (!LEGIBILITY_FLOOR || !BC) return 0;
+    var samples = [];
+    for (var i = 0; i < GRID.cols * GRID.rows; i++) samples.push(FALLBACK_RGB.slice());
+    return BC.filmFor(samples, dim, checkOn, 'light').alpha;
   }
 
   /**
@@ -163,9 +184,10 @@
   var pure = {
     BITMAP_W: BITMAP_W, BLURS: BLURS, BIG_MIN: BIG_MIN, BIG_AREA: BIG_AREA, TARGET: TARGET, FILM_RGB: FILM_RGB,
     FILM_MAX: FILM_MAX, FILM_STEP: FILM_STEP, GRID: GRID, LEGIBILITY_FLOOR: LEGIBILITY_FLOOR,
-    DIM_DEFAULT: DIM_DEFAULT, DIM_MIN: DIM_MIN, DIM_MAX: DIM_MAX,
+    DIM_DEFAULT: DIM_DEFAULT, DIM_MIN: DIM_MIN, DIM_MAX: DIM_MAX, FALLBACK_RGB: FALLBACK_RGB,
     isBig: isBig, kindFor: kindFor, coverGeometry: coverGeometry, lumOf: lumOf,
     samplesFromPixels: samplesFromPixels, liftFromPixels: liftFromPixels, filmFromPixels: filmFromPixels,
+    fallbackLift: fallbackLift,
     effectiveDim: effectiveDim,
     check: CHECK_MISSING ? 'off: ' + CHECK_MISSING : 'on',
   };
@@ -403,7 +425,10 @@
         if (f.style.getPropertyValue('--fy') !== fy) f.style.setProperty('--fy', fy);
       }
       var copy = copies[kind];
-      var a = copy && geo && !light && checkOn ? filmFromPixels(copy.lum, geo, { x: r.left, y: r.top, w: f.offsetWidth, h: f.offsetHeight }, dim, checkOn) : 0;
+      // the theme's own check only: the dark film in dark, the lift in light
+      var a = !checkOn ? 0
+        : copy && geo ? filmFromPixels(copy.lum, geo, { x: r.left, y: r.top, w: f.offsetWidth, h: f.offsetHeight }, dim, checkOn, light ? 'light' : 'dark')
+        : light ? fallbackLift(dim, checkOn) : 0;
       if (a > 0) films++;
       var s = a.toFixed(2);
       if (f.style.getPropertyValue('--film') !== s) f.style.setProperty('--film', s);
@@ -426,7 +451,7 @@
   // All of it is coalesced into one frame. Style changes are not watched: a
   // progress bar ticking would re-place every panel for nothing.
   var mo = typeof MutationObserver === 'function' && chromeMode ? new MutationObserver(function () { refresh(); }) : null;
-  // A theme flip re-places (light paints no film), as does the check being
+  // A theme flip re-places (the other theme's check), as does the check being
   // switched on or off, in the chrome and the Home.
   var themeMo = typeof MutationObserver === 'function' ? new MutationObserver(function () { queue(); }) : null;
   if (themeMo) themeMo.observe(docEl, { attributes: true, attributeFilter: ['data-theme', 'data-check-off'] });
@@ -466,8 +491,7 @@
   };
   if (CHECK_MISSING) console.warn('[frost] ' + CHECK_MISSING);
   pure.state = function () {
-    var check = docEl.getAttribute('data-theme') === 'light' ? 'off in the light theme: it keeps its look until it has its own design'
-      : CHECK_MISSING ? pure.check : checkOnNow() ? 'on' : CHECK_OFF;
+    var check = CHECK_MISSING ? pure.check : checkOnNow() ? 'on' : CHECK_OFF;
     return { state: st.state, reason: st.reason, panels: st.panels, films: st.films, source: st.source, mode: st.mode, check: check };
   };
   return pure;

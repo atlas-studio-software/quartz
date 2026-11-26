@@ -104,9 +104,10 @@
      page's own alphas, exactly as before. null when the module refuses. */
   function sharedTokens(hue, themeName) {
     var t;
-    try { t = window.LookAccent.tokens(hue, themeName); } catch (err) { t = null; }
-    if (!t || !t.rgb) return null;
     var light = themeName === 'light';
+    // the look-sync profile per theme (v2.2): 'islands' in light, whose look is built; dark as it was
+    try { t = light ? window.LookAccent.tokens(hue, 'light', 'islands') : window.LookAccent.tokens(hue, themeName); } catch (err) { t = null; }
+    if (!t || !t.rgb) return null;
     var rgb = t.rgb.join(', ');
     var out = {
       '--ion': t.acc,
@@ -119,8 +120,13 @@
       var name = ION_TOKENS[i][0];
       if (!out[name]) out[name] = 'rgba(' + rgb + ', ' + ION_TOKENS[i][light ? 2 : 1] + ')';
     }
+    // light: the profile's strong (hover / pressed) and ink on it, as the chrome paints them
+    if (light && t.strong) out['--accent-strong'] = t.strong;
+    if (light && t.on) out['--accent-text'] = t.on;
     return out;
   }
+  // painted inline in light only, with a hue (settings.js ACCENT_EXTRA)
+  var ACCENT_EXTRA = ['--accent-strong', '--accent-text'];
 
   // Kept so a data-theme flip can re-derive the same hue on the new base.
   var lastHue = null;
@@ -143,6 +149,7 @@
     var i;
 
     lastHue = h;
+    for (i = 0; i < ACCENT_EXTRA.length; i++) style.removeProperty(ACCENT_EXTRA[i]);
 
     if (h === null) {
       for (i = 0; i < ION_TOKENS.length; i++) style.removeProperty(ION_TOKENS[i][0]);
@@ -159,6 +166,7 @@
       ? sharedTokens(Math.round(h) % 360, light ? 'light' : 'dark') : null;
     if (shared) {
       for (i = 0; i < ION_TOKENS.length; i++) style.setProperty(ION_TOKENS[i][0], shared[ION_TOKENS[i][0]]);
+      for (i = 0; i < ACCENT_EXTRA.length; i++) if (shared[ACCENT_EXTRA[i]]) style.setProperty(ACCENT_EXTRA[i], shared[ACCENT_EXTRA[i]]);
       return;
     }
 

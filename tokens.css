@@ -182,6 +182,9 @@
   /* the caption close button's hover (LOOK.md section 2: the Windows red) */
   --caption-close: #C42B1C;
   --caption-close-press: rgba(196, 43, 28, 0.8);
+  /* the design's caption hover / press over the bare picture (light; dark keeps its own) */
+  --caption-hover: rgba(255, 255, 255, 0.12);
+  --caption-press: rgba(255, 255, 255, 0.07);
   --island-text-lift: 0 1px 2px rgba(0, 0, 0, 0.22);   /* the design's .frost text-shadow */
   /* Markets: the box chart, its rows, the big chart's scrim */
   /* the design's .stk-chart (a dark well, white on hover) and its rows (fill-1 hover, fill-2 selected) */
@@ -204,9 +207,9 @@
 /* CONTRACT "Light look" (2026-10-14): one island light in Quartz,
    Helm and Mantle. Ground, bars, ink and lines = Mantle's island light
    (mantle ui/shared/glass-light.css :root); panels and pop-ups = Helm's
-   light alphas re-tinted pure white. The bars are the white wash itself
-   (backdrop.css, --chrome-glass-a = glass.light.dim, .45); a panel's .76
-   on it nets ~.87; cards .70; menus .95. backdrop.js shifts these alphas
+   light alphas re-tinted pure white. The picture is under the same black
+   Dim as in dark (the islands look, LIGHT.md section 3); the rows are
+   islands over it. A panel .76, cards .70, menus .95. backdrop.js shifts these alphas
    by glass.light.panel (See-through), clamped .30..97. Ink is Mantle's
    --lg-ink / -2 / -3; lines its outer hairline and inner lip. */
 html[data-theme="light"] {
@@ -232,13 +235,15 @@ html[data-theme="light"] {
   --text-3: #5b6478;                        /* --lg-ink-3 */
   --text-inverse: #fbfbfc;
 
-  --ion: #4d6784;                        /* hsl(212 26% 41%) */
-  --ion-soft: rgba(77, 103, 132, 0.11);
-  --ion-glow: rgba(77, 103, 132, 0.22);
-  --ion-line: rgba(77, 103, 132, 0.40);
-  --ion-select: rgba(77, 103, 132, 0.20);
-  --seam-color: rgba(77, 103, 132, 0.14);
-  --chamber-seam: rgba(77, 103, 132, 0.16);
+  /* the light accent: look-sync's islands profile in light (v2.2, LIGHT.md section 4), the tokens
+     of its base hue 189: #083f49, at the light alphas (soft .11, the shared token's value) */
+  --ion: #083f49;
+  --ion-soft: rgba(8, 63, 73, 0.11);
+  --ion-glow: rgba(8, 63, 73, 0.22);
+  --ion-line: rgba(8, 63, 73, 0.40);
+  --ion-select: rgba(8, 63, 73, 0.20);
+  --seam-color: rgba(8, 63, 73, 0.14);
+  --chamber-seam: rgba(8, 63, 73, 0.16);
 
   --accent-strong: color-mix(in srgb, var(--ion) 80%, #000000);
   --accent-text: #ffffff;
@@ -273,11 +278,16 @@ html[data-theme="light"] {
   --scroll-thumb: rgba(11, 14, 26, 0.16);
   --scroll-thumb-hover: rgba(11, 14, 26, 0.28);
 
-  --wash-rgb: 255 255 255;                  /* the white wash (backdrop.css) */
+  --wash-rgb: 9 10 11;                      /* the Dim: a black wash in both themes (LIGHT.md section 3) */
 
   /* the floating islands, light (the design's light.css): the same shadows, black fills inside an
      island, a WHITE hover sheen (.16, .12 on the big panels, .22 under an open pop-over), the raised
      tab highlight white .5, a hair of light under the dark ink */
+  /* the brightness check in light lifts toward #F4F7F8 (LIGHT.md section 4b, look-sync LIFT.light.rgb):
+     the island's --film layer is that colour here, never the dark film. Before the blurred copies an
+     island shows the flat ground below (frost.js FALLBACK_RGB), lifted from it. */
+  --island-film-rgb: 244 247 248;
+  --island-ground: #2c5258;
   --island-fill-1: rgba(0, 0, 0, 0.05);
   --island-fill-2: rgba(0, 0, 0, 0.08);
   --island-fill-press: rgba(0, 0, 0, 0.04);
@@ -324,7 +334,13 @@ html[data-theme="light"] {
 }
 html[data-theme="light"],
 html[data-theme="light"] [data-palette="aurora"] {
-  --palette-preview: linear-gradient(135deg, #f6f6f4 0%, #f6f6f4 58%, #4d6784 58%, #4d6784 100%);
+  --palette-preview: linear-gradient(135deg, #f6f6f4 0%, #f6f6f4 58%, #083f49 58%, #083f49 100%);
+}
+/* The default palette in light: the islands accent's own strong (hover / pressed) and ink on it
+   (look-sync v2.2). Another palette keeps the mix and white; a custom hue paints its own inline. */
+html[data-theme="light"]:not([data-palette]) {
+  --accent-strong: #05313a;
+  --accent-text: #f4f7f8;
 }
 
 [data-palette="ember"] {

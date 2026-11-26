@@ -206,8 +206,8 @@ body {
 
 /* The dim wash (Settings, 0..0.6) and Helm's top scrim exist only while a
    picture is on screen: over the plain --bg they would only tint it. The
-   wash is the theme's wash colour (Helm's --wash-rgb), so a light window
-   lightens a photo rather than darkening it under dark text. */
+   wash is --wash-rgb, black in both themes (LIGHT.md section 3: the
+   picture does not change with the theme). */
 #bg-dim,
 .bg-scrim { display: none; }
 
@@ -224,16 +224,6 @@ body {
    scrim stay off. Light does the same (the light look was un-held); clips
    are drawn here. */
 html[data-bg-layer="chrome"] body { background: transparent; }
-
-/* Light theme lays a fixed light floor under the user's dim. Dark ink on a
-   photo needs a pale ground, and Quartz's dim default (0.25) left the photo
-   almost clear behind the Saved caption and chips; Helm's light Home is the
-   same photo under its wash at 0.45. The floor is 0.2, so Quartz's default
-   lands exactly on Helm's 0.45, the slider still moves the wash across its
-   whole range (0 -> 0.2, 0.6 -> 0.8), and dark theme is untouched. */
-html[data-theme="light"] #bg-dim {
-  background: rgb(var(--wash-rgb) / calc(var(--bg-dim, 0) + 0.2));
-}
 
 .bg-scrim {
   bottom: auto;
@@ -3519,7 +3509,7 @@ body.home-unfold { --home-fold: 0; }
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
     linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
     var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
-    var(--bg);
+    var(--island-ground, var(--bg));
   border: 0;
   box-shadow: var(--float);
   text-shadow: var(--island-text-lift);
@@ -3583,7 +3573,7 @@ body.home-unfold { --home-fold: 0; }
     linear-gradient(rgb(var(--island-film-rgb) / var(--film, 0)), rgb(var(--island-film-rgb) / var(--film, 0))),
     linear-gradient(rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2)), rgb(var(--wash-rgb) / var(--chrome-glass-a, 0.2))),
     var(--frost) var(--fx, 0px) var(--fy, 0px) / var(--fw, 100vw) var(--fh, 100vh) no-repeat,
-    var(--bg);
+    var(--island-ground, var(--bg));
   border-color: transparent;
   -webkit-backdrop-filter: none;
           backdrop-filter: none;

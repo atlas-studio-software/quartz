@@ -15,7 +15,7 @@ built-in "Peaks in cloud" picture) and "Seen on screen" below says what they sho
 | element | design value (file:line) | Quartz value (file:line) | match? | after |
 |---|---|---|---|---|
 | top shade over the picture | `linear-gradient(180deg, rgba(8,10,12,.28) 0, rgba(8,10,12,0) 180px)` over the picture, under every island (design style.css:105-108) | none: "No scrim: the one wash is the only tint" (backdrop.css:131-136) | no (missing) | yes (`.backdrop::after`, theme-free; toprow.js counts it) |
-| dim wash | `rgba(0,0,0,var(--dim))` over the picture and inside every island (design style.css:116, 651); LIGHT.md: 20% to 90%, default 20% (design LIGHT.md §3) | `rgb(var(--wash-rgb) / var(--chrome-glass-a, .2))` over the picture and inside every island (backdrop.css:105-108; newtab.css:3303); default 20% from look-sync | yes (dark) | yes (dark; light: see the light table) |
+| dim wash | `rgba(0,0,0,var(--dim))` over the picture and inside every island (design style.css:116, 651); LIGHT.md: 20% to 90%, default 20% (design LIGHT.md §3) | `rgb(var(--wash-rgb) / var(--chrome-glass-a, .2))` over the picture and inside every island (backdrop.css:105-108; newtab.css:3303); default 20% from look-sync | yes (dark) | yes (both themes: the stored Dim, a black wash; see the light table) |
 | the page area on Home | no sheet behind Home: `.home { inset: var(--chrome-h) 0 0 0 }`, nothing painted (design style.css:235-237) | `#views` is always a sheet: radius 12 and `--island-float-sheet` (islands.css:186-190), so on Home its shadow outlines one big, near-invisible panel round every card | no (extra panel) | yes (Home alone in front: no sheet, the guest reaches the window's sides and foot) |
 
 ## Home: the clock
@@ -29,7 +29,7 @@ built-in "Peaks in cloud" picture) and "Seen on screen" below says what they sho
 | text lift | `--text-lift: 0 1px 2px rgba(0,14,18,.35), 0 2px 18px rgba(0,14,18,.28)` (design style.css:55) | `--home-shadow: 0 1px 2px rgba(0,0,0,.5), 0 2px 18px rgba(0,0,0,.38)` (newtab.css:78) | no (values) | yes (`--text-lift`) |
 | clock, 1024-1279 wide | `--fs-hero: 76px` (design style.css:541-542) | 44px at every width (newtab.css:820) | no (size) | yes |
 | clock, under 1024 | `padding-top: 16px` (design style.css:549) | `padding-top: 24px`, centred, full row (newtab.css:2769-2776) | partial (padding) | yes (it now folds into the left rail, as the design) |
-| clock, light theme | theme-free: light ink with the dark lift, as in dark (design light.css:6-9; design LIGHT.md §4 "bare text on the picture") | dark ink `#0b0e1a` (tokens.css:183) with a white halo (newtab.css:89) | no (ink) | partial (light ink as designed, but over Quartz's white light wash) |
+| clock, light theme | theme-free: light ink with the dark lift, as in dark (design light.css:6-9; design LIGHT.md §4 "bare text on the picture") | dark ink `#0b0e1a` (tokens.css:183) with a white halo (newtab.css:89) | no (ink) | yes (light ink with the dark lift, over the black Dim as in dark) |
 
 ## Home: islands, lift and float
 
@@ -86,7 +86,7 @@ built-in "Peaks in cloud" picture) and "Seen on screen" below says what they sho
 |---|---|---|---|---|
 | type scale | `--fs-xs` 11, `--fs-s` 12, `--fs-m` 13, `--fs-l` 15, `--fs-xl` 20, `--fs-2xl` 28, `--fs-hero` 84 (design style.css:16-22) | `--fs-2xs` 11, `--fs-xs` 12, `--fs-s` 13, `--fs-m` 14, `--fs-l` 16, `--fs-xl` 20 (tokens.css:427-432): the same names one step apart; 15, 28 and 84 missing | partial (names) | partial (the values as `--look-fs-*`: the names collide) |
 | ink over the picture | `--text #eef6f7`, `--text-2/3/4` `rgba(230,242,244,.76/.54/.34)` (design style.css:25-28) | `#ececea`, `#a9aaa7`, `#75767a` (tokens.css:68-70) | no (values) | yes on Home (`--look-text*`); the chrome keeps its own |
-| accent | `#a9e7ed` (design style.css:30) | `--ion` `#9fb4cc`, the user's accent (tokens.css:74) | no (user setting) | no (the user's accent) |
+| accent | `#a9e7ed` (design style.css:30) | `--ion` `#9fb4cc`, the user's accent (tokens.css:74) | no (user setting) | partial (dark: the steel default or the user's hue; light: the design's `#083f49` by default, see the light table) |
 | radii | `--r-xs` 4, `--r-s` 6, `--r-m` 10, `--r-l` 16; islands 12 (design style.css:38-41, 120) | `--radius-xs` 4, `-s` 6, `-m` 10, `-l` 14; `--isl-r` 12 (tokens.css:399-401; islands.css:31) | partial (l) | yes (cards `--look-r-l` 16) |
 | motion | `--ease`, `--ease-lift`, `--dur` 160 (design style.css:57-60) | `--m-ease-look`, `--m-ease-lift`, `--m-press` 160 (tokens.css:465-473) | yes | yes |
 | reduced motion | every animation and transition 1ms (design style.css:558-561) | catch-all: `--rm-keep` 0.01ms, no transition on elements that declare none (tokens.css:547-560) | yes (equivalent) | yes (the new rises and presses are off under it) |
@@ -99,7 +99,7 @@ built-in "Peaks in cloud" picture) and "Seen on screen" below says what they sho
 | tab row | 44px (design style.css:131) | `--tab-row-h` 44px (islands.css:23) | yes | yes |
 | workspace pill | island pill, margin 6px 0 0 12px, 32px tall, padding 0 8px 0 12px, gap 8, `--fs-s` 12px 600, `--text`; 8px dot (design style.css:654-664) | island pill, 28px tall, padding 0 8px 0 9px, gap 7, `--fs-xs` 12px, `--text-2` (workspaces.css:73-90; islands.css:139) | partial (size, ink) | yes |
 | tabs island | 32px tall, padding 3px, gap 2px, margin 6px 0 0 6px (design style.css:132-136) | a plate round the chips plus 4px (islands.js:42, 46-56): 38px tall; chips gap 4px (chrome.css:365) | no (height) | yes (the strip's own box) |
-| tab | 26px tall, radius 8, 208px (min 72), padding 0 4px 0 10px, gap 8, `--fs-s` 12px, `--text-2` (design style.css:137-144) | 30px tall, radius 10, max 220px (min 104), padding 0 8px 0 12px, gap 6, `--fs-xs` 12px, `--text-2` (chrome.css:394-420) | partial (height, radius) | yes |
+| tab | 26px tall, radius 8, 208px (min 72), padding 0 4px 0 10px, gap 8, `--fs-s` 12px, `--text-2` (design style.css:137-144) | 30px tall, radius 10, max 220px (min 104), padding 0 8px 0 12px, gap 6, `--fs-xs` 12px, `--text-2` (chrome.css:394-420) | partial (height, radius) | yes (26 tall, radius 8, 208px shrinking to 72; collapse-to-icon only on hover or focus, out of the row) |
 | tab hover / press | `--fill-1` white .07 / `--fill-press` .05 (design style.css:145-146) | `--isl-fill-1` .07 / `--isl-fill-press` .05 (islands.css:121-122) | yes | yes |
 | active-tab highlight | 26px, radius 8, white .16, `inset 0 1px 0 rgba(255,255,255,.16), 0 1px 3px rgba(0,12,16,.25)` (design style.css:149-153) | 30px, radius 8, white .18, the same edge (islands.css:85-99; tokens.css:139-140) | partial (height, alpha) | yes (.16; the written look notes say .18) |
 | underline | 16x2px, accent, slides with ease-lift 320ms (design style.css:668-670) | `.tab-ul` 16x2px, accent, 320ms ease-lift (islands.css:100-112) | yes | yes (2px above the chip's foot) |
@@ -115,23 +115,27 @@ built-in "Peaks in cloud" picture) and "Seen on screen" below says what they sho
 
 | element | design value (file:line) | Quartz value (file:line) | match? | after |
 |---|---|---|---|---|
-| island ink | on islands only: `--text #0f1e21`, `--text-2/3/4` ink .76/.56/.36, accent `#083f49`, ok `#124028`, down `#6f1813` (design light.css:12-32) | the whole page: `#0b0e1a`, `#333a4e`, `#5b6478`, `--ion #4d6784` (tokens.css:183-188) | partial (values) | partial (Home and its gain / loss yes; the chrome keeps `#0b0e1a`; the accent is the user's) |
+| island ink | on islands only: `--text #0f1e21`, `--text-2/3/4` ink .76/.56/.36, accent `#083f49`, ok `#124028`, down `#6f1813` (design light.css:12-32) | the whole page: `#0b0e1a`, `#333a4e`, `#5b6478`, `--ion #4d6784` (tokens.css:183-188) | partial (values) | yes (Home's islands and the chrome's two rows; the accent: next row) |
 | island fills | black .05 / .08 / .12, pressed .04, hair black .08 (design light.css:22-26) | ink .05 / .09, pressed .04 (tokens.css:232-234) | partial (fill-2) | yes |
-| island fill over the picture | sheen + lift toward `#f4f7f8` by the §4b check (`--lift`) + black dim + the blurred copy (design light.css:37-42; design LIGHT.md §2) | white wash + the blurred copy, no lift: "light keeps today's look" (frost.js:41-44; newtab.css:3303) | no (lift) | no (not done: needs the black dim first) |
+| accent | `#083f49`, ink on it `#f4f7f8`, hover / pressed `#05313a`, soft .12 (design light.css:17-19, 30; design LIGHT.md §4) | the steel `#4d6784`, white on it (tokens.css:235-244) | no (values) | yes (look-sync v2.2's islands profile in light: `#083f49` / `#05313a` / `#f4f7f8`; soft .11, the shared token's value; a custom hue starts at 189) |
+| island fill over the picture | sheen + lift toward `#f4f7f8` by the §4b check (`--lift`) + black dim + the blurred copy (design light.css:37-42; design LIGHT.md §2) | white wash + the blurred copy, no lift: "light keeps today's look" (frost.js:41-44; newtab.css:3303) | no (lift) | yes (frost.js over the vendored `liftAlpha(samples, dim, 'light')`: the film layer is `#f4f7f8` in light, never the dark film; before the copies the flat `#2c5258` ground, lifted .60 at Dim .20) |
 | text on an island | `text-shadow: 0 1px 1px rgba(255,255,255,.28)` (design light.css:43) | the dark value in both themes (tokens.css:145) | no (value) | yes |
-| dim | a black wash in both themes (design LIGHT.md §3) | a white wash (`--wash-rgb: 255 255 255`, tokens.css:229) and a fixed .2 floor on Home (newtab.css:219-221) | no (colour) | no (not done) |
+| dim | a black wash in both themes (design LIGHT.md §3) | a white wash (`--wash-rgb: 255 255 255`, tokens.css:229) and a fixed .2 floor on Home (newtab.css:219-221) | no (colour) | yes (the stored Dim only, black, as dark: no washAlpha, no shared top band, no floor) |
 | floats | unchanged from dark (design LIGHT.md §4, light.css:6) | unchanged from dark (tokens.css: no light override) | yes | yes |
-| bare text on the picture | light ink with the dark lift (design light.css:6-9) | dark ink with a white halo (newtab.css:89) | no (ink) | partial (light ink, over the white wash) |
+| bare text on the picture | light ink with the dark lift (design light.css:6-9) | dark ink with a white halo (newtab.css:89) | no (ink) | yes (the clock, the date, the Saved caption; the caption buttons too, hover white .12) |
 | hover sheen | white .16, .12 on the search box, .22 under an open pop-over (design light.css:48-55) | ink .05, big .035 (tokens.css:232-235) | no (direction) | yes |
 | tab highlight | white .5, `inset 0 1px 0 rgba(255,255,255,.5), 0 1px 3px rgba(0,12,16,.16)` (design light.css:62-65) | white .55, the dark edge (tokens.css:236; islands.css:96) | partial (alpha) | yes |
 | chart wells | white .12, hover white .24 + inset black .12 (design light.css:71-72) | ink .04 / .07 (tokens.css:236-238) | no (direction) | yes |
 | play / pause disc | a dark disc `rgba(15,30,33,.92)`, light glyph (design light.css:78-80) | (dark's 22px glyph buttons, no disc) | no (missing) | yes |
 | Open badge | the ok tint .08 on white .24 (design light.css:85) | (no pill) | no (missing) | yes |
+| the Q on a tab | the one-ink Q in the dark ink `#0f1e21` on the tab island (design light.css:59; design LIGHT.md §4.2) | the light Q (app.js HOME_ICON) | no (ink) | yes (assets/quartz-logo-ink.svg) |
 
 ## Cannot match
 
-- **The accent.** The design draws `#a9e7ed` (light: `#083f49`); Quartz's accent is the user's own (Settings: a
-  palette or a hue), painted over `--ion`. Every focus ring, underline and accent pill follows the user's choice.
+- **The accent in dark.** The design draws `#a9e7ed`; Quartz's dark accent stays the steel blue `#9fb4cc` or the
+  user's own (Settings: a palette or a hue), painted over `--ion`. Light's default is the design's `#083f49` (look-sync
+  v2.2's islands profile); a palette or a hue the user picks still wins there. accent-soft is the shared token's .11,
+  not the design's .12 (look-sync keeps one light alpha for every profile).
 - **The Markets data.** The design's rows, prices and the "SPY 598.12 +0.42%" label in the box are fake; Quartz shows
   the user's real symbols (as many as they keep) from its own feed, and says when it has none.
 - **The address bar's lead icon and star inside the field.** Quartz's address bar is the input element itself; its
@@ -150,7 +154,7 @@ What still differs, both themes unless named:
   over this picture. Dark now follows the islands look (look-sync CONTRACT v2, which supersedes washAlpha as
   the tint): the picture is under the stored Dim only (`Backdrop.state().glass`: alpha .20, mode "islands"),
   and each island's brightness check lays its own film (.44 to .68 on the top-row islands over this sky).
-  Settings reads "Dim 20%, brightness check per island". Light keeps washAlpha until it has its own look.
+  Settings reads "Dim 20%, brightness check per island". Light now paints the same way (below).
 - **Dark: the top-row plates read pale (fixed).** The tabs plate, the workspace pill, the + and tab-search
   buttons, the nav plate and the tools plate showed the bare sky with faint glyphs, although frost.js set a
   film of .44 to .68 on them. chrome.css still set the old look's `--sheen` to a gradient on `:root`; the
@@ -166,22 +170,25 @@ What still differs, both themes unless named:
   The design shows both rows, with different sites in each.
 - **The islands' tint.** The design's islands read teal over this picture; Quartz's are the neutral film
   (rgb 10 12 14) over the picture's own colours, so they read grey-mauve.
-- **Light: the wash and the lift** (see "Not done yet"): the picture reads lighter, the islands pale, and
-  the third ink (the System labels, about 2:1) and the bare clock over the picture are hard to read.
-- **The tab** sizes to its title (about 130px for "New tab"); the design's is 208px (design style.css:139).
-  Changing it moves tabfit.js's planning, so it is not done here.
+- **Light: the wash and the lift (fixed).** The light theme used to lay a white wash (washAlpha) over the
+  picture, so the picture read washed out, the islands pale grey and the bare clock faint. Light now follows
+  LIGHT.md §3 and §4b: the picture under the stored Dim only, black (Backdrop.state().glass: alpha .20, mode
+  "islands"), and each island lifted toward `#f4f7f8` by its own check (on the top row over this sky: .00 to
+  .52; every Home island lifted). The islands read as the design's pale glass over a darker picture, the
+  island ink is `#0f1e21`, and the clock, the date, the Saved caption and the caption buttons keep the light
+  ink over the picture. The Home tab's Q is drawn in the island ink.
+- **The tab (fixed).** It sized to its title (about 130px for "New tab"); it now starts at the design's 208px
+  and shrinks to 72 with the strip (design style.css:139), and its collapse-to-icon button shows only on hover
+  or focus, out of the row.
 - **The centre column** sits lower than the design's because its content is shorter (pill Saved tiles, an
   empty Apps card, no readings); the centring is the design's.
 - **Small:** the Processes control and the Apps card's Edit are plain text where the design has pill
-  buttons, and the Apps head has a hairline the design does not; Idle music has no Next button; the rest
-  (no media, no Markets rows, Session "Off", the market badge) is the test profile's data.
+  buttons (the Apps head's hairline is gone); Idle music has no Next button; the workspace pill's "no colour"
+  dot is the third ink (dark in light) where the design draws a pale dot; the rest (no media, no Markets
+  rows, Session "Off", the market badge) is the test profile's data.
 
 ## Not done yet
 
-- **Light theme, the picture and the islands' lift** (design LIGHT.md §2-3): a black dim in both themes, and each island
-  lifted toward `#f4f7f8` by the §4b check (look-sync's `liftAlpha(samples, dim, 'light')`, already vendored). Quartz's
-  light theme still lays a white wash over the picture, so the bare clock's light ink sits over a lightened photo.
-  Changing the wash colour moves the whole light chrome (and the top-row hints other apps read), so it is its own change.
 - **Saved tiles** as the design's 56px squares with the name under them (Quartz draws pills with the label inside).
 - **The System card's stat wells** and the System / Apps card heads; the Session card's "On" in the ok colour.
 - **Now playing's time readout** ("1:16 / 3:48" under the bar): Quartz's tile shows the position as the bar only.

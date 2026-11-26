@@ -248,15 +248,16 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     return 'blur ' + a + ' ms, dim ' + b + ' ms, panel ' + c + ' ms';
   });
 
-  await test('light applies glass.light (sharp: no blur and no saturate; white wash at dim, panel)', async () => {
+  // LIGHT.md section 3 / CONTRACT v2: light paints like dark, the stored Dim only, a black wash.
+  await test('light applies glass.light (sharp: no blur and no saturate; the black Dim wash, panel)', async () => {
     fw('--app', 'helm', 'set', 'theme', 'light');
     must(await waitFor("document.documentElement.getAttribute('data-theme') === 'light' && Backdrop.state().glass.theme === 'light'", 1500), 'light');
     const LOOKV = "(() => { const r = Backdrop._lastRender(); const g = Backdrop.state().glass; const cs = getComputedStyle(document.documentElement); const w = getComputedStyle(document.querySelector('.backdrop > .bg-wash')).backgroundColor; return { blur: r && r.blur, filter: r && r.filter, key: r && r.key, blurPx: g.blurPx, alpha: g.alpha, source: g.source, why: g.sourceReason, sat: g.saturate, wash: w, s1: cs.getPropertyValue('--surface-1').trim(), titlebar: getComputedStyle(document.getElementById('titlebar')).backgroundColor }; })()";
-    const seed = (must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && !v.filter && v.sat === 100 && v.blurPx === 12 && v.alpha === 0.45 && /255, 255, 255, 0\\.45/.test(v.wash) ? v : null; })()", 3000), 'light seed: synced blur 12 but sharp, no saturate, white .45'), await ev(LOOKV));
-    if (!/not published|stale|own picture|Windows|off/.test(seed.why || '')) throw new Error('light own value without a reason: ' + JSON.stringify(seed));
+    const seed = (must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && !v.filter && v.sat === 100 && v.blurPx === 12 && v.alpha === 0.45 && v.source === 'dim' && /9, 10, 11, 0\\.45/.test(v.wash) ? v : null; })()", 3000), 'light seed: synced blur 12 but sharp, no saturate, black .45'), await ev(LOOKV));
+    if (!/lightens itself/.test(seed.why || '')) throw new Error('light Dim without its reason: ' + JSON.stringify(seed));
     fw('--app', 'helm', 'set', 'glass.light.blurPx', '30'); fw('--app', 'helm', 'set', 'glass.light.dim', '0.7'); fw('--app', 'helm', 'set', 'glass.light.panel', '-0.2');
     must(await waitFile((d) => d.look.glass.v.light.blurPx === 30 && d.look.glass.v.light.dim === 0.7, 1500), 'file carries light 30/.7');
-    const moved = (must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && v.blurPx === 30 && v.alpha === 0.7 && /255, 255, 255, 0\\.7\\)/.test(v.wash) && /255, 255, 255, 0\\.56\\)/.test(v.s1) ? v : null; })()", 2000), 'light 30/.7/-.2 applied'), await ev(LOOKV));
+    const moved = (must(await waitFor("(() => { const v = " + LOOKV + "; return v.blur === 0 && v.blurPx === 30 && v.alpha === 0.7 && /9, 10, 11, 0\\.7\\)/.test(v.wash) && /255, 255, 255, 0\\.56\\)/.test(v.s1) ? v : null; })()", 2000), 'light 30/.7/-.2 applied'), await ev(LOOKV));
     fw('--app', 'helm', 'set', 'glass.light.blurPx', '12'); fw('--app', 'helm', 'set', 'glass.light.dim', '0.45'); fw('--app', 'helm', 'set', 'glass.light.panel', '0');
     must(await waitFor("Backdrop._lastRender().blur === 0 && Backdrop.state().glass.blurPx === 12 && Backdrop.state().glass.alpha === 0.45 && !document.documentElement.style.getPropertyValue('--surface-1')", 2000), 'light seed again');
     fw('--app', 'helm', 'set', 'theme', 'dark');
@@ -443,25 +444,24 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     return 'guard ignored ' + a + ' ms\n    note: "' + n1.text + '"';
   });
 
-  await test('light guard: Mantle\'s desktop.guard.light is the white wash; missing/stale fall back to the dim with a reason (Settings says so)', async () => {
+  // LIGHT.md section 3 / CONTRACT v2: light is on the islands look too, so the shared light top band is
+  // not used: the wash is the stored Dim, black, whatever desktop.guard.light says.
+  await test('light guard (v2): the shared desktop.guard.light does not raise the wash; it stays the black Dim (Settings says so)', async () => {
     fw('--app', 'helm', 'set', 'theme', 'light');
     must(await waitFor("document.documentElement.getAttribute('data-theme') === 'light' && Backdrop.state().kind === 'desktop' && Backdrop.state().state === 'ok' && Backdrop.state().glass.blurPx === 12", 3000), 'light desktop ok');
     const WASH = "Number((/rgba?\\(([^)]+)\\)/.exec(getComputedStyle(document.querySelector('.backdrop > .bg-wash')).backgroundColor) || [0, '0,0,0,1'])[1].split(/[ ,/]+/).filter(Boolean)[3] || 1)";
-    await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 } });
-    const m = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'dim' && /light top band not published by Mantle yet/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'no light entry: dim .45 with the reason');
+    const BLACK = "/^rgba\\(9, 10, 11,/.test(getComputedStyle(document.querySelector('.backdrop > .bg-wash')).backgroundColor)";
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 }, light: { alpha: 0.55, contrast: 4.9, dim: 0.45, blurPx: 12, region: { topDip: 0, heightDip: 100 }, monitor: [1536, 864] } });
-    const a = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'shared' && g.alpha === 0.55 && g.raised && " + WASH + " === 0.55 && Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) === 0.55 ? g : null; })()", 3000), 'shared light .55 is the wash');
+    await sleep(500);                                  // a guard that applied would have landed by now
+    const a = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'dim' && g.mode === 'islands' && g.alpha === 0.45 && !g.raised && " + WASH + " === 0.45 && " + BLACK + " && Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')) === 0.45 ? g : null; })()", 3000), 'a valid light guard .55: still the Dim .45, black');
     await ev('Settings.open(), 1');
     const NOTE = "(() => { const e = document.querySelector('[data-glass-guard]'); return e ? { hidden: e.hidden, text: e.textContent } : null; })()";
-    const n1 = (must(await waitFor(NOTE + " && /^Automatic: 0\\.45, raised to 0\\.55 so text stays readable/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: light automatic, raised'), await ev(NOTE));
-    await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 }, light: { alpha: 0.55, contrast: 4.9, dim: 0.45, blurPx: 8 } });
-    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; return g.source === 'dim' && /blur 8 px, not this Dim 0\\.45 and blur 12 px/.test(g.sourceReason || '') && g.alpha === 0.45 && " + WASH + " === 0.45 ? g : null; })()", 3000), 'stale blur -> dim .45, the reason names both blurs');
-    const n2 = (must(await waitFor(NOTE + " && /^Automatic: 0\\.45, not raised: Mantle worked out the light top band for Dim 0\\.45 and blur 8 px/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings row: stale reason'), await ev(NOTE));
+    const n1 = (must(await waitFor(NOTE + " && /^Dim 45%, brightness check per island/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: Dim 45%, brightness check per island'), await ev(NOTE));
     await ev('Settings.close && Settings.close(), 1');
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 } });
     fw('--app', 'helm', 'set', 'theme', 'dark');
     must(await waitFor("document.documentElement.getAttribute('data-theme') === 'dark' && Backdrop.state().glass.source === 'dim' && Backdrop.state().glass.alpha === 0.5", 3000), 'dark: the Dim .5 (v2: the top band is not used)');
-    return 'missing ' + m + ' ms, shared ' + a + ' ms, stale ' + b + ' ms\n    note shared: "' + n1.text + '"\n    note stale:  "' + n2.text + '"';
+    return 'guard ignored ' + a + ' ms\n    note: "' + n1.text + '"';
   });
 
   await test('light sliders: Settings > Look edits glass.light in light (labelled), glass.dark in dark', async () => {
