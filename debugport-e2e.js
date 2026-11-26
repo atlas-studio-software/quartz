@@ -68,20 +68,66 @@ async function waitFor(fn, ms, what) {
   throw new Error('timed out waiting for ' + what);
 }
 
+/** true while pid is a running process (signal 0 only asks). */
+function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } }
+
+/** quartz.log's lines about the debugging port (the test profile's own log), the last few. */
+function portLogLines() {
+  return logText().split(/\r?\n/).filter((l) => /DevTools|CDP|cdp\.json|debugging port|remote-debugging/i.test(l)).slice(-8);
+}
+
+const started = [];   // every Quartz pid this run spawned, for the cleanup
+
+/*
+ * The wait for cdp.json's final answer. Quartz's own path to it, by its own bounds: cdp-main.js
+ * plan() probes the held port with netstat up to 5 times 250 ms apart (each netstat capped at 3 s)
+ * plus one netstat for the candidates, so at most ~19 s before 'ready'; then confirm() waits at
+ * most 5 s for DevToolsActivePort and writes the file. 45 s is well past that, so a miss is not
+ * this wait being short: the failure says what was seen instead.
+ */
+const BOOT_WAIT_MS = 45000;
+
 /** Boot a test copy with --remote-debugging-port=N; resolves once cdp.json has its final answer. */
 async function boot(label) {
-  try { fs.unlinkSync(path.join(DIR, cdpMain.STATE_FILE)); } catch { /* none yet */ }
+  const file = path.join(DIR, cdpMain.STATE_FILE);
+  try { fs.unlinkSync(file); } catch { /* none yet */ }
+  const t0 = Date.now();
   const child = spawn(ELECTRON, ['.', '--test-profile', '--profile-name=' + NAME, '--remote-debugging-port=' + N, ...OFFSCREEN_ARGS],
     { cwd: APP, stdio: 'ignore', env: Object.assign({}, process.env) });
-  let gone = false;
-  child.on('exit', () => { gone = true; });
+  started.push(child.pid);
+  let gone = false, code = null;
+  child.on('exit', (c, sig) => { gone = true; code = c == null ? sig : c; });
   say(label + ': quartz pid ' + child.pid);
-  const state = await waitFor(() => {
-    if (gone) throw new Error(label + ': Quartz exited during startup');
-    const s = readState();
-    return s && s.pid === child.pid && !/waiting/.test(String(s.error || '')) ? s : null;
-  }, 45000, label + ' cdp.json');
+  let firstSeen = null, last = null;   // when the plan()'s "waiting" file first showed, and the last copy read
+  let state;
+  try {
+    state = await waitFor(() => {
+      if (gone) throw new Error(label + ': Quartz exited during startup (exit ' + code + ') after ' + (Date.now() - t0) + ' ms');
+      const s = readState();
+      if (s) { last = s; if (firstSeen == null) firstSeen = Date.now() - t0; }
+      return s && s.pid === child.pid && !/waiting/.test(String(s.error || '')) ? s : null;
+    }, BOOT_WAIT_MS, label + ' cdp.json');
+  } catch (e) {
+    if (!/timed out/.test(e.message)) throw e;
+    const lines = portLogLines();
+    throw new Error(label + ': no final answer in ' + file + ' after ' + (Date.now() - t0) + ' ms (waited ' + BOOT_WAIT_MS + ' ms)'
+      + '; Quartz pid ' + child.pid + (alive(child.pid) && !gone ? ' was still running' : ' was not running (exit ' + code + ')')
+      + '; ' + (last ? 'the file first showed after ' + firstSeen + ' ms and last read ' + JSON.stringify({ pid: last.pid, mode: last.mode, plannedPort: last.plannedPort, error: last.error, summary: last.summary })
+        : 'the file never showed (plan() did not write it)')
+      + '; quartz.log ' + (lines.length ? 'about the port:\n      ' + lines.join('\n      ') : (logText() ? 'has no line about the port' : 'is empty or missing')));
+  }
+  say(label + ': cdp.json final after ' + (Date.now() - t0) + ' ms (the waiting copy first showed after ' + firstSeen + ' ms)');
   return { child, state, exited: () => gone };
+}
+
+/** Kill every Quartz pid this run started (and any copy on its profile name), then wait for them to be gone. */
+async function killAndWait(ms) {
+  for (const pid of started) { if (alive(pid)) { try { process.kill(pid); } catch { /* already gone */ } } }
+  killOurs();
+  const t0 = Date.now();
+  let left;
+  while ((left = started.filter(alive).concat(ourPids())).length && Date.now() - t0 < ms) { await sleep(250); killOurs(); }
+  return left;
 }
 
 async function chromeOf(port) {
@@ -163,9 +209,11 @@ async function main() {
   holder.close();
 }
 
-main().catch((e) => { fail++; say('FAIL crashed: ' + ((e && e.stack) || e)); }).finally(() => {
-  killOurs();
-  try { fs.rmSync(DIR, { recursive: true, force: true }); } catch (e) { say('could not delete the temp profile ' + DIR + ': ' + e.message); }
+main().catch((e) => { fail++; say('FAIL crashed: ' + ((e && e.stack) || e)); }).finally(async () => {
+  // Kill and WAIT before deleting: a profile still open in a dying Quartz cannot be deleted (EPERM).
+  const left = await killAndWait(15000);
+  if (left.length) say('still running 15 s after the kill: pid ' + left.join(', '));
+  try { fs.rmSync(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) { say('could not delete the temp profile ' + DIR + ': ' + e.message); }
   console.log(`debugport-e2e: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 });
