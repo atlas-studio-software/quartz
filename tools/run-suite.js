@@ -197,6 +197,9 @@ const TESTS = [
   // The go-live scripts count processes as arrays: @(Main-Procs) / @(Test-Procs) (a single Quartz
   // came back unrolled, its .Count empty, and the close step skipped closing it).
   { name: 'golive-procs', file: 'tests/golive-procs-test.js' },
+  // Which package-lock.json changes a code-only go-live may take (tools/golive-lockfile.js): only its
+  // own version bump, equal to package.json's; a dependency, packages[""] or a mismatch is refused.
+  { name: 'golive-lockfile', file: 'tests/golive-lockfile-test.js' },
   // In-app updates (updater.js): throwaway git repos and a fake releases API; up to date, ahead,
   // available, every reason for no button, offline, rate-limited, and each rollback.
   // It spawns a few hundred git processes, which on a busy Windows laptop took ~2 min: past the 90 s unit

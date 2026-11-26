@@ -1638,7 +1638,9 @@ Electron was built, read from disk, with no network call.
 5. Ship. A copy whose updater is on takes it through the in-app updater, which runs `npm ci` in a
    staging tree when the dependencies change. A copy with updates off (`no-updates.local`) never
    does: `tools/quartz-ff-golive.ps1` refuses any release that changes `package-lock.json` (before
-   it closes Quartz) because it never runs npm, swaps `node_modules\electron` or re-signs, and its
+   it closes Quartz; the one exception is a version bump, where only the lockfile's root `version`
+   and `packages[""].version` change, both to package.json's `version`, decided by
+   `tools/golive-lockfile.js` on `JSON.parse`) because it never runs npm, swaps `node_modules\electron` or re-signs, and its
    STOP line prints the command that does:
    `powershell -NoProfile -ExecutionPolicy Bypass -File tools\lumen-golive.ps1 -Repo <repo> -Ref <ref> -DryRun`,
    then the same without `-DryRun`. That closes Quartz, fast-forwards, runs

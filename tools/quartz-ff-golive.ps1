@@ -9,7 +9,9 @@ Electron already in node_modules (EVS-signed at release 1) stays as it is: no np
   under %APPDATA%. A dry run's "live checkout" probe also looks at the checkout this script is in.
 
   0. Preflight, with Quartz still open: git fetch; the checkout is clean and on master; HEAD -> Ref is a
-     fast-forward; Ref is exactly -Expect; package-lock.json is byte-identical HEAD..Ref, and package.json
+     fast-forward; Ref is exactly -Expect; package-lock.json is byte-identical HEAD..Ref or a version bump
+     (only its root "version" and packages[""].version changed, both to the target package.json's
+     "version"; tools/golive-lockfile.js decides, on node's JSON.parse), and package.json
      is either unchanged or differs only in fields npm/Electron never read at install or start (license,
      description, scripts, ...; compared as parsed JSON, the PASS line names them) (else STOP: that
      needs the swap script); node_modules electron is +wvcus and Quartz.exe.sig exists.
@@ -191,14 +193,29 @@ $pkgAt = $pkgShow.text
 if ($pkgAt -match '"electron":\s*"[^"]*#v[0-9.]+\+wvcus"') { Pass 'preflight: the target package.json pins castlabs Electron (+wvcus)' } else { Stop-Golive 'the target package.json does not pin a castlabs +wvcus Electron' }
 # The lockfile must be byte-identical HEAD..target: any change to it means npm would resolve a
 # different tree, and that is the swap script's job (npm + swap + re-sign), never this one's.
+# The one exception is a version bump: npm writes the lockfile's root "version" and packages[""].version
+# from package.json and they pin nothing, so a lockfile whose only changes are those two, both equal to
+# the target package.json's "version", is still code-only. tools/golive-lockfile.js (next to this
+# script) decides on node's JSON.parse; Windows PowerShell's ConvertFrom-Json cannot read a lockfile
+# (it rejects the "" key). No node, no helper, or any other answer than its exit 0 refuses.
+$lockNote = 'lockfile unchanged'
 $lock = Run 'git' @('diff', '--quiet', $script:oldHead, $target, '--', 'package-lock.json')
-if ($lock.code -ne 0) { Stop-Golive (Dependency-Release 'package-lock.json changed HEAD..target') }
+if ($lock.code -ne 0 -and $lock.code -ne 1) { Stop-Golive (Dependency-Release ('package-lock.json could not be compared HEAD..target (git diff exit ' + $lock.code + ': ' + (Tail $lock.text 1) + '), so it is treated as')) }
+if ($lock.code -eq 1) {
+  $lockJs = Join-Path $PSScriptRoot 'golive-lockfile.js'
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Stop-Golive (Dependency-Release 'package-lock.json changed HEAD..target and node is not on PATH to prove it only a version bump, so it is treated as') }
+  if (-not (Test-Path $lockJs)) { Stop-Golive (Dependency-Release ('package-lock.json changed HEAD..target and ' + $lockJs + ' is missing to prove it only a version bump, so it is treated as')) }
+  $lv = Run 'node' @($lockJs, $Repo, $script:oldHead, $target)
+  if ($lv.code -ne 0) { Stop-Golive (Dependency-Release ('package-lock.json changed HEAD..target: ' + (Tail $lv.text 1))) }
+  $lockNote = 'lockfile differs only in its version (' + (Tail $lv.text 1) + ')'
+  Pass ('preflight: package-lock.json is a version bump, code-only: ' + (Tail $lv.text 1))
+}
 # package.json may change in fields npm and Electron never read at install or start time (license,
 # description, author, scripts, ...): node_modules stays valid, so the release is still code-only.
 # Every field that feeds the install, the swap or the start path must be identical, compared as
 # parsed JSON (key order and whitespace do not count; values do). Anything unparseable refuses.
 $pkg = Run 'git' @('diff', '--quiet', $script:oldHead, $target, '--', 'package.json')
-if ($pkg.code -eq 0) { Pass 'preflight: package.json and package-lock.json are unchanged HEAD..target (code-only release)' }
+if ($pkg.code -eq 0) { Pass $(if ($lock.code -eq 0) { 'preflight: package.json and package-lock.json are unchanged HEAD..target (code-only release)' } else { 'preflight: package.json unchanged HEAD..target; ' + $lockNote + '; code-only release' }) }
 else {
   $pkgOldShow = Run 'git' @('show', ($script:oldHead + ':package.json'))
   if ($pkgOldShow.code -ne 0) { Stop-Golive ('git show ' + $script:oldHead.Substring(0, 7) + ':package.json failed: ' + (Tail $pkgOldShow.text 2)) }
@@ -235,7 +252,7 @@ else {
   } catch { Stop-Golive (Dependency-Release ('package.json changed HEAD..target and comparing it failed (' + (Clean $_.Exception.Message) + '), so it is treated as')) }
   if ($blocked.Count) { Stop-Golive (Dependency-Release ('package.json changed install/start fields HEAD..target (' + ($blocked -join ', ') + ')')) }
   if ($changed.Count) {
-    Pass ('preflight: package.json differs only in non-install fields (' + ($changed -join ', ') + '); lockfile unchanged; code-only release')
+    Pass ('preflight: package.json differs only in non-install fields (' + ($changed -join ', ') + '); ' + $lockNote + '; code-only release')
     # Lifecycle scripts are not run here (no npm), but the next npm install runs them: say so.
     if ($changed -ccontains 'scripts') {
       foreach ($s in @('preinstall', 'install', 'postinstall', 'prepare')) {
@@ -245,7 +262,7 @@ else {
         if ($a -cne $b) { Info ('preflight: scripts.' + $s + ' changed; not run by this script, the next npm install (lumen-golive.ps1) runs it') }
       }
     }
-  } else { Pass 'preflight: package.json text differs but no top-level field changed when parsed (formatting only); lockfile unchanged; code-only release' }
+  } else { Pass 'preflight: package.json text differs but no top-level field changed when parsed (formatting only); ' + $lockNote + '; code-only release' }
 }
 $ev = ''
 try { $ev = [string](Get-Content (Join-Path $Repo 'node_modules\electron\package.json') -Raw | ConvertFrom-Json).version } catch { $ev = '' }
