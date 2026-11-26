@@ -272,6 +272,11 @@ html[data-theme="light"] #win-max:active { background: var(--caption-press); col
   padding: 0 14px;
 }
 #omnibox.frost:focus { box-shadow: var(--isl-float), 0 0 0 2px var(--accent); }
+/* The site-info lock rides inside the bar's left end (siteinfo.js: a 24 px
+   button 4 in), and the design's .omni keeps 8 between its lead and the
+   text: 4 + 24 + 8. The plain #omnibox.frost padding above would otherwise
+   beat siteinfo.css's has-siteinfo room and run the text under the lock. */
+#omnibox.frost.has-siteinfo { padding-left: 36px; }
 /* The save star and the zoom readout ride INSIDE the address bar's island
    (the design's #omni-save, a 28 px .tb-sm in .omni), at its right end:
    out of the row's flow, so a page in front leaves the bar and the tools

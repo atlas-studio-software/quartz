@@ -521,5 +521,113 @@ check(!/rgba?\((?!var)/.test(css), 'islands.css: no raw colour, every one throug
   check(!/data-home-front|homeFront|isHome/.test(js), 'islands.js: no plate depends on Home being in front');
 }
 
+// A page in front: the lock (siteinfo.js, a BTN_SIZE button BTN_INSET into the bar's border box) and
+// the address text keep the design's gap (.omni: gap 8 between its lead and the input). The text's
+// left edge is the bar's border-left + padding-left as the cascade resolves them over every chrome
+// stylesheet, in index.html's order, for #omnibox.frost.island.has-siteinfo at rest, hovered and
+// focused. #omnibox.frost's plain "padding: 0 14px" (islands.css, later than siteinfo.css at the same
+// specificity) once won and ran the URL under the lock, the bug the 1536 x 864 page shots showed.
+{
+  const DESIGN_GAP = 8;
+  const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n?/g, '\n');
+  const sheets = [...read('index.html').matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1])
+    .filter((f) => !/node_modules/.test(f) && fs.existsSync(path.join(__dirname, f)));
+  // rules as { sel, body, at }: at = the enclosing at-rule's prelude ('' at the top level)
+  const rulesOf = (text, at) => {
+    const out = [];
+    let i = 0;
+    while (i < text.length) {
+      const open = text.indexOf('{', i);
+      if (open < 0) break;
+      const prelude = text.slice(i, open).replace(/^[\s;]+/, '').trim();
+      let depth = 1, j = open + 1;
+      while (j < text.length && depth) { if (text[j] === '{') depth++; else if (text[j] === '}') depth--; j++; }
+      const inner = text.slice(open + 1, j - 1);
+      if (/^@(media|supports|layer|container)\b/.test(prelude)) out.push(...rulesOf(inner, prelude));
+      else if (!/^@/.test(prelude)) out.push({ sel: prelude, body: inner, at: at || '' });
+      i = j;
+    }
+    return out;
+  };
+  const el = { id: 'omnibox', tag: 'input', classes: ['frost', 'island', 'has-siteinfo'] };
+  // does a selector's LAST compound match the bar in this state? (ancestors are taken as matching)
+  const matches = (sel, state) => {
+    const last = sel.trim().split(/\s*[>+~]\s*|\s+/).pop();
+    if (/::/.test(last)) return false;
+    const toks = last.match(/#[\w-]+|\.[\w-]+|\[[^\]]*\]|:[\w-]+(\([^)]*\))?|^[\w-]+|^\*/g) || [];
+    return toks.join('') === last && toks.every((t) => {
+      if (t[0] === '#') return t.slice(1) === el.id;
+      if (t[0] === '.') return el.classes.includes(t.slice(1));
+      if (t[0] === ':') return t === ':' + state || (state === 'focus' && t === ':focus-visible') || /^:not\(/.test(t) && !matches(t.slice(5, -1), state);
+      if (t[0] === '[') return false;
+      return t === '*' || t === el.tag;
+    });
+  };
+  const spec = (sel) => {
+    const s = sel.replace(/:not\(([^)]*)\)/g, ' $1');
+    return [(s.match(/#[\w-]+/g) || []).length, (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) || []).length, (s.match(/(^|[\s>+~])[a-z][\w-]*/gi) || []).length];
+  };
+  const px = (v) => (v === '0' ? 0 : /^-?\d+(\.\d+)?px$/.test(v) ? parseFloat(v) : (v === 'none' ? 0 : NaN));
+  const longhands = (prop, value) => {
+    const v = value.trim().split(/\s+/);
+    if (prop === 'padding-left') return { pl: px(v[0]) };
+    if (prop === 'padding') return { pl: px(v[v.length === 4 ? 3 : v.length >= 2 ? 1 : 0]) };
+    if (prop === 'border-left-width') return { bl: px(v[0]) };
+    if (prop === 'border-width') return { bl: px(v[v.length === 4 ? 3 : v.length >= 2 ? 1 : 0]) };
+    if (prop === 'border' || prop === 'border-left') {
+      if (v.includes('none') || v.includes('hidden')) return { bl: 0 };
+      const w = v.find((x) => /^(0|-?\d+(\.\d+)?px|thin|medium|thick)$/.test(x));
+      return { bl: w === undefined ? 3 : px(w) };   // no width given: medium
+    }
+    return {};
+  };
+  const resolve = (state) => {
+    const won = { pl: null, bl: null }, nested = [];
+    let order = 0;
+    for (const f of sheets) {
+      for (const r of rulesOf(strip(read(f)), '')) {
+        order++;
+        for (const sel of r.sel.split(',')) {
+          if (!matches(sel, state)) continue;
+          for (const d of r.body.split(';')) {
+            const m = /^\s*([\w-]+)\s*:\s*([^!]+?)\s*(!important)?\s*$/.exec(d);
+            if (!m) continue;
+            const lh = longhands(m[1].toLowerCase(), m[2]);
+            for (const k of Object.keys(lh)) {
+              if (r.at) { nested.push(f + ' ' + r.at + ' ' + sel.trim() + ' ' + m[1]); continue; }
+              const rank = [m[3] ? 1 : 0, ...spec(sel), order];
+              const cur = won[k];
+              const at = cur ? rank.findIndex((x, i) => x !== cur.rank[i]) : -1;
+              // !important, then specificity, then the later sheet / rule wins
+              if (!cur || at < 0 || rank[at] > cur.rank[at]) won[k] = { v: lh[k], rank, from: f + ' ' + sel.trim() };
+            }
+          }
+        }
+      }
+    }
+    return { won, nested };
+  };
+  const sjs = strip(read('siteinfo.js'));
+  const inset = Number((/var BTN_INSET = (\d+);/.exec(sjs) || [])[1]);
+  const size = Number((/var BTN_SIZE = (\d+);/.exec(sjs) || [])[1]);
+  const siCss = strip(read('siteinfo.css'));
+  const siRule = (/(^|\})\s*#siteinfo\s*\{([^}]*)\}/.exec(siCss) || [])[2] || '';
+  check(inset >= 0 && size > 0 && new RegExp('width:\\s*' + size + 'px').test(siRule) && new RegExp('height:\\s*' + size + 'px').test(siRule),
+    'siteinfo.js seats the lock BTN_INSET into the bar, and siteinfo.css draws it BTN_SIZE square', { inset, size });
+  check(/left:\s*Math\.round\(box\.left - base\.left \+ BTN_INSET\)/.test(sjs), "siteinfo.js: the lock's left is the bar's border-box left + BTN_INSET");
+  // nothing writes the bar's LEFT padding from script (islands.js writes only its right padding)
+  const writesLeft = ['app.js', 'islands.js', 'siteinfo.js'].filter((f) => /omnibox(El)?\.style\.(paddingLeft|padding\b|cssText)|omnibox(El)?\.style\.setProperty\('padding(-left)?'/.test(strip(read(f))));
+  check(writesLeft.length === 0, "no script writes the address bar's left padding: the stylesheets decide it", writesLeft);
+  for (const state of ['rest', 'hover', 'focus']) {
+    const { won, nested } = resolve(state);
+    const pl = won.pl ? won.pl.v : 0, bl = won.bl ? won.bl.v : 3;
+    const lockRight = inset + size, textLeft = bl + pl;
+    check(Number.isFinite(textLeft) && lockRight + DESIGN_GAP <= textLeft,
+      'a page in front (' + state + '): the lock\'s right edge + the design\'s 8 <= the address text\'s left edge',
+      { lockRight, gap: DESIGN_GAP, textLeft, paddingLeft: won.pl && won.pl.from, borderLeft: won.bl && won.bl.from });
+    check(nested.length === 0, 'no @media rule moves the bar\'s left padding or border (' + state + ')', nested);
+  }
+}
+
 console.log('islands: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
