@@ -66,6 +66,19 @@
 .frost.soft { --frost: var(--frost-soft); }
 .island { border-radius: var(--isl-r); }
 
+/* Light (LIGHT.md section 4): the ink ON the islands. Everything in the two
+   rows sits on an island (the tabs, the workspace pill, the +, the tab
+   search, the nav and tools plates, the address bar), so the rows take the
+   island ink: #0F1E21 and that ink at .76 / .56 / .36. The fills, the white
+   hover sheen, the island text shadow and the accent are tokens.css's light
+   values. The caption buttons are the exception below. */
+html[data-theme="light"] :is(#titlebar, .navrow) {
+  --text: var(--look-ink);
+  --text-2: var(--look-ink-2);
+  --text-3: var(--look-ink-3);
+  --text-4: var(--look-ink-4);
+}
+
 /* ---------- the rows: no fill of their own, air at the window's edges ---------- */
 html #titlebar,
 html .navrow {
@@ -216,6 +229,21 @@ body.tab-dragging .tab:not(.collapsed) .tab-collapse { opacity: 0; }
 .wincontrols button { filter: var(--island-glyph-lift); }
 #win-close:hover { background: var(--caption-close); }
 #win-close:active { background: var(--caption-close-press); }
+/* The caption buttons sit bare on the picture, which does not change with
+   the theme: the light ink with the dark halo, as in dark (LIGHT.md section
+   4, "bare text on the picture, caption buttons: unchanged"). Their hover
+   and press are the design's white .12 / .07 (a light grey plate would
+   hide the light ink); close keeps the Windows red. */
+html[data-theme="light"] .wincontrols {
+  --text: var(--look-text);
+  --text-2: var(--look-text-2);
+  --text-3: var(--look-text-3);
+  --text-4: var(--look-text-4);
+}
+html[data-theme="light"] #win-min:hover,
+html[data-theme="light"] #win-max:hover { background: var(--caption-hover); color: var(--text); }
+html[data-theme="light"] #win-min:active,
+html[data-theme="light"] #win-max:active { background: var(--caption-press); color: var(--text-2); }
 
 /* ---------- hover and press (LOOK.md section 10: "Hover / press: 160. Press =
    scale 0.94 (small buttons), 0.97 (pills), 0.985 (big tiles)") ---------- */
