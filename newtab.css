@@ -2934,6 +2934,13 @@ body.home-unfold { --home-fold: 0; }
   letter-spacing: 0;
   text-shadow: var(--text-lift);
 }
+/* In the centre column the Saved caption and the pill rows start at the
+   column's text edge, where the cards' heads start (the card's 16px
+   padding, design style.css:121): left-aligned, like the design's Saved
+   row, not centred. The rails keep their own (they hug their outer edge). */
+.column[data-column="centre"] > .saved,
+.column[data-column="centre"] > .links { justify-content: flex-start; padding: 0 16px; }
+.column[data-column="centre"] > .saved > .saved-caption { justify-content: flex-start; margin: 8px 0; text-align: left; }
 
 /* the shortcut chips (its .chip): 32px pills, the icon 8px in */
 .chip {
