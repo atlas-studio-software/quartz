@@ -153,9 +153,12 @@ run('look-shots', async ({ check, launch, say, profileDir }) => {
       const bg = await chrome.waitFor("(() => { const s = Backdrop.state(); return s.kind === 'builtin' && s.state === 'ok' && s.source && s.source.id === " + JSON.stringify(BG) + " ? s : null; })()", 20000).catch((e) => ({ error: e.message }));
       check(!bg.error, W + 'x' + H + ': the picture is the built-in ' + BG, bg.error || (bg.source && bg.source.fileName));
 
-      // Home in front, and nothing else in the strip.
+      // Home in front, and nothing else in the strip. The Phone workspace's own tab (app.js
+      // isKeptPhoneTab) is never closed: closeTab() refuses it out loud with a 5 s toast over the
+      // window (phoneTabNote), which a fresh profile's seeded Phone workspace would otherwise put
+      // in every picture. It sits in its own workspace, not in the strip on screen.
       if (!(await chrome.ev(ACTIVE_NT))) { await chrome.ev('createTab(newTabUrl()), 1'); await chrome.waitFor(ACTIVE_NT, 8000); }
-      await chrome.ev('(() => { const keep = getActiveTab(); for (const t of tabs.slice()) if (t !== keep) closeTab(t.id); return tabs.length; })()').catch(() => 0);
+      await chrome.ev('(() => { const keep = getActiveTab(); for (const t of tabs.slice()) if (t !== keep && !isKeptPhoneTab(t)) closeTab(t.id); return tabs.length; })()').catch(() => 0);
       await chrome.ev('document.activeElement && document.activeElement.blur && document.activeElement.blur(), 1').catch(() => 0);
 
       for (const theme of THEMES) {
@@ -178,6 +181,9 @@ run('look-shots', async ({ check, launch, say, profileDir }) => {
         const frost = await guest.waitFor("(() => { const s = window.Frost && window.Frost.state(); return s && s.state === 'ok' ? s : null; })()", 15000).catch((e) => ({ error: e.message }));
         check(!frost.error, W + 'x' + H + ' ' + theme + ': the Home islands show the blurred picture (frost ok)', frost.error || frost);
         await sleep(1500);   // the picture's fade-in, the guest's lift-in, the theme's own transitions
+        // A toast (settings.js showToast: a note that times out on its own) is not part of the look.
+        const toast = await chrome.waitFor("(() => { const t = document.getElementById('settings-toast'); return !t || t.hidden; })()", 8000).then(() => null, () => 'still up');
+        if (toast) say(W + 'x' + H + ' ' + theme + ': a toast is up: ' + JSON.stringify(await chrome.ev("(document.getElementById('settings-toast') || {}).textContent || ''").catch(() => '')));
         // How dark the picture is painted: the wash over it (dark: the Dim, the islands look; light: washAlpha).
         const glass = await chrome.ev('(() => { const g = Backdrop.state().glass || {}; return { alpha: g.alpha, floor: g.floor, raised: g.raised, source: g.source, mode: g.mode, reason: g.reason || g.sourceReason || null }; })()').catch((e) => ({ error: e.message }));
         say(W + 'x' + H + ' ' + theme + ': the wash over the picture ' + JSON.stringify(glass));
