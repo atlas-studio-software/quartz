@@ -78,6 +78,10 @@ html[data-theme="light"] :is(#titlebar, .navrow) {
   --text-3: var(--look-ink-3);
   --text-4: var(--look-ink-4);
 }
+/* The Home tab's icon (app.js HOME_ICON, the one light ink) sits on the tab
+   island: in light it is the same mark in the island's dark ink (LIGHT.md
+   section 4.2), in the strip and in the chrome's light pop-overs alike. */
+html[data-theme="light"] img[src$="/assets/quartz-logo-light.svg"] { content: url("assets/quartz-logo-ink.svg"); }
 
 /* ---------- the rows: no fill of their own, air at the window's edges ---------- */
 html #titlebar,
