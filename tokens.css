@@ -235,13 +235,15 @@ html[data-theme="light"] {
   --text-3: #5b6478;                        /* --lg-ink-3 */
   --text-inverse: #fbfbfc;
 
-  --ion: #4d6784;                        /* hsl(212 26% 41%) */
-  --ion-soft: rgba(77, 103, 132, 0.11);
-  --ion-glow: rgba(77, 103, 132, 0.22);
-  --ion-line: rgba(77, 103, 132, 0.40);
-  --ion-select: rgba(77, 103, 132, 0.20);
-  --seam-color: rgba(77, 103, 132, 0.14);
-  --chamber-seam: rgba(77, 103, 132, 0.16);
+  /* the light accent: look-sync's islands profile in light (v2.2, LIGHT.md section 4), the tokens
+     of its base hue 189: #083f49, at the light alphas (soft .11, the shared token's value) */
+  --ion: #083f49;
+  --ion-soft: rgba(8, 63, 73, 0.11);
+  --ion-glow: rgba(8, 63, 73, 0.22);
+  --ion-line: rgba(8, 63, 73, 0.40);
+  --ion-select: rgba(8, 63, 73, 0.20);
+  --seam-color: rgba(8, 63, 73, 0.14);
+  --chamber-seam: rgba(8, 63, 73, 0.16);
 
   --accent-strong: color-mix(in srgb, var(--ion) 80%, #000000);
   --accent-text: #ffffff;
@@ -332,7 +334,13 @@ html[data-theme="light"] {
 }
 html[data-theme="light"],
 html[data-theme="light"] [data-palette="aurora"] {
-  --palette-preview: linear-gradient(135deg, #f6f6f4 0%, #f6f6f4 58%, #4d6784 58%, #4d6784 100%);
+  --palette-preview: linear-gradient(135deg, #f6f6f4 0%, #f6f6f4 58%, #083f49 58%, #083f49 100%);
+}
+/* The default palette in light: the islands accent's own strong (hover / pressed) and ink on it
+   (look-sync v2.2). Another palette keeps the mix and white; a custom hue paints its own inline. */
+html[data-theme="light"]:not([data-palette]) {
+  --accent-strong: #05313a;
+  --accent-text: #f4f7f8;
 }
 
 [data-palette="ember"] {

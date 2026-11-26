@@ -451,6 +451,12 @@
     ['--seam-color', 0.14, 0.14],
     ['--chamber-seam', 0.16, 0.16]
   ];                            /* [token, dark alpha, light alpha] */
+  /* The look-sync accent profile per theme (CONTRACT "Accent profiles",
+     v2.2: 'islands' only in a theme whose islands look is built). Light is
+     the islands look (LIGHT.md); dark keeps the steel profile it has. */
+  var ACCENT_PROFILE = { dark: null, light: 'islands' };
+  /* painted inline in light only: the profile's strong and the ink on it */
+  var ACCENT_EXTRA = ['--accent-strong', '--accent-text'];
 
   /* --- state ---------------------------------------------------- */
   var state = null;            // the stored object, defaults NOT merged
@@ -1923,7 +1929,7 @@
       return null;
     }
     var t;
-    try { t = LA.tokens(h, light ? 'light' : 'dark'); } catch (err) {
+    try { t = light ? LA.tokens(h, 'light', ACCENT_PROFILE.light) : LA.tokens(h, 'dark'); } catch (err) {
       accentFallback = 'the shared accent formula refused hue ' + h + ' (' + ((err && err.message) || 'error') + '), so this window uses its own copy of it';
       return null;
     }
@@ -1939,7 +1945,7 @@
       }
       return 0.14;
     };
-    return {
+    var out = {
       '--ion': t.acc,
       '--ion-soft': t.soft,
       '--ion-glow': t.glow,
@@ -1948,12 +1954,19 @@
       '--seam-color': 'rgba(' + rgb + ', ' + seamA('--seam-color') + ')',
       '--chamber-seam': 'rgba(' + rgb + ', ' + seamA('--chamber-seam') + ')'
     };
+    /* light, the islands profile: its own strong (hover / pressed) and ink on
+       it, so hue 189 is exactly #083f49 / #05313a / #f4f7f8 */
+    if (light && t.strong) out['--accent-strong'] = t.strong;
+    if (light && t.on) out['--accent-text'] = t.on;
+    return out;
   }
 
   function applyAccent(hue) {
     var root = document.documentElement;
     var i;
     var h = normalizeHue(hue);
+    /* the light profile's strong / ink: painted below only in light with a hue */
+    for (i = 0; i < ACCENT_EXTRA.length; i++) root.style.removeProperty(ACCENT_EXTRA[i]);
     if (h === null) {
       /* The palette's own accent, exactly as authored: no inline props. */
       for (i = 0; i < ACCENT_TOKENS.length; i++) root.style.removeProperty(ACCENT_TOKENS[i][0]);
@@ -1983,12 +1996,18 @@
   }
 
   /**
-   * The hue the slider should sit on when nothing is chosen: the authored
-   * one. Helm's steel blue is hue 212 in both themes (tokens.css: dark
-   * hsl(212 31% 71%), light hsl(212 26% 41%)), so there is one answer.
+   * The hue the slider sits on when nothing is chosen: the authored one of
+   * the theme in effect, so turning a custom hue on keeps the colour (and
+   * nothing is written until the slider moves). Dark: the steel blue, hue
+   * 212 (hsl(212 31% 71%)). Light: the islands profile's base hue
+   * (look-sync baseHue('islands', 'light') = 189, #083f49).
    */
   function authoredHue() {
-    return 212;
+    if (!isLight()) return 212;
+    var LA = window.LookAccent;
+    var b = null;
+    if (LA && typeof LA.baseHue === 'function') { try { b = LA.baseHue(ACCENT_PROFILE.light, 'light'); } catch (err) { b = null; } }
+    return typeof b === 'number' && isFinite(b) ? b : 189;
   }
 
   /* ============================================================
@@ -9596,6 +9615,8 @@
     _renderGlassGuard: renderGlassGuard,
     _renderDesktopLine: renderDesktopLine,
     _accentFallback: function () { return accentFallback; },
+    _applyAccent: applyAccent,
+    _authoredHue: authoredHue,
     _normalizeAppPins: normalizeAppPins,
     _normalizeAppPin: normalizeAppPin,
     _pinIdOf: pinIdOf,

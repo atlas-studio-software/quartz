@@ -142,8 +142,10 @@ const TESTS = [
   { name: 'frost', file: 'frost-harness.js' },
   // The brightness check (brightcheck.js): look-sync's own v2.1 liftAlpha, full colour, the check's switch.
   { name: 'brightcheck', file: 'brightcheck-harness.js' },
-  // look-sync's shared v2.1 vectors: lift-v2 (dark) through Quartz's dark path; lift-light through the vendored liftAlpha.
+  // look-sync's shared v2.1 vectors: lift-v2 (dark) through Quartz's dark path; lift-light through its light path.
   { name: 'lift-vectors', file: 'tests/lift-vectors-test.js' },
+  // The accent per theme (look-sync v2.2): light on the islands profile (189 = #083f49), dark as it was.
+  { name: 'accent-light', file: 'tests/accent-light-test.js' },
   // The new tab's shortcut chips (app.js slice): a fresh profile does not show the Saved row twice.
   { name: 'newtab-chips', file: 'tests/newtab-chips-test.js' },
   // Which lines of a failing test's output the suite lifts under it (tools/suite-lines.js).
