@@ -181,6 +181,16 @@ run('look-shots', async ({ check, launch, say, profileDir }) => {
         // How dark the picture is painted: the wash over it (dark: the Dim, the islands look; light: washAlpha).
         const glass = await chrome.ev('(() => { const g = Backdrop.state().glass || {}; return { alpha: g.alpha, floor: g.floor, raised: g.raised, source: g.source, mode: g.mode, reason: g.reason || g.sourceReason || null }; })()').catch((e) => ({ error: e.message }));
         say(W + 'x' + H + ' ' + theme + ': the wash over the picture ' + JSON.stringify(glass));
+        // The Saved row and the shortcut chips: what each one holds, and where the chrome got it.
+        const rows = await guest.ev("(() => { const row = (sel, kid) => { const n = document.querySelector(sel); if (!n) return null; const r = n.getBoundingClientRect();" +
+          " return { id: n.id, cls: n.className, hidden: n.hidden, y: Math.round(r.top), h: Math.round(r.height), items: Array.from(n.querySelectorAll(kid)).map((c) => c.className + ':' + (c.textContent || '').trim() + (c.href ? ' ' + c.href : '')) }; };" +
+          " return { saved: row('#saved', '.rtile:not(.saved-add):not(.saved-more)'), links: row('#links', 'a') }; })()").catch((e) => ({ error: e.message }));
+        const fed = await chrome.ev("(() => ({ chipsSource: Settings.chipsSource && Settings.chipsSource(), storedChips: Array.isArray((Settings.all() || {}).chips) ? (Settings.all().chips || []).length : String((Settings.all() || {}).chips), topSites: (window.History && History.topSites ? (History.topSites(12) || []).length : null), newtabChips: (window.__newtabChips ? (window.__newtabChips() || []).map((c) => c.label) : null), saved: (Settings.chips ? (Settings.chips() || []).map((c) => c.label) : null) }))()").catch((e) => ({ error: e.message }));
+        say(W + 'x' + H + ' ' + theme + ': rows ' + JSON.stringify(rows) + ' fed ' + JSON.stringify(fed));
+        // The chrome's own islands in the top two rows: the brightness check's film on each.
+        const top = await chrome.ev("(() => { const F = window.Frost && window.Frost.state && window.Frost.state(); const out = []; for (const n of document.querySelectorAll('.frost')) { const r = n.getBoundingClientRect(); if (!r.width || r.top > 100) continue;" +
+          " out.push((n.id || n.className.replace(/\\s+/g, '.')) + '@' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' film ' + (n.style.getPropertyValue('--film') || '-')); } return { frost: F, islands: out }; })()").catch((e) => ({ error: e.message }));
+        say(W + 'x' + H + ' ' + theme + ': top-row islands ' + JSON.stringify(top));
 
         const rect = await chrome.ev('(() => { const r = getActiveTab().viewEl.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()');
         const name = 'quartz-' + theme + '-' + W + 'x' + H;
