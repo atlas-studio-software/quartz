@@ -9,6 +9,8 @@
 //      look-sync washAlpha (looksync/wash.browser.js): Manual = exactly the Dim; Automatic = max(Dim,
 //      Mantle's guard) when valid, at the STORED blur too (blur 5 while Quartz paints sharp), else the
 //      Dim with the reason; Quartz's own picture keeps its own dark check; every answer has its row text.
+//      That is v1, which light keeps. 3b: dark is on the islands look (CONTRACT 2026-11-24, v2):
+//      paintWashFrom paints the stored Dim only, never raised, "Dim 20%, brightness check per island".
 //   4. Sharp and the same in every state: no blur and no saturate on the bitmap whatever the synced blur,
 //      no Home-only scrim, hairlines gone whenever a picture is up.
 // No Electron, no DOM. Prints one summary line: "backdrop: N passed, M failed".
@@ -155,6 +157,37 @@ try {
   // The shared rule missing (script did not load): the Dim, said.
   w = washFrom(null, glass(), 'dark', pre(deskOk(band(0.6, 0.3, 5))), null);
   ok(w.alpha === 0.3 && /wash\.browser\.js\) did not load/.test(w.text), 'no LookWash: the Dim unraised, and the row says why', w.text);
+
+  /* ---- 3b. the islands look (CONTRACT "2026-11-24: the islands look (v2)") ----
+     For an app on v2 it supersedes washAlpha as the tint and the shared top band: dark paints the
+     STORED Dim only, never raised (by the shared top band or Quartz's own strip check); each island's own
+     brightness check keeps the text readable. Light stays on v1 (washFrom) until it has its own look. */
+  const { paintWashFrom, islandsWash, ISLANDS_V2 } = B;
+  ok(typeof paintWashFrom === 'function' && typeof islandsWash === 'function' && ISLANDS_V2 && ISLANDS_V2.dark === true && ISLANDS_V2.light === false,
+    'backdrop.js exports paintWashFrom / islandsWash; dark is on the islands look, light on v1', ISLANDS_V2);
+  const v2 = glass({ dim: 0.2, blurPx: 0 });
+  // cloud-peaks: Quartz's own check would have raised the dark wash to .76 (v1); v2 paints the Dim.
+  w = paintWashFrom(W, v2, 'dark', deskForWashFrom('builtin', true, null, 'builtin|cloud-peaks', 'dark'), { alpha: 0.76, ratio: 4.2 });
+  ok(w.alpha === 0.2 && !w.raised && w.source === 'dim' && w.mode === 'islands' && w.check === true,
+    'v2 dark, own picture that v1 raised to .76: painted at the Dim .20, not raised', w);
+  ok(w.text === 'Dim 20%, brightness check per island', 'v2 dark: the row reads "Dim 20%, brightness check per island"', w.text);
+  w = paintWashFrom(W, glass({ dim: 0.2 }), 'dark', pre(deskOk(band(0.6, 0.2, 5))), null);
+  ok(w.alpha === 0.2 && !w.raised && w.source === 'dim', "v2 dark, a valid shared top band .60: not used, the Dim .20", w);
+  w = paintWashFrom(W, glass({ dim: 0.45 }), 'dark', pre(deskOk(band(0.6, 0.45, 5))), null);
+  ok(w.alpha === 0.45 && w.text === 'Dim 45%, brightness check per island', 'v2 dark, a stored Dim .45 wins and the row says 45%', w);
+  w = paintWashFrom(W, glass({ dim: 0.1 }), 'dark', null, { alpha: 0.8 });
+  ok(w.alpha === 0.2, 'v2 dark, a Dim below .20 paints .20', w);
+  w = paintWashFrom(W, glass({ dim: 0.3, dimAuto: false }), 'dark', null, { alpha: 0.8 });
+  ok(w.alpha === 0.3 && w.check === false && w.text === 'Dim 30%, brightness check off' && /switched off/.test(w.reason),
+    'v2 dark, dimAuto false: the Dim, the check off and said', w);
+  w = paintWashFrom(null, v2, 'dark', null, { alpha: 0.76 });
+  ok(w.alpha === 0.2 && w.source === 'dim', 'v2 dark needs no washAlpha: the Dim even when wash.browser.js is missing', w);
+  // light: still washAlpha (v1), a valid desktop.guard.light raises the white tint
+  w = paintWashFrom(W, glass({ dim: 0.5 }), 'light', pre(deskOk(band(0.55, 0.5, 5), true), 'light'), null);
+  ok(w.alpha === 0.55 && w.raised && w.source === 'shared' && /^Automatic: /.test(w.text), 'v1 light: washAlpha as before (guard.light raises)', w);
+  // the wiring: washFor goes through paintWashFrom, and the dark refresh paints its answer
+  ok(/function washFor\(g, theme, own\) \{[\s\S]{0,200}return paintWashFrom\(window\.LookWash, g, t, ISLANDS_V2\[t\] \? null : deskForWash\(t\), own\);/.test(bjs),
+    'washFor uses paintWashFrom (no desktop lookup for a v2 theme)');
 
   /* ---- 4. sharp, the same in every state ------------------------------ */
   ok(BITMAP_BLUR_PX === 0, 'the bitmap blur is 0 (sharp)');

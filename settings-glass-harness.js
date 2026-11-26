@@ -257,7 +257,22 @@ const storedGlass = (b) => b.S.get('glass');
   {
     const b = boot(undefined, { state: { glass: { theme: 'dark', text: 'Automatic: 0.20', dimSource: 'default', dimReason: 'no Dim is set, so Quartz uses its default 20%' } } });
     const note = q(b.field, '[data-glass-guard]');
-    ok('mode line, nothing stored: names the default 20%', note.textContent === 'Automatic: 0.20 no Dim is set, so Quartz uses its default 20%.', note.textContent);
+    ok('mode line, nothing stored: names the default 20%', note.textContent === 'Automatic: 0.20; no Dim is set, so Quartz uses its default 20%.', note.textContent);
+    // dark on the islands look (CONTRACT 2026-11-24, v2): backdrop.js islandsWash's line, as is
+    const B2 = require(path.join(__dirname, 'backdrop.js'));
+    const v2 = B2.islandsWash(B.paintGlass({ dim: 0.2 }, 'dark', F, true), 'dark');
+    b.backdrop.state = { glass: { theme: 'dark', mode: v2.mode, text: v2.text, floor: 0.2, alpha: v2.alpha, raised: false, source: v2.source, dimSource: 'shared' } };
+    b.w.doc.dispatchEvent({ type: 'backdropchange' });
+    ok('mode line, v2 dark: "Dim 20%, brightness check per island"', note.textContent === 'Dim 20%, brightness check per island', note.textContent);
+    const v2s = B2.islandsWash(B.paintGlass({ dim: 0.35 }, 'dark', F, false), 'dark');
+    b.backdrop.state = { glass: { theme: 'dark', text: v2s.text, alpha: v2s.alpha, dimSource: 'saved' } };
+    b.w.doc.dispatchEvent({ type: 'backdropchange' });
+    ok('mode line, v2 dark: the real stored Dim (35%)', note.textContent === 'Dim 35%, brightness check per island', note.textContent);
+    const v2d = B2.islandsWash(B.paintGlass({ blurPx: 0 }, 'dark', F, true), 'dark');
+    const pd = B.paintGlass({ blurPx: 0 }, 'dark', F, true);
+    b.backdrop.state = { glass: { theme: 'dark', text: v2d.text, alpha: v2d.alpha, dimSource: pd.dimSource, dimReason: pd.dimReason } };
+    b.w.doc.dispatchEvent({ type: 'backdropchange' });
+    ok('mode line, v2 dark, nothing stored: the line, then the default named', note.textContent === 'Dim 20%, brightness check per island; no Dim is set, so Quartz uses its default 20%.', note.textContent);
     const p = B.paintGlass({ dim: 0.3 }, 'dark', F, false);
     b.backdrop.state = { glass: { theme: 'dark', text: 'Automatic: 0.30', dimSource: p.dimSource, dimReason: p.dimReason } };
     b.w.doc.dispatchEvent({ type: 'backdropchange' });

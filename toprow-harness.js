@@ -65,15 +65,18 @@ ok(cl.none && /can't be read/.test(cl.none) && /x\.png/.test(cl.none), "sharp la
 // Dark, a web page / Files / History / Reader / Settings open / a Claude tab: desktop still under the wash
 let t = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
 ok(t.kind === 'wash' && near(t.alpha, 0.5) && nearRgb(t.rgb, WASH_DARK), 'dark page: wash .50', t);
-t = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.62 }], 'still');
-ok(t.kind === 'wash' && near(t.alpha, 0.62), 'dark page, guard raised: wash .62', t);
+// The islands look (CONTRACT 2026-11-24, v2): the wash is the Dim (.20), never raised; the top shade
+// (backdrop.css .backdrop::after, rgb(8 10 12 / .28) at row 0) is part of the row: 1 - .8 x .72 = .424.
+const SHADE = [8, 10, 12];                    // tokens.css --shade-rgb
+t = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.2 }, { rgb: SHADE, a: 0.28 }], 'still');
+ok(t.kind === 'wash' && near(t.alpha, 0.424, 0.001) && nearRgb(t.rgb, [8, 10, 12], 1), 'dark page, v2: Dim .20 under the top shade .28 = wash .424', t);
 // The sharp layer over the bitmap (any tab in front): no scrim, so the row is the wash alone, the
 // same as a web page's (one look in every state)
 const pageTop = top([base(BG_DARK), pic(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
 t = top([base(BG_DARK), pic(1), sharp(1), { rgb: WASH_DARK, a: 0.5 }], 'still');
 ok(t.kind === 'wash' && near(t.alpha, 0.5) && nearRgb(t.rgb, WASH_DARK) && JSON.stringify(t) === JSON.stringify(pageTop), 'dark, sharp layer on: wash .50, same as without it', t);
-t = top([base(BG_DARK), sharp(1), { rgb: WASH_DARK, a: 0.62 }], 'still');
-ok(t.kind === 'wash' && near(t.alpha, 0.62), 'dark, sharp layer, guard .62: wash .62', t);
+t = top([base(BG_DARK), sharp(1), { rgb: WASH_DARK, a: 0.2 }, { rgb: SHADE, a: 0.28 }], 'still');
+ok(t.kind === 'wash' && near(t.alpha, 0.424, 0.001), 'dark, sharp layer, v2 Dim .20 + shade: wash .424', t);
 // Halfway through the sharp layer's fade (bitmap still drawn under it): the picture's weight stays 1
 t = top([base(BG_DARK), pic(1), sharp(0.5), { rgb: WASH_DARK, a: 0.5 }], 'still');
 ok(t.kind === 'wash' && near(t.alpha, 0.5), 'dark, sharp layer fading at .5: still wash .50', t);

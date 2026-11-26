@@ -27,7 +27,8 @@
                   front, both themes). No scrim: the shared wash is the only
                   tint (the user's 2026-11-11 rule). A ::after gradient, if
                   one ever comes back, is still read and counted.
-     .bg-wash     the wash: the one shared tint over the picture
+     .bg-wash     the wash: the one tint over the picture (dark, the islands
+                  look: the stored Dim, never raised; light: washAlpha)
      ::after      .backdrop's top shade (the approved floating look, 2026-11-24:
                   rgb(8 10 12 / .28) at row 0, gone by 180 px), only while a
                   picture is shown; read like the wash
@@ -39,7 +40,7 @@
    Everything there is either the picture or a flat colour, so the row is
    always   row(x) = k * picture(x) + S   (k = how much of the picture
    still shows, S = the colour layers, premultiplied). compose() works
-   k and S out from the COMPUTED styles (so the guard, the theme, the
+   k and S out from the COMPUTED styles (so the Dim, the theme, the
    workspace tint, a fade in flight are all whatever the page really
    paints this frame), and topFor() turns them into the hint:
 

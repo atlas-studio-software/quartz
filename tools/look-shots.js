@@ -178,7 +178,7 @@ run('look-shots', async ({ check, launch, say, profileDir }) => {
         const frost = await guest.waitFor("(() => { const s = window.Frost && window.Frost.state(); return s && s.state === 'ok' ? s : null; })()", 15000).catch((e) => ({ error: e.message }));
         check(!frost.error, W + 'x' + H + ' ' + theme + ': the Home islands show the blurred picture (frost ok)', frost.error || frost);
         await sleep(1500);   // the picture's fade-in, the guest's lift-in, the theme's own transitions
-        // How dark the picture is painted: the wash over it (the Dim, or raised by the legibility guard).
+        // How dark the picture is painted: the wash over it (dark: the Dim, the islands look; light: washAlpha).
         const glass = await chrome.ev('(() => { const g = Backdrop.state().glass || {}; return { alpha: g.alpha, floor: g.floor, raised: g.raised, source: g.source, mode: g.mode, reason: g.reason || g.sourceReason || null }; })()').catch((e) => ({ error: e.message }));
         say(W + 'x' + H + ' ' + theme + ': the wash over the picture ' + JSON.stringify(glass));
 

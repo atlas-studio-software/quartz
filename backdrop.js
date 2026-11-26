@@ -69,11 +69,15 @@
    themes whatever blurPx says (CONTRACT "2026-11-11: sharp painted glass
    + tint override": no blur, no saturate); blurPx is Mantle's (its guard
    is worked out at it). dim is the window's ONE tint (--chrome-glass-a:
-   dark rgb(9 10 11), light white) by look-sync's washAlpha: Manual
-   (dimAuto false) = exactly dim; Automatic = max(dim, Mantle's
-   desktop.guard.<theme>) while following the desktop, else dim with the
-   reason (dark over Quartz's own picture: Quartz's own check, washFor);
-   panel shifts the alpha of --surface-0..3 and --overlay (0 = tokens.css
+   dark rgb(9 10 11), light white). Dark is on the islands look (CONTRACT
+   "2026-11-24: the islands look (v2)", which supersedes washAlpha as the
+   tint): the picture is under the STORED Dim only, never raised, and each
+   island's own brightness check (frost.js / brightcheck.js) keeps its
+   text readable; dimAuto false turns that check off. Light keeps its v1
+   look until it has its own (the same section): look-sync's washAlpha,
+   Manual (dimAuto false) = exactly dim, Automatic = max(dim, the shared
+   desktop.guard.light) while following the desktop, else dim with the
+   reason (paintWashFrom). panel shifts the alpha of --surface-0..3 and --overlay (0 = tokens.css
    as is).
 
    Public surface:
@@ -111,6 +115,11 @@
     dark: { blurPx: 0, dim: 0.2, panel: 0 },
     light: { blurPx: 0, dim: 0.2, panel: 0 }
   };
+  /* CONTRACT "2026-11-24: the islands look (v2)": the themes Quartz paints
+     the v2 way (islandsWash). Light stays on v1 until it has its own look
+     ("Until an app builds its light look, it keeps today's light
+     behaviour"). */
+  var ISLANDS_V2 = { dark: true, light: false };
   /* Light (CONTRACT "Light look", 2026-10-14, un-held): glass.light is
      applied in light exactly as glass.dark is in dark. Since 2026-11-11
      (CONTRACT "sharp painted glass + tint override") the picture is SHARP
@@ -157,7 +166,8 @@
      alone: no document, so nothing else runs. */
   if (typeof document === 'undefined') {
     if (typeof module === 'object' && module && module.exports) {
-      module.exports = { homeReason: homeReason, washFrom: washFrom, deskForWashFrom: deskForWashFrom,
+      module.exports = { homeReason: homeReason, washFrom: washFrom, paintWashFrom: paintWashFrom, islandsWash: islandsWash,
+                         ISLANDS_V2: ISLANDS_V2, deskForWashFrom: deskForWashFrom,
                          normGlass: normGlass, paintGlass: paintGlass, SEED_GLASS: SEED_GLASS, BITMAP_BLUR_PX: BITMAP_BLUR_PX };
     }
     return;
@@ -393,7 +403,8 @@
 
   /** The glass in effect, for Settings' Dim row and the tests. alpha is
       the window's wash (--chrome-glass-a): washFor's answer for the theme
-      in effect (mode auto/manual; text = the Settings row, e.g.
+      in effect (text = the Settings row: dark, the islands look, "Dim 20%,
+      brightness check per island", mode 'islands'; light, washAlpha's
       "Automatic: 0.30, raised to 0.46 so text stays readable over this
       picture" or "Manual: 0.20"). offset = the monitor's top-left relative
       to this window's content area (lined up only). */
@@ -409,9 +420,11 @@
       floor: g.dim,
       alpha: gd.alpha,
       raised: !!gd.raised,
-      // Where alpha came from. 'shared' = Mantle's desktop.guard.<theme>
-      // (valid, in the max); 'own' = Quartz's own check over its own
-      // picture (dark); 'dim' = the Dim unraised; 'manual' = the user's Dim.
+      // Where alpha came from. 'dim' = the Dim unraised (dark, the islands
+      // look, always; light when nothing raises it); 'shared' = the shared
+      // desktop.guard.light (valid, in the max); 'manual' = the user's Dim
+      // (light). 'own' (Quartz's own check over its own picture) was v1's
+      // dark answer: ownAlpha keeps it for the record, nothing paints it.
       // sourceReason says why the shared value is not in use (null when it
       // is). ownAlpha = Quartz's own answer (dark only, for the record).
       source: gd.source || 'dim',
@@ -830,6 +843,10 @@
   /* --- how see-through the dark glass can be ------------------------ */
 
   /*
+   * v1 only. Since the islands look (CONTRACT 2026-11-24, v2) nothing paints
+   * this answer: dark's wash is the Dim (islandsWash) and each island checks
+   * its own brightness; guardAlpha below still runs so state() can report
+   * what v1 would have raised the wash to (ownAlpha). What follows is v1:
    * In dark the strip and toolbar read the wash alone, rgb(9 10 11) at
    * Helm's 50% (backdrop.css); side panes add --surface-1 on top (~83% net,
    * like a Helm panel). Over most pictures that is it. Over a bright one
@@ -954,6 +971,52 @@
   }
 
   /**
+   * The wash of one theme: paintWashFrom over the live inputs. Dark is the
+   * islands look (islandsWash: the stored Dim only); light is the v1 rule
+   * (washFrom), until Quartz builds its light look.
+   */
+  function washFor(g, theme, own) {
+    var t = theme === 'light' ? 'light' : 'dark';
+    return paintWashFrom(window.LookWash, g, t, ISLANDS_V2[t] ? null : deskForWash(t), own);
+  }
+
+  /** Pure (backdrop-harness.js): the wash Quartz paints for theme. A theme
+      on the islands look gets islandsWash; a v1 theme gets washFrom. */
+  function paintWashFrom(W, g, theme, pre, own) {
+    var t = theme === 'light' ? 'light' : 'dark';
+    if (ISLANDS_V2[t]) return islandsWash(g, t);
+    return washFrom(W, g, t, pre, own);
+  }
+
+  /**
+   * Pure (backdrop-harness.js). CONTRACT "2026-11-24: the islands look
+   * (v2)", which for an app on v2 supersedes washAlpha as the tint and the
+   * shared top band: the picture is painted under the STORED Dim only
+   * (paintGlass has applied frost.js effectiveDim: seed .20, a stored value
+   * wins, held to .20-.90), never raised by the shared top band or by
+   * Quartz's own strip check. Legibility comes from each island's own
+   * brightness-check film (frost.js over brightcheck.js, look-sync's
+   * liftAlpha) plus the design's top shade (backdrop.css .backdrop::after).
+   * glass.<theme>.dimAuto false turns the per-island check off; the wash is
+   * the Dim either way. -> washFrom's shape: { alpha, mode: 'islands',
+   * raised: false, guarded: false, reason, dim, contrast: null, text,
+   * source: 'dim', check }.
+   */
+  function islandsWash(g, theme) {
+    var d = g && typeof g.dim === 'number' && isFinite(g.dim) ? g.dim : SEED_GLASS[theme === 'light' ? 'light' : 'dark'].dim;
+    d = Math.round(Math.min(0.9, Math.max(0.2, d)) * 100) / 100;
+    var on = !(g && g.dimAuto === false);
+    return {
+      alpha: d, mode: 'islands', raised: false, guarded: false, dim: d, contrast: null, source: 'dim', check: on,
+      reason: on
+        ? 'the picture is under the Dim only; each island darkens itself just enough over a bright part of the picture'
+        : 'the picture is under the Dim only, and the brightness check is switched off, so the islands show the Dim only',
+      text: 'Dim ' + Math.round(d * 100) + '%, brightness check ' + (on ? 'per island' : 'off')
+    };
+  }
+
+  /**
+   * v1: light, until Quartz builds its light look (and any other v1 path).
    * CONTRACT "2026-11-11: sharp painted glass + tint override": ONE tint
    * over the sharp picture, by look-sync's washAlpha (looksync/
    * wash.browser.js), the same rule as Helm and Mantle:
@@ -968,10 +1031,6 @@
    * -> washAlpha's { alpha, mode, raised, guarded, reason, dim, contrast,
    *    text } plus source: 'shared' | 'own' | 'dim' | 'manual'.
    */
-  function washFor(g, theme, own) {
-    return washFrom(window.LookWash, g, theme, deskForWash(theme), own);
-  }
-
   /** Pure (backdrop-harness.js): washFor with its inputs passed in. W =
       window.LookWash; pre = deskForWashFrom's answer; own = Quartz's own
       check over its own strip ({ alpha, ratio }) or null. */
@@ -1048,8 +1107,9 @@
                    ratio: w.contrast, mode: w.mode, text: w.text, why: w.reason };
   }
 
-  /** Dark: Quartz's own check over the bitmap's band (kept for its own
-      pictures, and reported as ownAlpha), then the shared rule. */
+  /** Dark: Quartz's own check over the bitmap's band (v1's answer, kept
+      only as ownAlpha for the record), then the wash (islandsWash: the
+      Dim; the own check does not raise it). */
   function refreshDarkGuard() {
     var g = glassFor('dark');
     var floor = g.dim;

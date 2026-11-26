@@ -426,26 +426,21 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     return 'page in front after ' + a + ' ms; same band ' + JSON.stringify(pg);
   });
 
-  await test('guard: Mantle\'s desktop.guard applies, a stale one falls back with a reason (Settings says so)', async () => {
+  // CONTRACT "2026-11-24: the islands look (v2)": dark is on v2, so the shared top band is not used (it
+  // supersedes washAlpha as the tint): the wash is the stored Dim whatever desktop.guard.dark says.
+  await test('guard (v2 dark): the shared desktop.guard does not raise the wash; it stays the Dim (Settings says so)', async () => {
     must(await waitFor("Backdrop.state().kind === 'desktop' && Backdrop.state().state === 'ok' && Backdrop.state().glass.floor === 0.5 && Backdrop.state().glass.blurPx === 5", 3000), 'desktop ok at dim .5 / blur 5');
-    const RK = '(Backdrop._lastRender() || {}).key';
-    const key0 = await ev(RK);
     await writeGuard({ dark: { alpha: 0.6, dim: 0.5, blurPx: 5, contrast: 4.3 } });
-    const a = must(await waitFor("(() => { const g = Backdrop.state().glass; const css = Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')); return g.source === 'shared' && g.alpha === 0.6 && css === 0.6 ? g : null; })()", 3000), 'shared .6 on --chrome-glass-a');
-    // CONTRACT: a guard change comes with a desktop rev bump, and the still URL
-    // carries ?rev=, so a re-read of the still is expected here (the node
-    // harness covers 'same still, new guard: no re-blur').
-    const reread = (await ev(RK)) !== key0;
+    const DIM = "(() => { const g = Backdrop.state().glass; const css = Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')); return g.source === 'dim' && g.mode === 'islands' && g.alpha === 0.5 && !g.raised && css === 0.5 ? g : null; })()";
+    await sleep(500);                                  // a guard that applied would have landed by now (v1 took ~170 ms)
+    const a = must(await waitFor(DIM, 3000), 'a valid guard .6: still the Dim .5 on --chrome-glass-a');
     await ev('Settings.open(), 1');
     const NOTE = "(() => { const e = document.querySelector('[data-glass-guard]'); return e ? { hidden: e.hidden, text: e.textContent } : null; })()";
-    const n1 = (must(await waitFor(NOTE + " && /^Automatic: 0\\.50, raised to 0\\.60 so text stays readable/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: automatic, raised'), await ev(NOTE));
-    await writeGuard({ dark: { alpha: 0.6, dim: 0.6, blurPx: 5, contrast: 4.3 } });
-    const b = must(await waitFor("(() => { const g = Backdrop.state().glass; const css = Number(getComputedStyle(document.documentElement).getPropertyValue('--chrome-glass-a')); return g.source === 'dim' && g.alpha === 0.5 && /Dim 0\\.60/.test(g.sourceReason || '') && css === 0.5 ? g : null; })()", 3000), 'stale dim .6 -> the Dim .5 with a reason');
-    const n2 = (must(await waitFor(NOTE + " && /^Automatic: 0\\.50, not raised: .*Dim 0\\.60/.test(" + NOTE + '.text) ? ' + NOTE + ' : null', 3000), 'Settings row: not raised + reason'), await ev(NOTE));
+    const n1 = (must(await waitFor(NOTE + " && /^Dim 50%, brightness check per island/.test(" + NOTE + '.text) && !' + NOTE + '.hidden ? ' + NOTE + ' : null', 3000), 'Settings row: Dim 50%, brightness check per island'), await ev(NOTE));
     await ev('Settings.close && Settings.close(), 1');
     await writeGuard(undefined);
-    must(await waitFor("Backdrop.state().glass.source === 'dim' && Backdrop.state().glass.alpha === 0.5 && /no shared value/.test(Backdrop.state().glass.sourceReason || '')", 3000), 'guard removed -> the Dim, "no shared value"');
-    return 'shared ' + a + ' ms (still re-read for the rev bump: ' + reread + '), stale ' + b + ' ms\n    note shared: "' + n1.text + '"\n    note own:    "' + n2.text + '"';
+    must(await waitFor(DIM, 3000), 'guard removed: still the Dim .5');
+    return 'guard ignored ' + a + ' ms\n    note: "' + n1.text + '"';
   });
 
   await test('light guard: Mantle\'s desktop.guard.light is the white wash; missing/stale fall back to the dim with a reason (Settings says so)', async () => {
@@ -465,7 +460,7 @@ const alpha = (rgba) => { const m = /rgba?\(([^)]+)\)/.exec(rgba || ''); return 
     await ev('Settings.close && Settings.close(), 1');
     await writeGuard({ dark: { alpha: 0.5, dim: 0.5, blurPx: 5, contrast: 4.21 } });
     fw('--app', 'helm', 'set', 'theme', 'dark');
-    must(await waitFor("document.documentElement.getAttribute('data-theme') === 'dark' && Backdrop.state().glass.source === 'shared' && Backdrop.state().glass.alpha === 0.5", 3000), 'dark: shared .5 as before');
+    must(await waitFor("document.documentElement.getAttribute('data-theme') === 'dark' && Backdrop.state().glass.source === 'dim' && Backdrop.state().glass.alpha === 0.5", 3000), 'dark: the Dim .5 (v2: the top band is not used)');
     return 'missing ' + m + ' ms, shared ' + a + ' ms, stale ' + b + ' ms\n    note shared: "' + n1.text + '"\n    note stale:  "' + n2.text + '"';
   });
 

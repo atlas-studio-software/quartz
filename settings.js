@@ -3032,8 +3032,9 @@
   /**
    * The Dim row's mode line (pure): backdrop.js's glass state `gs` for the
    * theme on show, and the stored glass for that theme `g`. backdrop.js
-   * writes the whole line (gs.text: "Automatic: ..." / "Manual: ...").
-   * An older backdrop.js without it keeps its old wording, worked out here;
+   * writes the whole line (gs.text: dark, on the islands look, "Dim 20%,
+   * brightness check per island" / "... brightness check off"; light, still
+   * on v1, "Automatic: ..." / "Manual: ..."). An older backdrop.js without it keeps its old wording, worked out here;
    * no state at all is said, never blank.
    */
   function glassGuardText(gs, theme, g) {
@@ -3081,7 +3082,9 @@
     // so say why. A stored Dim (0.30 included) paints itself, which the
     // wash text above already names.
     var gl = st && st.glass;
-    if (gl && gl.dimSource === 'default' && gl.dimReason) text = (text ? text + ' ' : '') + gl.dimReason + '.';
+    if (gl && gl.dimSource === 'default' && gl.dimReason) {
+      text = (text ? text + (/[.!?:;]$/.test(text) ? ' ' : '; ') : '') + gl.dimReason + '.';
+    }
     note.textContent = text;
     note.hidden = false;
   }
